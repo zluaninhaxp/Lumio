@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import { mockTransactions, mockTasks, mockCalendarEvents } from '../data/mock';
+import {
+  guessBusinessTypeFallback,
+  guessBusinessNameFallback,
+} from '../engine/openOnboardingEngine';
 
-type Transaction = typeof mockTransactions[0];
-type Task = typeof mockTasks[0];
-type CalendarEvent = typeof mockCalendarEvents[0];
+type Transaction = (typeof mockTransactions)[0];
+type Task = (typeof mockTasks)[0];
+type CalendarEvent = (typeof mockCalendarEvents)[0];
 
 interface ChatMessage {
   id: string;
@@ -13,30 +17,52 @@ interface ChatMessage {
   timestamp: Date;
 }
 
-interface AppStore {
-  // Transactions
+export interface AppStore {
+  hasSeenSplash: boolean;
+  setHasSeenSplash: (value: boolean) => void;
+
+  onboardingCompleted: boolean;
+  businessName: string;
+  businessType: string;
+  openAnswers: Record<string, string>;
+
+  applyOpenOnboardingConfig: (answers: Record<string, string>) => void;
+
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
   removeTransaction: (id: string) => void;
 
-  // Tasks
   tasks: Task[];
   addTask: (t: Omit<Task, 'id'>) => void;
   toggleTask: (id: string) => void;
   removeTask: (id: string) => void;
 
-  // Calendar
   events: CalendarEvent[];
   addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
   toggleEvent: (id: string) => void;
 
-  // Chat
   messages: ChatMessage[];
   addMessage: (m: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   clearMessages: () => void;
 }
 
 export const useAppStore = create<AppStore>((set) => ({
+  hasSeenSplash: false,
+  setHasSeenSplash: (value) => set({ hasSeenSplash: value }),
+
+  onboardingCompleted: false,
+  businessName: '',
+  businessType: '',
+  openAnswers: {},
+
+  applyOpenOnboardingConfig: (answers) =>
+    set({
+      openAnswers: answers,
+      businessType: guessBusinessTypeFallback(answers),
+      businessName: guessBusinessNameFallback(answers),
+      onboardingCompleted: true,
+    }),
+
   transactions: mockTransactions,
   addTransaction: (t) =>
     set((s) => ({

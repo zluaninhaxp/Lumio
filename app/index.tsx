@@ -1,26 +1,43 @@
-import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useAppStore } from '@/src/store';
+import SplashMedia from '@/app/components/SplashMedia';
 
 export default function SplashIndex() {
   const router = useRouter();
+  const hasNavigated = useRef(false);
+  const hasSeenSplash = useAppStore((s) => s.hasSeenSplash);
+  const setHasSeenSplash = useAppStore((s) => s.setHasSeenSplash);
+  const onboardingCompleted = useAppStore((s) => s.onboardingCompleted);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (hasSeenSplash && !hasNavigated.current) {
+      hasNavigated.current = true;
+      if (onboardingCompleted) {
+        router.replace('/(tabs)/chat');
+      } else {
+        router.replace('/onboarding');
+      }
+    }
+  }, [hasSeenSplash, onboardingCompleted]);
+
+  if (hasSeenSplash) return null;
+
+  const handleEnd = () => {
+    if (hasNavigated.current) return;
+    hasNavigated.current = true;
+    setHasSeenSplash(true);
+    if (onboardingCompleted) {
       router.replace('/(tabs)/chat');
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, []);
+    } else {
+      router.replace('/onboarding');
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Logo SVG simplificado como texto estilizado */}
-      <View style={styles.logoContainer}>
-        <View style={styles.iconCircle}>
-          <Text style={styles.iconEmoji}>🌀</Text>
-        </View>
-        <Text style={styles.logoText}>Fluxia</Text>
-      </View>
+      <SplashMedia onEnd={handleEnd} bgColor="#007F6A" />
     </View>
   );
 }
@@ -28,29 +45,8 @@ export default function SplashIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#00A878',
+    backgroundColor: '#007F6A',
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  logoContainer: {
-    alignItems: 'center',
-    gap: 16,
-  },
-  iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconEmoji: {
-    fontSize: 40,
-  },
-  logoText: {
-    fontFamily: 'PlusJakartaSans_800ExtraBold',
-    fontSize: 40,
-    color: '#FFFFFF',
-    letterSpacing: -1,
   },
 });
