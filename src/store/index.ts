@@ -4,6 +4,7 @@ import {
   guessBusinessTypeFallback,
   guessBusinessNameFallback,
 } from '../engine/openOnboardingEngine';
+import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardingContext';
 
 type Transaction = (typeof mockTransactions)[0];
 type Task = (typeof mockTasks)[0];
@@ -25,6 +26,8 @@ export interface AppStore {
   businessName: string;
   businessType: string;
   openAnswers: Record<string, string>;
+  /** DTO único, pronto para a futura integração com IA (ver src/ai/). */
+  onboardingContext: OnboardingContextDTO | null;
 
   applyOpenOnboardingConfig: (answers: Record<string, string>) => void;
 
@@ -54,12 +57,14 @@ export const useAppStore = create<AppStore>((set) => ({
   businessName: '',
   businessType: '',
   openAnswers: {},
+  onboardingContext: null,
 
   applyOpenOnboardingConfig: (answers) =>
     set({
       openAnswers: answers,
       businessType: guessBusinessTypeFallback(answers),
       businessName: guessBusinessNameFallback(answers),
+      onboardingContext: buildOnboardingContextDTO(answers),
       onboardingCompleted: true,
     }),
 

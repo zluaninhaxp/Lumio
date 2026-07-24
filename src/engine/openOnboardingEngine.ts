@@ -25,11 +25,21 @@ export function guessBusinessTypeFallback(answers: OpenOnboardingAnswers): strin
 
 /**
  * Tenta extrair um nome de negócio curto a partir da resposta do bloco 1.
- * Heurística simples: pega o texto antes da primeira vírgula ou "—".
+ * Primeiro procura por padrões explícitos ("chamado X", "chamada X",
+ * "chama-se X"), que tendem a isolar melhor o nome próprio do que apenas
+ * cortar no primeiro sinal de pontuação. Se nada for encontrado, cai para a
+ * heurística antiga (texto antes da primeira vírgula/travessão).
  * Também será substituída pelo prompt de extração com IA.
  */
 export function guessBusinessNameFallback(answers: OpenOnboardingAnswers): string {
   const firstAnswer = answers.visaoGeral ?? '';
+
+  const namedPattern = /cham[ao](?:-se)?\s+([A-ZÀ-Ú][\p{L}0-9'-]*(?:\s+[A-ZÀ-Ú0-9][\p{L}0-9'-]*){0,3})/u;
+  const match = firstAnswer.match(namedPattern);
+  if (match?.[1]) {
+    return match[1].trim();
+  }
+
   const firstPart = firstAnswer.split(/[,—–-]/)[0]?.trim() ?? '';
   if (firstPart.length >= 3 && firstPart.length <= 80) {
     return firstPart;
