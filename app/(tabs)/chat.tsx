@@ -160,10 +160,10 @@ export default function ChatScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.fluxiaIcon}>
-            <Text style={styles.fluxiaIconText}>F</Text>
+          <View style={styles.lumioIcon}>
+            <Text style={styles.lumioIconText}>L</Text>
           </View>
-          <Text style={styles.headerTitle}>Fluxia</Text>
+          <Text style={styles.headerTitle}>Lumio</Text>
         </View>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>OJ</Text>
@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  fluxiaIcon: {
+  lumioIcon: {
     width: 32,
     height: 32,
     borderRadius: Radius.full,
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  fluxiaIconText: {
+  lumioIconText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: 14,
     color: '#FFFFFF',

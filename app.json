@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "fluxia",
-    "slug": "fluxia",
+    "name": "lumio",
+    "slug": "lumio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -23,8 +23,8 @@
       "bundler": "metro"
     },
     "newArchEnabled": true,
-    "scheme": "fluxia",
-    "plugins": ["expo-router", "expo-font"],
+    "scheme": "lumio",
+    "plugins": ["expo-router", "expo-font", "expo-video"],
     "experiments": {
       "typedRoutes": true
     }

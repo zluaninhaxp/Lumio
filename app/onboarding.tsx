@@ -34,6 +34,12 @@ export default function OnboardingScreen() {
   const followUpUsedRef = useRef<Record<string, boolean>>({});
   const isEditingRef = useRef(false);
   const pushedBlocksRef = useRef<Set<string>>(new Set());
+  // Conta quantas vezes o usuário já enviou uma resposta para o bloco atual
+  // (1ª tentativa, resposta ao follow-up, nova tentativa após editar, etc.)
+  // Cada tentativa precisa de um id de mensagem único — sem isso, a 2ª
+  // resposta do mesmo bloco (por ex. depois do follow-up) usava sempre o
+  // mesmo id da 1ª e o balão do usuário simplesmente não aparecia na tela.
+  const attemptCountRef = useRef<Record<string, number>>({});
 
   const [blockIndex, setBlockIndex] = useState(0);
   const [answers, setAnswers] = useState<OpenOnboardingAnswers>({});
@@ -41,6 +47,7 @@ export default function OnboardingScreen() {
   const [inputValue, setInputValue] = useState('');
   const [showSummary, setShowSummary] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [botTyping, setBotTyping] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
 
@@ -62,18 +69,40 @@ export default function OnboardingScreen() {
     });
   }, []);
 
+  // Mostra um pequeno indicador de "digitando" antes de cada mensagem do bot,
+  // e intercala as mensagens de uma lista uma por vez — evita que uma
+  // transição + pergunta apareçam de uma vez só, o que parecia um despejo de
+  // texto em vez de uma conversa.
+  const queueBotMessages = useCallback((msgs: { id: string; text: string }[]) => {
+    let i = 0;
+    const step = () => {
+      if (i >= msgs.length) {
+        setBotTyping(false);
+        return;
+      }
+      setBotTyping(true);
+      setTimeout(() => {
+        setBotTyping(false);
+        pushBotMsg(msgs[i].id, msgs[i].text);
+        i += 1;
+        setTimeout(step, 150);
+      }, 550);
+    };
+    step();
+  }, [pushBotMsg]);
+
   const enterBlock = useCallback((index: number) => {
     const block = OPEN_QUESTIONS[index];
     const baseKey = block.id;
 
     if (!pushedBlocksRef.current.has(baseKey)) {
-      if (block.transition) {
-        pushBotMsg(`${baseKey}-transition`, block.transition);
-      }
-      pushBotMsg(`${baseKey}-question`, block.question);
+      const msgs: { id: string; text: string }[] = [];
+      if (block.transition) msgs.push({ id: `${baseKey}-transition`, text: block.transition });
+      msgs.push({ id: `${baseKey}-question`, text: block.question });
+      queueBotMessages(msgs);
       pushedBlocksRef.current.add(baseKey);
     }
-  }, [pushBotMsg]);
+  }, [queueBotMessages]);
 
   // Entra no primeiro bloco na montagem
   useEffect(() => {
@@ -85,38 +114,9 @@ export default function OnboardingScreen() {
   // Scroll ao adicionar mensagens
   useEffect(() => {
     scrollToBottom();
-  }, [messages, scrollToBottom]);
+  }, [messages, botTyping, scrollToBottom]);
 
-  const handleSubmit = useCallback(() => {
-    const text = inputValue.trim();
-    if (!text) return;
-    if (showSummary) return;
-
-    const currentIndex = blockIndexRef.current;
-    const block = OPEN_QUESTIONS[currentIndex];
-    const answerKey = `${block.id}-answer-${isEditingRef.current ? 'edit' : 'main'}`;
-
-    pushUserMsg(answerKey, text);
-    setInputValue('');
-
-    const newAnswers = { ...answersRef.current, [block.id]: text };
-    answersRef.current = newAnswers;
-    setAnswers(newAnswers);
-
-    const isShort = text.length < block.minLengthForFollowUp;
-    const alreadyFollowedUp = followUpUsedRef.current[block.id];
-
-    if (isShort && !alreadyFollowedUp) {
-      followUpUsedRef.current[block.id] = true;
-      const fuKey = `${block.id}-followup`;
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === fuKey)) return prev;
-        return [...prev, { id: fuKey, type: 'bot', text: block.followUp }];
-      });
-      return;
-    }
-
-    // Avança
+  const advanceFromBlock = useCallback((currentIndex: number) => {
     if (isEditingRef.current) {
       isEditingRef.current = false;
       setEditingBlockId(null);
@@ -137,7 +137,49 @@ export default function OnboardingScreen() {
       blockIndexRef.current = next;
       enterBlock(next);
     }
-  }, [inputValue, showSummary, pushUserMsg, enterBlock]);
+  }, [enterBlock, pushBotMsg]);
+
+  const handleSkip = useCallback(() => {
+    const currentIndex = blockIndexRef.current;
+    const block = OPEN_QUESTIONS[currentIndex];
+    if (!block?.optional) return;
+
+    pushUserMsg(`${block.id}-skip`, '(pulou esta pergunta)');
+    setInputValue('');
+    advanceFromBlock(currentIndex);
+  }, [advanceFromBlock, pushUserMsg]);
+
+  const handleSubmit = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text) return;
+    if (showSummary) return;
+
+    const currentIndex = blockIndexRef.current;
+    const block = OPEN_QUESTIONS[currentIndex];
+    const attempt = (attemptCountRef.current[block.id] ?? 0) + 1;
+    attemptCountRef.current[block.id] = attempt;
+    const answerKey = `${block.id}-answer-${isEditingRef.current ? 'edit' : 'main'}-${attempt}`;
+
+    pushUserMsg(answerKey, text);
+    setInputValue('');
+
+    const newAnswers = { ...answersRef.current, [block.id]: text };
+    answersRef.current = newAnswers;
+    setAnswers(newAnswers);
+
+    const isShort = text.length < block.minLengthForFollowUp;
+    const alreadyFollowedUp = followUpUsedRef.current[block.id];
+
+    if (isShort && !alreadyFollowedUp) {
+      followUpUsedRef.current[block.id] = true;
+      const fuKey = `${block.id}-followup`;
+      queueBotMessages([{ id: fuKey, text: block.followUp }]);
+      return;
+    }
+
+    // Avança
+    advanceFromBlock(currentIndex);
+  }, [inputValue, showSummary, pushUserMsg, advanceFromBlock]);
 
   const handleEdit = useCallback((blockId: string) => {
     const index = OPEN_QUESTIONS.findIndex((q) => q.id === blockId);
@@ -156,13 +198,15 @@ export default function OnboardingScreen() {
     blockIndexRef.current = index;
 
     const block = OPEN_QUESTIONS[index];
-    pushBotMsg(`${blockId}-transition-edit`, block.transition ?? '');
-    pushBotMsg(`${blockId}-question-edit`, block.question);
-  }, [pushBotMsg]);
+    const msgs: { id: string; text: string }[] = [];
+    if (block.transition) msgs.push({ id: `${blockId}-transition-edit`, text: block.transition });
+    msgs.push({ id: `${blockId}-question-edit`, text: block.question });
+    queueBotMessages(msgs);
+  }, [pushBotMsg, queueBotMessages]);
 
   const handleFinish = useCallback(() => {
     applyOpenOnboardingConfig(answersRef.current);
-    router.replace('/(tabs)/chat');
+    router.replace('/celebration');
   }, [applyOpenOnboardingConfig, router]);
 
   const currentBlock = blockIndex < BLOCK_COUNT ? OPEN_QUESTIONS[blockIndex] : null;
@@ -295,6 +339,18 @@ export default function OnboardingScreen() {
           ]}
           showsVerticalScrollIndicator={false}
           onContentSizeChange={scrollToBottom}
+          ListFooterComponent={
+            botTyping ? (
+              <View style={styles.botRow}>
+                <View style={styles.botAvatar}>
+                  <Text style={styles.botAvatarText}>L</Text>
+                </View>
+                <View style={[styles.botBubble, styles.typingBubble]}>
+                  <Text style={styles.typingDots}>•••</Text>
+                </View>
+              </View>
+            ) : null
+          }
         />
 
         {currentBlock && (
@@ -309,13 +365,19 @@ export default function OnboardingScreen() {
               returnKeyType="send"
               multiline
             />
-            <TouchableOpacity
-              style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={!inputValue.trim()}
-            >
-              <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-            </TouchableOpacity>
+            {currentBlock.optional && !inputValue.trim() ? (
+              <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} activeOpacity={0.7}>
+                <Text style={styles.skipBtnText}>Pular</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]}
+                onPress={handleSubmit}
+                disabled={!inputValue.trim()}
+              >
+                <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </KeyboardAvoidingView>
@@ -424,6 +486,13 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     lineHeight: 22,
   },
+  typingBubble: { paddingVertical: Spacing.sm },
+  typingDots: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.md,
+    color: Colors.textMuted,
+    letterSpacing: 2,
+  },
 
   inputBar: {
     flexDirection: 'row',
@@ -457,6 +526,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: Colors.textMuted },
+  skipBtn: {
+    height: 44,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipBtnText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
 
   // Summary screen
   summaryScroll: { flex: 1 },

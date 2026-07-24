@@ -1,43 +1,26 @@
-import { useEffect, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppStore } from '@/src/store';
-import SplashMedia from '@/app/components/SplashMedia';
 
-export default function SplashIndex() {
+const BG_COLOR = '#007F6A';
+const SHOW_DURATION = 2000;
+
+export default function Index() {
   const router = useRouter();
-  const hasNavigated = useRef(false);
-  const hasSeenSplash = useAppStore((s) => s.hasSeenSplash);
   const setHasSeenSplash = useAppStore((s) => s.setHasSeenSplash);
-  const onboardingCompleted = useAppStore((s) => s.onboardingCompleted);
 
   useEffect(() => {
-    if (hasSeenSplash && !hasNavigated.current) {
-      hasNavigated.current = true;
-      if (onboardingCompleted) {
-        router.replace('/(tabs)/chat');
-      } else {
-        router.replace('/onboarding');
-      }
-    }
-  }, [hasSeenSplash, onboardingCompleted]);
-
-  if (hasSeenSplash) return null;
-
-  const handleEnd = () => {
-    if (hasNavigated.current) return;
-    hasNavigated.current = true;
     setHasSeenSplash(true);
-    if (onboardingCompleted) {
-      router.replace('/(tabs)/chat');
-    } else {
+    const timer = setTimeout(() => {
       router.replace('/onboarding');
-    }
-  };
+    }, SHOW_DURATION);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <View style={styles.container}>
-      <SplashMedia onEnd={handleEnd} bgColor="#007F6A" />
+      <Text style={styles.title}>Lumio</Text>
     </View>
   );
 }
@@ -45,8 +28,14 @@ export default function SplashIndex() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#007F6A',
+    backgroundColor: BG_COLOR,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  title: {
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: 48,
+    color: '#FFFFFF',
+    letterSpacing: 2,
   },
 });
