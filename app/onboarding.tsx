@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
-  TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView,
+  View, Text, StyleSheet, TextInput, TouchableOpacity,
+  KeyboardAvoidingView, Platform, ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,15 +14,27 @@ import {
   guessBusinessTypeFallback,
   guessBusinessNameFallback,
 } from '../src/engine/openOnboardingEngine';
-
-interface Msg {
-  id: string;
-  type: 'bot' | 'user';
-  text: string;
-}
+import {
+  MASCOT_IMAGES,
+  BLOCK_MASCOT_EXPRESSION,
+  STAGE_INTRO_MASCOT,
+  INTERACTION_MASCOT,
+  MascotExpressionKey,
+} from '../src/data/mascotExpressions';
+import Mascot from './components/onboarding/Mascot';
+import SpeechBubble from './components/onboarding/SpeechBubble';
+import UserReply from './components/onboarding/UserReply';
+import VoiceInput from './components/onboarding/VoiceInput';
+import StageProgress from './components/onboarding/StageProgress';
 
 const BLOCK_COUNT = OPEN_QUESTIONS.length;
 const TOTAL_STAGES = 4;
+
+interface Line {
+  key: string;
+  text: string;
+  expression: MascotExpressionKey;
+}
 
 export default function OnboardingScreen() {
   const router = useRouter();
@@ -34,87 +46,66 @@ export default function OnboardingScreen() {
   const followUpUsedRef = useRef<Record<string, boolean>>({});
   const isEditingRef = useRef(false);
   const pushedBlocksRef = useRef<Set<string>>(new Set());
-  // Conta quantas vezes o usuário já enviou uma resposta para o bloco atual
-  // (1ª tentativa, resposta ao follow-up, nova tentativa após editar, etc.)
-  // Cada tentativa precisa de um id de mensagem único — sem isso, a 2ª
-  // resposta do mesmo bloco (por ex. depois do follow-up) usava sempre o
-  // mesmo id da 1ª e o balão do usuário simplesmente não aparecia na tela.
   const attemptCountRef = useRef<Record<string, number>>({});
+  const queueTokenRef = useRef(0);
 
   const [blockIndex, setBlockIndex] = useState(0);
-  const [answers, setAnswers] = useState<OpenOnboardingAnswers>({});
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [inputValue, setInputValue] = useState('');
   const [showSummary, setShowSummary] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
-  const [botTyping, setBotTyping] = useState(false);
+  const [inputValue, setInputValue] = useState('');
 
-  const flatListRef = useRef<FlatList>(null);
+  const [isTyping, setIsTyping] = useState(false);
+  const [currentLine, setCurrentLine] = useState<Line | null>(null);
+  const [lastUserReply, setLastUserReply] = useState<{ text: string; isVoice?: boolean } | null>(null);
 
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 120);
-  }, []);
-
-  const pushBotMsg = useCallback((id: string, text: string) => {
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === id)) return prev;
-      return [...prev, { id, type: 'bot', text }];
-    });
-  }, []);
-
-  const pushUserMsg = useCallback((id: string, text: string) => {
-    setMessages((prev) => {
-      if (prev.some((m) => m.id === id)) return prev;
-      return [...prev, { id, type: 'user', text }];
-    });
-  }, []);
-
-  // Mostra um pequeno indicador de "digitando" antes de cada mensagem do bot,
-  // e intercala as mensagens de uma lista uma por vez — evita que uma
-  // transição + pergunta apareçam de uma vez só, o que parecia um despejo de
-  // texto em vez de uma conversa.
-  const queueBotMessages = useCallback((msgs: { id: string; text: string }[]) => {
+  // Encadeia as falas do mascote uma de cada vez, com uma pequena pausa de
+  // "pensando" entre elas — dá a sensação de conversa guiada em vez de
+  // despejar todo o texto de uma vez.
+  const queueLines = useCallback((lines: Line[]) => {
+    const token = ++queueTokenRef.current;
+    setLastUserReply(null);
     let i = 0;
     const step = () => {
-      if (i >= msgs.length) {
-        setBotTyping(false);
+      if (queueTokenRef.current !== token) return;
+      if (i >= lines.length) {
+        setIsTyping(false);
         return;
       }
-      setBotTyping(true);
+      setIsTyping(true);
       setTimeout(() => {
-        setBotTyping(false);
-        pushBotMsg(msgs[i].id, msgs[i].text);
+        if (queueTokenRef.current !== token) return;
+        setIsTyping(false);
+        setCurrentLine(lines[i]);
         i += 1;
-        setTimeout(step, 150);
+        setTimeout(step, 200);
       }, 550);
     };
     step();
-  }, [pushBotMsg]);
+  }, []);
 
   const enterBlock = useCallback((index: number) => {
     const block = OPEN_QUESTIONS[index];
-    const baseKey = block.id;
-
-    if (!pushedBlocksRef.current.has(baseKey)) {
-      const msgs: { id: string; text: string }[] = [];
-      if (block.transition) msgs.push({ id: `${baseKey}-transition`, text: block.transition });
-      msgs.push({ id: `${baseKey}-question`, text: block.question });
-      queueBotMessages(msgs);
-      pushedBlocksRef.current.add(baseKey);
+    const lines: Line[] = [];
+    if (block.transition) {
+      lines.push({
+        key: `${block.id}-transition`,
+        text: block.transition,
+        expression: STAGE_INTRO_MASCOT[block.stage],
+      });
     }
-  }, [queueBotMessages]);
+    lines.push({
+      key: `${block.id}-question`,
+      text: block.question,
+      expression: BLOCK_MASCOT_EXPRESSION[block.id] ?? 'neutro',
+    });
+    queueLines(lines);
+    pushedBlocksRef.current.add(block.id);
+  }, [queueLines]);
 
-  // Entra no primeiro bloco na montagem
   useEffect(() => {
     enterBlock(0);
-    scrollToBottom();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Scroll ao adicionar mensagens
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, botTyping, scrollToBottom]);
 
   const advanceFromBlock = useCallback((currentIndex: number) => {
     if (isEditingRef.current) {
@@ -131,55 +122,66 @@ export default function OnboardingScreen() {
       setShowSummary(true);
       setBlockIndex(next);
       blockIndexRef.current = next;
-      pushBotMsg('summary-message', 'Prontinho! Veja abaixo um resumo do que você me contou. Se quiser ajustar alguma resposta, é só tocar em "Editar".');
+      queueLines([{
+        key: 'summary-message',
+        text: 'Prontinho! Veja abaixo um resumo do que você me contou. Se quiser ajustar alguma resposta, é só tocar em "Editar".',
+        expression: INTERACTION_MASCOT.summary,
+      }]);
     } else {
       setBlockIndex(next);
       blockIndexRef.current = next;
       enterBlock(next);
     }
-  }, [enterBlock, pushBotMsg]);
+  }, [enterBlock, queueLines]);
 
-  const handleSkip = useCallback(() => {
-    const currentIndex = blockIndexRef.current;
-    const block = OPEN_QUESTIONS[currentIndex];
-    if (!block?.optional) return;
-
-    pushUserMsg(`${block.id}-skip`, '(pulou esta pergunta)');
-    setInputValue('');
-    advanceFromBlock(currentIndex);
-  }, [advanceFromBlock, pushUserMsg]);
-
-  const handleSubmit = useCallback(() => {
-    const text = inputValue.trim();
-    if (!text) return;
-    if (showSummary) return;
-
+  const submitAnswer = useCallback((text: string, isVoice: boolean) => {
     const currentIndex = blockIndexRef.current;
     const block = OPEN_QUESTIONS[currentIndex];
     const attempt = (attemptCountRef.current[block.id] ?? 0) + 1;
     attemptCountRef.current[block.id] = attempt;
-    const answerKey = `${block.id}-answer-${isEditingRef.current ? 'edit' : 'main'}-${attempt}`;
 
-    pushUserMsg(answerKey, text);
+    setLastUserReply({ text, isVoice });
     setInputValue('');
 
     const newAnswers = { ...answersRef.current, [block.id]: text };
     answersRef.current = newAnswers;
-    setAnswers(newAnswers);
 
     const isShort = text.length < block.minLengthForFollowUp;
     const alreadyFollowedUp = followUpUsedRef.current[block.id];
 
     if (isShort && !alreadyFollowedUp) {
       followUpUsedRef.current[block.id] = true;
-      const fuKey = `${block.id}-followup`;
-      queueBotMessages([{ id: fuKey, text: block.followUp }]);
+      queueLines([{
+        key: `${block.id}-followup-${attempt}`,
+        text: block.followUp,
+        expression: INTERACTION_MASCOT.followUp,
+      }]);
       return;
     }
 
-    // Avança
     advanceFromBlock(currentIndex);
-  }, [inputValue, showSummary, pushUserMsg, advanceFromBlock]);
+  }, [advanceFromBlock, queueLines]);
+
+  const handleSubmit = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text || showSummary) return;
+    submitAnswer(text, false);
+  }, [inputValue, showSummary, submitAnswer]);
+
+  const handleVoiceCapture = useCallback((transcript: string) => {
+    if (showSummary || !transcript.trim()) return;
+    submitAnswer(transcript.trim(), true);
+  }, [showSummary, submitAnswer]);
+
+  const handleSkip = useCallback(() => {
+    const currentIndex = blockIndexRef.current;
+    const block = OPEN_QUESTIONS[currentIndex];
+    if (!block?.optional) return;
+
+    setLastUserReply({ text: '(pulou esta pergunta)' });
+    setInputValue('');
+    advanceFromBlock(currentIndex);
+  }, [advanceFromBlock]);
 
   const handleEdit = useCallback((blockId: string) => {
     const index = OPEN_QUESTIONS.findIndex((q) => q.id === blockId);
@@ -197,12 +199,8 @@ export default function OnboardingScreen() {
     setBlockIndex(index);
     blockIndexRef.current = index;
 
-    const block = OPEN_QUESTIONS[index];
-    const msgs: { id: string; text: string }[] = [];
-    if (block.transition) msgs.push({ id: `${blockId}-transition-edit`, text: block.transition });
-    msgs.push({ id: `${blockId}-question-edit`, text: block.question });
-    queueBotMessages(msgs);
-  }, [pushBotMsg, queueBotMessages]);
+    enterBlock(index);
+  }, [enterBlock]);
 
   const handleFinish = useCallback(() => {
     applyOpenOnboardingConfig(answersRef.current);
@@ -214,27 +212,9 @@ export default function OnboardingScreen() {
   const businessType = guessBusinessTypeFallback(answersRef.current);
   const businessName = guessBusinessNameFallback(answersRef.current);
 
-  const renderMessage = ({ item }: { item: Msg }) => {
-    if (item.type === 'user') {
-      return (
-        <View style={styles.userBubbleContainer}>
-          <View style={styles.userBubble}>
-            <Text style={styles.userText}>{item.text}</Text>
-          </View>
-        </View>
-      );
-    }
-    return (
-      <View style={styles.botRow}>
-        <View style={styles.botAvatar}>
-          <Text style={styles.botAvatarText}>L</Text>
-        </View>
-        <View style={styles.botBubble}>
-          <Text style={styles.botText}>{item.text}</Text>
-        </View>
-      </View>
-    );
-  };
+  const mascotImage = isTyping
+    ? MASCOT_IMAGES[INTERACTION_MASCOT.thinking]
+    : MASCOT_IMAGES[currentLine?.expression ?? 'neutro'];
 
   if (showSummary) {
     return (
@@ -243,11 +223,7 @@ export default function OnboardingScreen() {
           <Text style={styles.headerTitle}>Configurando seu Lumio</Text>
           <Text style={styles.headerStage}>{TOTAL_STAGES} de {TOTAL_STAGES}</Text>
         </View>
-        <View style={styles.progressRow}>
-          {Array.from({ length: TOTAL_STAGES }).map((_, i) => (
-            <View key={i} style={[styles.progressSegment, styles.progressSegmentActive]} />
-          ))}
-        </View>
+        <StageProgress totalStages={TOTAL_STAGES} currentStage={TOTAL_STAGES} />
 
         <ScrollView
           style={styles.summaryScroll}
@@ -257,6 +233,10 @@ export default function OnboardingScreen() {
           }}
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.summaryMascotWrap}>
+            <Mascot image={MASCOT_IMAGES[INTERACTION_MASCOT.summary]} size={140} />
+          </View>
+
           <View style={styles.summaryThankYou}>
             <Ionicons name="heart-circle" size={32} color={Colors.accent} />
             <Text style={styles.summaryThankYouTitle}>
@@ -307,63 +287,62 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Configurando seu Lumio</Text>
+        <Text style={styles.headerTitle}>
+          {editingBlockId ? 'Editando resposta' : 'Configurando seu Lumio'}
+        </Text>
         <Text style={styles.headerStage}>
           {Math.min(stage, TOTAL_STAGES)} de {TOTAL_STAGES}
         </Text>
       </View>
-      <View style={styles.progressRow}>
-        {Array.from({ length: TOTAL_STAGES }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.progressSegment,
-              i < stage && styles.progressSegmentActive,
-            ]}
-          />
-        ))}
-      </View>
+      <StageProgress totalStages={TOTAL_STAGES} currentStage={stage} />
 
       <KeyboardAvoidingView
-        style={[styles.flex, { paddingBottom: insets.bottom }]}
+        style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={[
-            styles.messagesList,
-            { paddingBottom: Spacing.xl + insets.bottom },
-          ]}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={scrollToBottom}
-          ListFooterComponent={
-            botTyping ? (
-              <View style={styles.botRow}>
-                <View style={styles.botAvatar}>
-                  <Text style={styles.botAvatarText}>L</Text>
-                </View>
-                <View style={[styles.botBubble, styles.typingBubble]}>
-                  <Text style={styles.typingDots}>•••</Text>
-                </View>
-              </View>
-            ) : null
-          }
-        />
+        <View style={styles.stageArea}>
+          <Mascot image={mascotImage} bump={!isTyping} size={200} />
+
+          <View style={styles.bubbleArea}>
+            {isTyping ? (
+              <SpeechBubble text="•••" animationKey="typing" />
+            ) : currentLine ? (
+              <SpeechBubble text={currentLine.text} animationKey={currentLine.key} />
+            ) : null}
+          </View>
+
+          {lastUserReply && (
+            <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />
+          )}
+        </View>
 
         {currentBlock && (
-          <View style={styles.inputBar}>
-            <TextInput
-              style={styles.input}
-              value={inputValue}
-              onChangeText={setInputValue}
-              placeholder={currentBlock.placeholder}
-              placeholderTextColor={Colors.textMuted}
-              onSubmitEditing={handleSubmit}
-              returnKeyType="send"
-              multiline
+          <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
+            <View style={styles.inputWrapper}>
+              {!inputValue && (
+                <Text
+                  style={styles.inputPlaceholder}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                  pointerEvents="none"
+                >
+                  Você pode escrever ou falar comigo
+                </Text>
+              )}
+              <TextInput
+                style={styles.input}
+                value={inputValue}
+                onChangeText={setInputValue}
+                placeholderTextColor="transparent"
+                onSubmitEditing={handleSubmit}
+                returnKeyType="send"
+                numberOfLines={1}
+              />
+            </View>
+            <VoiceInput
+              onCapture={handleVoiceCapture}
+              onPartialResult={setInputValue}
+              disabled={isTyping}
             />
             {currentBlock.optional && !inputValue.trim() ? (
               <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} activeOpacity={0.7}>
@@ -395,6 +374,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_700Bold',
@@ -407,102 +387,38 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
 
-  progressRow: {
-    flexDirection: 'row',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
-  },
-  progressSegment: {
+  stageArea: {
     flex: 1,
-    height: 4,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.border,
-  },
-  progressSegmentActive: {
-    backgroundColor: Colors.accent,
-  },
-
-  messagesList: {
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
-
-  userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
-  userBubble: {
-    backgroundColor: Colors.bubbleUser,
-    borderRadius: Radius.lg,
-    borderBottomRightRadius: 4,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    maxWidth: '80%',
-  },
-  userText: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: '#FFFFFF',
-    lineHeight: 22,
-  },
-
-  botRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    marginVertical: Spacing.xs,
-  },
-  botAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 2,
+    gap: Spacing.lg,
   },
-  botAvatarText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 13,
-    color: '#FFFFFF',
-  },
-  botBubble: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    borderBottomLeftRadius: 4,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    alignSelf: 'flex-start',
-    maxWidth: '85%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  botText: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    lineHeight: 22,
-  },
-  typingBubble: { paddingVertical: Spacing.sm },
-  typingDots: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.md,
-    color: Colors.textMuted,
-    letterSpacing: 2,
+  bubbleArea: {
+    minHeight: 90,
+    justifyContent: 'flex-start',
   },
 
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
+    paddingTop: Spacing.md,
     gap: Spacing.sm,
     backgroundColor: Colors.bg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  inputWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  inputPlaceholder: {
+    position: 'absolute',
+    left: Spacing.lg,
+    right: Spacing.lg,
+    zIndex: 1,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.md,
+    color: Colors.textMuted,
   },
   input: {
     flex: 1,
@@ -513,7 +429,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
     color: Colors.primary,
-    maxHeight: 120,
+    height: 48,
     borderWidth: 1,
     borderColor: Colors.border,
   },
@@ -543,9 +459,13 @@ const styles = StyleSheet.create({
 
   // Summary screen
   summaryScroll: { flex: 1 },
+  summaryMascotWrap: {
+    alignItems: 'center',
+    paddingTop: Spacing.lg,
+  },
   summaryThankYou: {
     alignItems: 'center',
-    paddingVertical: Spacing.xxl,
+    paddingVertical: Spacing.xl,
     gap: Spacing.md,
   },
   summaryThankYouTitle: {

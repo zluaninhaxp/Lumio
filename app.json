@@ -24,7 +24,18 @@
     },
     "newArchEnabled": true,
     "scheme": "lumio",
-    "plugins": ["expo-router", "expo-font", "expo-video"],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-video",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "O Lumio usa o microfone para você poder responder ao onboarding por voz.",
+          "speechRecognitionPermission": "O Lumio converte sua fala em texto para preencher as respostas do onboarding."
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true
     }
