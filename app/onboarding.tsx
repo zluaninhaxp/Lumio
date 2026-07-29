@@ -14,6 +14,7 @@ import {
   guessBusinessTypeFallback,
   guessBusinessNameFallback,
 } from '../src/engine/openOnboardingEngine';
+import { ONBOARDING_INTRO } from '../src/data/onboardingQuestions';
 import {
   MASCOT_IMAGES,
   BLOCK_MASCOT_EXPRESSION,
@@ -49,6 +50,8 @@ export default function OnboardingScreen() {
   const queueTokenRef = useRef(0);
 
   const [blockIndex, setBlockIndex] = useState(0);
+  const [showIntro, setShowIntro] = useState(true);
+  const [introFinished, setIntroFinished] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
@@ -60,7 +63,7 @@ export default function OnboardingScreen() {
   // Encadeia as falas do mascote uma de cada vez, com uma pequena pausa de
   // "pensando" entre elas — dá a sensação de conversa guiada em vez de
   // despejar todo o texto de uma vez.
-  const queueLines = useCallback((lines: Line[]) => {
+  const queueLines = useCallback((lines: Line[], onComplete?: () => void) => {
     const token = ++queueTokenRef.current;
     setLastUserReply(null);
     let i = 0;
@@ -68,6 +71,7 @@ export default function OnboardingScreen() {
       if (queueTokenRef.current !== token) return;
       if (i >= lines.length) {
         setIsTyping(false);
+        onComplete?.();
         return;
       }
       setIsTyping(true);
@@ -93,9 +97,19 @@ export default function OnboardingScreen() {
   }, [queueLines]);
 
   useEffect(() => {
-    enterBlock(0);
+    setCurrentLine({
+      key: 'intro',
+      text: ONBOARDING_INTRO.lines.join('\n\n'),
+      expression: 'feliz',
+    });
+    setIntroFinished(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleStart = useCallback(() => {
+    setShowIntro(false);
+    enterBlock(0);
+  }, [enterBlock]);
 
   const advanceFromBlock = useCallback((currentIndex: number) => {
     if (isEditingRef.current) {
@@ -274,15 +288,19 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>
-          {editingBlockId ? 'Editando resposta' : 'Configurando seu Lumio'}
-        </Text>
-        <Text style={styles.headerStage}>
-          {Math.min(stage, TOTAL_STAGES)} de {TOTAL_STAGES}
-        </Text>
-      </View>
-      <StageProgress totalStages={TOTAL_STAGES} currentStage={stage} />
+      {!showIntro && (
+        <>
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>
+              {editingBlockId ? 'Editando resposta' : 'Configurando seu Lumio'}
+            </Text>
+            <Text style={styles.headerStage}>
+              {Math.min(stage, TOTAL_STAGES)} de {TOTAL_STAGES}
+            </Text>
+          </View>
+          <StageProgress totalStages={TOTAL_STAGES} currentStage={stage} />
+        </>
+      )}
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -304,7 +322,34 @@ export default function OnboardingScreen() {
           )}
         </View>
 
-        {currentBlock && (
+        {showIntro && (
+          <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
+            <TouchableOpacity
+              style={[styles.sendBtn, styles.startBtn, !introFinished && styles.sendBtnDisabled]}
+              onPress={handleStart}
+              disabled={!introFinished}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.startBtnText}>Vamos lá</Text>
+              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!showIntro && currentBlock && currentBlock.options ? (
+          <View style={[styles.optionsBar, { paddingBottom: Spacing.md + insets.bottom }]}>
+            {currentBlock.options.map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={styles.optionChip}
+                onPress={() => submitAnswer(option, false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.optionChipText}>{option}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (!showIntro && currentBlock && (
           <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
             <View style={styles.inputWrapper}>
               {!inputValue && (
@@ -346,7 +391,7 @@ export default function OnboardingScreen() {
               </TouchableOpacity>
             )}
           </View>
-        )}
+        ))}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -430,6 +475,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sendBtnDisabled: { backgroundColor: Colors.textMuted },
+  startBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    width: undefined,
+    height: 48,
+    borderRadius: Radius.full,
+    gap: Spacing.sm,
+  },
+  startBtnText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.md,
+    color: '#FFFFFF',
+  },
+  optionsBar: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.md,
+    backgroundColor: Colors.bg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  optionChip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.accent,
+  },
+  optionChipText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.md,
+    color: '#FFFFFF',
+  },
   skipBtn: {
     height: 44,
     paddingHorizontal: Spacing.lg,

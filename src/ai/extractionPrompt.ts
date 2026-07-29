@@ -7,22 +7,26 @@ import { OnboardingContextDTO, OnboardingQA } from './onboardingContext';
  * prompt se atualiza sozinho, sem precisar tocar no texto do prompt em si.
  */
 const SECTION_BLOCK_MAP: Record<string, string[]> = {
-  perfilDoUsuario: ['visaoGeral', 'equipe'],
+  perfilDoUsuario: ['visaoGeral'],
   rotina: ['rotina'],
+  operacao: ['operacao'],
   dificuldades: ['dores'],
   preferencias: ['clientes'],
-  restricoes: ['financas', 'sazonalidade'],
+  restricoes: ['sazonalidade'],
   objetivos: ['objetivos'],
+  prioridadeApp: ['prioridade'],
   respostasLivres: ['complemento'],
 };
 
 const SECTION_TITLES: Record<keyof typeof SECTION_BLOCK_MAP, string> = {
   perfilDoUsuario: 'PERFIL DO USUÁRIO E DO NEGÓCIO',
-  rotina: 'ROTINA / OPERAÇÃO',
+  rotina: 'ROTINA / OPERAÇÃO DO DIA A DIA',
+  operacao: 'EQUIPE E CONTROLE FINANCEIRO',
   dificuldades: 'DIFICULDADES',
   preferencias: 'PREFERÊNCIAS (relacionamento com clientes)',
-  restricoes: 'RESTRIÇÕES (controle financeiro atual e sazonalidade)',
+  restricoes: 'RESTRIÇÕES (sazonalidade)',
   objetivos: 'OBJETIVOS',
+  prioridadeApp: 'PRIORIDADE DE USO DO APP',
   respostasLivres: 'RESPOSTAS LIVRES (complemento opcional do usuário)',
 };
 
@@ -110,6 +114,7 @@ nenhum comentário, nenhuma explicação, nenhum bloco de código markdown.
     "notes": string | null
   },
   "goals": string[],
+  "priorityModule": "financeiro" | "tarefas" | "agenda" | null,
   "processesToOrganize": string[],
   "recommendedModules": string[],
   "automationOpportunities": string[],
