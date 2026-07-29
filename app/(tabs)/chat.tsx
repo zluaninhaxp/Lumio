@@ -1,12 +1,14 @@
 import { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput,
+  View, Text, StyleSheet, FlatList, TextInput, Image,
   TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { useAppStore } from '../../src/store';
+import VoiceInput from '../components/onboarding/VoiceInput';
+import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
 
 interface Message {
   id: string;
@@ -97,7 +99,74 @@ export default function ChatScreen() {
     scrollToBottom();
   }, [input]);
 
+  const handleVoiceCapture = useCallback((transcript: string) => {
+    if (!transcript.trim()) return;
+
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      type: 'user',
+      text: transcript.trim(),
+      timestamp: new Date(),
+    };
+
+    const parsed = parseMessage(transcript.trim());
+    const botText = buildBotResponse(parsed);
+
+    let actions: string[] = [];
+    let botType: 'bot' | 'fallback' = 'bot';
+
+    if (parsed.intent === 'UNKNOWN') {
+      botType = 'fallback';
+    } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
+      actions = ['Editar', 'Excluir'];
+      if (parsed.intent === 'EXPENSE_RECORD') {
+        addTransaction({
+          date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          description: parsed.entities.description || 'Despesa',
+          amount: -(parsed.entities.value || 0),
+          category: parsed.entities.category || 'Outros',
+        });
+      } else {
+        addTransaction({
+          date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+          description: parsed.entities.description || 'Receita',
+          amount: parsed.entities.value || 0,
+          category: 'Receita',
+        });
+      }
+    } else if (parsed.intent === 'TASK_ADD') {
+      actions = ['Concluir'];
+      addTask({ description: parsed.entities.description || '', done: false, dueDate: null });
+    } else if (parsed.intent === 'TASK_WITH_DATE') {
+      actions = ['Concluir'];
+      addEvent({
+        date: new Date().toISOString().split('T')[0],
+        time: null,
+        description: parsed.entities.description || '',
+        done: false,
+      });
+    }
+
+    const botMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      type: botType,
+      text: botText,
+      actions,
+      timestamp: new Date(),
+    };
+
+    setMessages((prev) => [...prev, userMsg, botMsg]);
+    setInput('');
+    scrollToBottom();
+  }, [scrollToBottom, addTransaction, addTask, addEvent]);
+
   const renderMessage = ({ item }: { item: Message }) => {
+    const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
+
+    const renderBotAvatar = (expression: 'neutro' | 'confuso' | 'piscando') => (
+      <Image source={MASCOT_IMAGES[expression]} style={styles.botAvatarImage} resizeMode="contain" />
+    );
+
     if (item.type === 'user') {
       return (
         <View style={styles.userBubbleContainer}>
@@ -111,9 +180,7 @@ export default function ChatScreen() {
     if (item.type === 'fallback') {
       return (
         <View style={styles.botRow}>
-          <View style={styles.botAvatar}>
-            <Text style={styles.botAvatarText}>F</Text>
-          </View>
+          {renderBotAvatar('confuso')}
           <View style={styles.botContent}>
             <View style={styles.botBubble}>
               <Text style={styles.botText}>
@@ -134,9 +201,7 @@ export default function ChatScreen() {
 
     return (
       <View style={styles.botRow}>
-        <View style={styles.botAvatar}>
-          <Text style={styles.botAvatarText}>F</Text>
-        </View>
+        {renderBotAvatar(isTransactionReport ? 'piscando' : 'neutro')}
         <View style={styles.botContent}>
           <View style={styles.botBubble}>
             <Text style={styles.botText}>{item.text}</Text>
@@ -160,10 +225,7 @@ export default function ChatScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={styles.lumioIcon}>
-            <Text style={styles.lumioIconText}>L</Text>
-          </View>
-          <Text style={styles.headerTitle}>Lumio</Text>
+          <Image source={require('../../assets/lumio.png')} style={styles.headerLogo} resizeMode="contain" />
         </View>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>OJ</Text>
@@ -188,15 +250,30 @@ export default function ChatScreen() {
 
         {/* Input bar */}
         <View style={styles.inputBar}>
-          <TextInput
-            style={styles.input}
-            value={input}
-            onChangeText={setInput}
-            placeholder="Digite aqui..."
-            placeholderTextColor={Colors.textMuted}
-            onSubmitEditing={handleSend}
-            returnKeyType="send"
-            multiline
+          <View style={styles.inputWrapper}>
+            {!input && (
+              <Text
+                style={styles.inputPlaceholder}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                pointerEvents="none"
+              >
+                Digite aqui...
+              </Text>
+            )}
+            <TextInput
+              style={styles.input}
+              value={input}
+              onChangeText={setInput}
+              placeholderTextColor="transparent"
+              onSubmitEditing={handleSend}
+              returnKeyType="send"
+              numberOfLines={1}
+            />
+          </View>
+          <VoiceInput
+            onCapture={handleVoiceCapture}
+            onPartialResult={setInput}
           />
           <TouchableOpacity
             style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
@@ -224,23 +301,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  lumioIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  lumioIconText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
-  headerTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.lg,
-    color: Colors.primary,
+  headerLogo: {
+    width: 98,
+    height: 30,
   },
   avatar: {
     width: 36,
@@ -288,21 +351,19 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: 2,
+    overflow: 'hidden',
   },
-  botAvatarText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: 13,
-    color: '#FFFFFF',
+  botAvatarImage: {
+    width: 36,
+    height: 36,
+    marginTop: 2,
   },
   botContent: { flex: 1, gap: Spacing.xs },
   botBubble: {
     backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
-    borderBottomLeftRadius: 4,
+    borderTopLeftRadius: 4,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     alignSelf: 'flex-start',
@@ -352,13 +413,26 @@ const styles = StyleSheet.create({
 
   inputBar: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
     backgroundColor: Colors.bg,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
+  },
+  inputWrapper: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  inputPlaceholder: {
+    position: 'absolute',
+    left: Spacing.lg,
+    right: Spacing.lg,
+    zIndex: 1,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.md,
+    color: Colors.textMuted,
   },
   input: {
     flex: 1,
@@ -369,7 +443,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
     color: Colors.primary,
-    maxHeight: 120,
+    height: 48,
     borderWidth: 1,
     borderColor: Colors.border,
   },
