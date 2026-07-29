@@ -17,7 +17,6 @@ import {
 import {
   MASCOT_IMAGES,
   BLOCK_MASCOT_EXPRESSION,
-  STAGE_INTRO_MASCOT,
   INTERACTION_MASCOT,
   MascotExpressionKey,
 } from '../src/data/mascotExpressions';
@@ -77,7 +76,7 @@ export default function OnboardingScreen() {
         setIsTyping(false);
         setCurrentLine(lines[i]);
         i += 1;
-        setTimeout(step, 200);
+        setTimeout(step, 1500);
       }, 550);
     };
     step();
@@ -85,20 +84,11 @@ export default function OnboardingScreen() {
 
   const enterBlock = useCallback((index: number) => {
     const block = OPEN_QUESTIONS[index];
-    const lines: Line[] = [];
-    if (block.transition) {
-      lines.push({
-        key: `${block.id}-transition`,
-        text: block.transition,
-        expression: STAGE_INTRO_MASCOT[block.stage],
-      });
-    }
-    lines.push({
+    queueLines([{
       key: `${block.id}-question`,
       text: block.question,
       expression: BLOCK_MASCOT_EXPRESSION[block.id] ?? 'neutro',
-    });
-    queueLines(lines);
+    }]);
     pushedBlocksRef.current.add(block.id);
   }, [queueLines]);
 
@@ -212,9 +202,7 @@ export default function OnboardingScreen() {
   const businessType = guessBusinessTypeFallback(answersRef.current);
   const businessName = guessBusinessNameFallback(answersRef.current);
 
-  const mascotImage = isTyping
-    ? MASCOT_IMAGES[INTERACTION_MASCOT.thinking]
-    : MASCOT_IMAGES[currentLine?.expression ?? 'neutro'];
+  const mascotImage = MASCOT_IMAGES[currentLine?.expression ?? 'neutro'];
 
   if (showSummary) {
     return (

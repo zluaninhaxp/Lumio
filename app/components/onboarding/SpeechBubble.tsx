@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -10,15 +10,18 @@ import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme'
 
 interface SpeechBubbleProps {
   text: string;
-  /** Muda a cada nova fala — usado como "key" para re-disparar a animação. */
   animationKey: string;
 }
 
-/**
- * Balão de fala do mascote (não é uma bolha de chat).
- * Aparece ancorado logo abaixo do mascote, com um "bico" apontando para ele,
- * e tem uma pequena animação de entrada a cada nova fala.
- */
+function parseBold(text: string): { text: string; bold: boolean }[] {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return { text: part.slice(2, -2), bold: true };
+    }
+    return { text: part, bold: false };
+  }).filter((seg) => seg.text.length > 0);
+}
+
 export default function SpeechBubble({ text, animationKey }: SpeechBubbleProps) {
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(10);
@@ -35,11 +38,19 @@ export default function SpeechBubble({ text, animationKey }: SpeechBubbleProps) 
     transform: [{ translateY: translateY.value }],
   }));
 
+  const segments = useMemo(() => parseBold(text), [text]);
+
   return (
     <Animated.View style={[styles.wrapper, animatedStyle]}>
       <View style={styles.tail} />
       <View style={styles.bubble}>
-        <Text style={styles.text}>{text}</Text>
+        <Text style={styles.text}>
+          {segments.map((seg, i) => (
+            <Text key={i} style={seg.bold ? styles.bold : null}>
+              {seg.text}
+            </Text>
+          ))}
+        </Text>
       </View>
     </Animated.View>
   );
@@ -80,5 +91,9 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     lineHeight: 26,
     textAlign: 'center',
+  },
+  bold: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    color: Colors.accent,
   },
 });

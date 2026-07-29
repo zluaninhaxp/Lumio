@@ -14,7 +14,7 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
     id: 'visaoGeral',
     stage: 1,
     question:
-      'Para começar, me conta um pouco sobre o seu negócio: qual é o nome, o que você vende ou faz, e quem é o seu público?',
+      'Para começar, me conta: **qual o nome do seu negócio**, **o que você vende ou faz** e **quem é o seu público**?',
     followUp:
       'Quer me dar mais alguns detalhes? Por exemplo, há quanto tempo você atua nesse ramo, ou o que mais te diferencia da concorrência?',
     placeholder:
@@ -25,9 +25,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'rotina',
     stage: 1,
-    transition: 'Legal! Agora me conta um pouco sobre o dia a dia.',
     question:
-      'Como é a rotina de operação do seu negócio? O que acontece desde a abertura até o fechamento?',
+      'Legal! Agora me conta: **como é a rotina do seu negócio**? O que acontece **desde a abertura até o fechamento**?',
     followUp:
       'E como você divide o seu tempo entre as tarefas do dia? Tem algo que ocupa mais horas do que você gostaria?',
     placeholder:
@@ -38,9 +37,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'equipe',
     stage: 2,
-    transition: 'Entendi a rotina. E sobre as pessoas?',
     question:
-      'Como é a sua equipe hoje? Quantas pessoas trabalham com você, e cada um tem um papel definido ou todo mundo faz de tudo?',
+      'Entendi a rotina! E sobre pessoas: **quantas trabalham com você**? Cada um tem **um papel definido** ou todo mundo faz de tudo?',
     followUp:
       'Alguém cuida especificamente da parte financeira ou administrativa, ou fica tudo com você?',
     placeholder:
@@ -51,9 +49,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'financas',
     stage: 2,
-    transition: 'Agora vamos falar de dinheiro.',
     question:
-      'Como você controla as finanças do negócio hoje? Usa planilha, caderno, aplicativo, ou vai de cabeça mesmo?',
+      'Agora vamos falar de dinheiro. **Como você controla as finanças**? Usa **planilha, caderno, app** ou vai de cabeça?',
     followUp:
       'E você consegue saber com clareza, a qualquer momento, quanto entrou, quanto saiu e quanto sobrou?',
     placeholder:
@@ -64,9 +61,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'clientes',
     stage: 3,
-    transition: 'Vamos falar dos seus clientes agora.',
     question:
-      'Como é o seu relacionamento com os clientes? Você mantém um cadastro, anota preferências, manda mensagens, ou o contato é só no balcão?',
+      'Vamos falar dos seus clientes. Você mantém **cadastro, anota preferências, manda mensagens** ou o contato é só no balcão?',
     followUp:
       'E como você acha que os seus clientes enxergam o seu negócio? Tem algum diferencial que faz eles voltarem?',
     placeholder:
@@ -77,9 +73,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'dores',
     stage: 3,
-    transition: 'Agora a parte mais sincera.',
     question:
-      'Qual é a maior dificuldade que você enfrenta hoje no seu negócio? O que mais tira o seu sono ou te faz perder tempo e dinheiro?',
+      'Agora a parte mais sincera: **qual a maior dificuldade** que você enfrenta? O que mais **tira seu sono** ou **faz perder tempo e dinheiro**?',
     followUp:
       'Tem mais alguma coisa que te incomoda ou que você sente que poderia ser muito melhor? Pode desabafar.',
     placeholder:
@@ -90,9 +85,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'sazonalidade',
     stage: 4,
-    transition: 'Quase lá. Mais uma coisa sobre o movimento.',
     question:
-      'O movimento do seu negócio varia muito ao longo do ano, ou é constante? Tem épocas mais fortes e mais fracas, ou depende de fatores específicos?',
+      'Quase lá! O movimento do seu negócio **varia muito ao longo do ano** ou é constante? Tem **épocas mais fortes e mais fracas**?',
     followUp:
       'Como você se prepara (ou se vira) nesses períodos de baixa? Faz alguma reserva ou promoção?',
     placeholder:
@@ -103,9 +97,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'objetivos',
     stage: 4,
-    transition: 'Falta pouco.',
     question:
-      'Onde você quer chegar com o seu negócio? Tem algum objetivo grande — abrir uma segunda loja, aumentar o faturamento, ter mais tempo livre… ou até vender o negócio um dia?',
+      'Falta pouco! **Aonde você quer chegar**? Tem algum objetivo grande — **abrir outra loja, aumentar faturamento, ter mais tempo livre**?',
     followUp:
       'E o que você sente que está te impedindo de chegar lá? Tem alguma meta que parece distante hoje?',
     placeholder:
@@ -116,9 +109,8 @@ export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
     id: 'complemento',
     stage: 4,
-    transition: 'Para finalizar (essa é opcional).',
     question:
-      'Tem mais alguma coisa que você gostaria de me contar sobre o seu negócio que eu não perguntei? Algum detalhe importante que você acha que eu deveria saber?',
+      'Para finalizar (essa é opcional): tem **mais alguma coisa** que você gostaria de me contar que eu não perguntei?',
     followUp:
       'Fique à vontade para falar o que quiser. Nenhuma informação é irrelevante.',
     placeholder:
