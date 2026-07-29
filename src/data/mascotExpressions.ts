@@ -29,12 +29,12 @@ export type MascotExpressionKey = keyof typeof MASCOT_IMAGES;
 export const BLOCK_MASCOT_EXPRESSION: Record<string, MascotExpressionKey> = {
   visaoGeral: 'feliz',
   rotina: 'focado',
-  equipe: 'sorrisoLeve',
-  financas: 'calmo',
+  operacao: 'calmo',
   clientes: 'satisfeito',
   dores: 'triste',
   sazonalidade: 'serio',
   objetivos: 'muitoFeliz',
+  prioridade: 'sorrisoLeve',
   complemento: 'sorrisoLeve',
 };
 
