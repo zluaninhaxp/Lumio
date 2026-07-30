@@ -8,6 +8,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../src/constants/theme';
 import { useAppStore } from '../src/store';
+import { useAuth } from '../src/hooks/useAuth';
+import { onboardingService } from '../src/services/onboardingService';
+import { buildOnboardingContextDTO } from '../src/ai/onboardingContext';
 import {
   OPEN_QUESTIONS,
   OpenOnboardingAnswers,
@@ -39,7 +42,14 @@ interface Line {
 export default function OnboardingScreen() {
   const router = useRouter();
   const applyOpenOnboardingConfig = useAppStore((s) => s.applyOpenOnboardingConfig);
+  const { currentUser, isAuthenticated, loading, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      router.replace('/login');
+    }
+  }, [loading, isAuthenticated, router]);
 
   const blockIndexRef = useRef(0);
   const answersRef = useRef<OpenOnboardingAnswers>({});
@@ -206,10 +216,23 @@ export default function OnboardingScreen() {
     enterBlock(index);
   }, [enterBlock]);
 
-  const handleFinish = useCallback(() => {
+  const handleFinish = useCallback(async () => {
     applyOpenOnboardingConfig(answersRef.current);
+
+    if (currentUser) {
+      const context = buildOnboardingContextDTO(answersRef.current);
+      try {
+        await onboardingService.completeOnboarding(currentUser.id, answersRef.current, context);
+        await refreshUser();
+      } catch (error) {
+        // Não bloqueia o fluxo do usuário por um erro de persistência local —
+        // ele já viu o resumo na tela; apenas registramos o problema.
+        console.warn('Falha ao salvar respostas do onboarding:', error);
+      }
+    }
+
     router.replace('/celebration');
-  }, [applyOpenOnboardingConfig, router]);
+  }, [applyOpenOnboardingConfig, currentUser, refreshUser, router]);
 
   const currentBlock = blockIndex < BLOCK_COUNT ? OPEN_QUESTIONS[blockIndex] : null;
   const stage = currentBlock?.stage ?? TOTAL_STAGES;

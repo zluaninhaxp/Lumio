@@ -4,8 +4,10 @@ import {
   SafeAreaView, Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
+import { useAuth } from '../../src/hooks/useAuth';
 import { mockSummary } from '../../src/data/mock';
 
 type PainelTab = 'Resumo' | 'Completo';
@@ -16,12 +18,28 @@ const fmt = (v: number) =>
   `R$ ${Math.abs(v).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
 
 export default function PainelScreen() {
+  const router = useRouter();
+  const { logout } = useAuth();
   const [painelTab, setPainelTab] = useState<PainelTab>('Resumo');
   const [period, setPeriod] = useState<'Semana' | 'Mês ativo' | 'Personalizado'>('Mês ativo');
   const [completeTab, setCompleteTab] = useState<CompleteTab>('Financeiro');
   const [filter, setFilter] = useState<FilterType>('Todos');
 
   const { transactions, tasks, events, removeTransaction, toggleTask, toggleEvent } = useAppStore();
+
+  const handleLogout = () => {
+    Alert.alert('Sair', 'Tem certeza que deseja sair da sua conta?', [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Sair',
+        style: 'destructive',
+        onPress: async () => {
+          await logout();
+          router.replace('/login');
+        },
+      },
+    ]);
+  };
 
   const filteredTransactions = transactions.filter((t) => {
     if (filter === 'Todos') return true;
@@ -41,6 +59,9 @@ export default function PainelScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Painel</Text>
+        <TouchableOpacity onPress={handleLogout} hitSlop={12}>
+          <Ionicons name="log-out-outline" size={22} color={Colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       {/* Main tabs */}
@@ -277,7 +298,13 @@ function CompletoView({ completeTab, setCompleteTab, filter, setFilter, financia
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
-  header: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
+  },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
     fontSize: FontSize.xxl, color: Colors.primary,
