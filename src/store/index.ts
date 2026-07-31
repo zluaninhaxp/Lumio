@@ -6,10 +6,38 @@ import {
 } from '../engine/openOnboardingEngine';
 import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardingContext';
 import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
+import { PluginId } from '../plugins/registry';
 
 type Transaction = (typeof mockTransactions)[0];
 type Task = (typeof mockTasks)[0];
 type CalendarEvent = (typeof mockCalendarEvents)[0];
+
+export interface EstoqueItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unit: string;
+  category: string;
+  minAlert: number;
+}
+
+export interface ClienteItem {
+  id: string;
+  name: string;
+  contact: string;
+  pending: string;
+  lastInteraction: string;
+}
+
+/**
+ * Item genérico dos 9 plugins com tela mínima (ver `app/plugins/[id].tsx`
+ * e `src/plugins/registry.ts`). Os campos concretos variam por plugin
+ * (definidos em `PluginDefinition.fields`) e ficam em `values`.
+ */
+export interface GenericPluginItem {
+  id: string;
+  values: Record<string, string>;
+}
 
 interface ChatMessage {
   id: string;
@@ -49,9 +77,38 @@ export interface AppStore {
   keywordMap: Record<string, string>;
 
   recommendedPlugins: RecommendedPlugin[];
-  /** Escolha do usuário na tela de resumo: 'Ativar agora' ou 'Talvez depois'. */
+  /**
+   * Plugins ativos (ids do catálogo fechado em `src/plugins/registry.ts`).
+   * Os 3 módulos fixos NÃO fazem parte deste array. Escolha inicial vem da
+   * tela de resumo do onboarding ('Ativar agora' ou 'Talvez depois'), mas o
+   * usuário pode ativar/desativar a qualquer momento pela aba Apps.
+   */
   activatedPlugins: string[];
   setPluginActivation: (pluginId: string, activated: boolean) => void;
+
+  /** Sugestões do onboarding dispensadas manualmente na aba Apps. */
+  dismissedPluginSuggestions: string[];
+  dismissPluginSuggestion: (pluginId: string) => void;
+
+  /** Dados dos 2 plugins com CRUD completo. */
+  estoqueItems: EstoqueItem[];
+  addEstoqueItem: (item: Omit<EstoqueItem, 'id'>) => void;
+  updateEstoqueItem: (id: string, item: Omit<EstoqueItem, 'id'>) => void;
+  removeEstoqueItem: (id: string) => void;
+
+  clienteItems: ClienteItem[];
+  addClienteItem: (item: Omit<ClienteItem, 'id'>) => void;
+  updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
+  removeClienteItem: (id: string) => void;
+
+  /**
+   * Dados dos 9 plugins com tela mínima genérica, indexados por
+   * `PluginId`. Preservados mesmo se o plugin for desativado, para
+   * reaparecerem caso o usuário reative depois.
+   */
+  genericPluginItems: Partial<Record<PluginId, GenericPluginItem[]>>;
+  addGenericPluginItem: (pluginId: PluginId, values: Record<string, string>) => void;
+  removeGenericPluginItem: (pluginId: PluginId, itemId: string) => void;
 
   /**
    * Aplica o resultado da extração (mock hoje, IA real no futuro) aos 3
@@ -108,6 +165,55 @@ export const useAppStore = create<AppStore>((set) => ({
       activatedPlugins: activated
         ? [...new Set([...s.activatedPlugins, pluginId])]
         : s.activatedPlugins.filter((id) => id !== pluginId),
+    })),
+
+  dismissedPluginSuggestions: [],
+  dismissPluginSuggestion: (pluginId) =>
+    set((s) => ({
+      dismissedPluginSuggestions: [...new Set([...s.dismissedPluginSuggestions, pluginId])],
+    })),
+
+  estoqueItems: [],
+  addEstoqueItem: (item) =>
+    set((s) => ({
+      estoqueItems: [{ ...item, id: Date.now().toString() }, ...s.estoqueItems],
+    })),
+  updateEstoqueItem: (id, item) =>
+    set((s) => ({
+      estoqueItems: s.estoqueItems.map((i) => (i.id === id ? { ...item, id } : i)),
+    })),
+  removeEstoqueItem: (id) =>
+    set((s) => ({ estoqueItems: s.estoqueItems.filter((i) => i.id !== id) })),
+
+  clienteItems: [],
+  addClienteItem: (item) =>
+    set((s) => ({
+      clienteItems: [{ ...item, id: Date.now().toString() }, ...s.clienteItems],
+    })),
+  updateClienteItem: (id, item) =>
+    set((s) => ({
+      clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)),
+    })),
+  removeClienteItem: (id) =>
+    set((s) => ({ clienteItems: s.clienteItems.filter((i) => i.id !== id) })),
+
+  genericPluginItems: {},
+  addGenericPluginItem: (pluginId, values) =>
+    set((s) => ({
+      genericPluginItems: {
+        ...s.genericPluginItems,
+        [pluginId]: [
+          { id: Date.now().toString(), values },
+          ...(s.genericPluginItems[pluginId] ?? []),
+        ],
+      },
+    })),
+  removeGenericPluginItem: (pluginId, itemId) =>
+    set((s) => ({
+      genericPluginItems: {
+        ...s.genericPluginItems,
+        [pluginId]: (s.genericPluginItems[pluginId] ?? []).filter((i) => i.id !== itemId),
+      },
     })),
 
   applyOnboardingExtraction: (result) =>

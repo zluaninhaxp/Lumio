@@ -184,7 +184,7 @@ export const BUSINESS_PROFILES: Record<BusinessTypeKey, BusinessProfile> = {
       'agendamento': 'Atendimento agendado',
     },
     recommendedPlugins: [
-      { plugin: 'ordens-de-servico', reason: 'Oficinas costumam precisar controlar ordens de serviço por veículo', confidence: 'alta' },
+      { plugin: 'orcamentos', reason: 'Oficinas costumam precisar controlar ordens de serviço por veículo', confidence: 'alta' },
       { plugin: 'estoque', reason: 'Você mencionou trabalhar com peças, que exigem controle de estoque', confidence: 'media' },
     ],
   },
@@ -215,7 +215,7 @@ export const BUSINESS_PROFILES: Record<BusinessTypeKey, BusinessProfile> = {
     },
     recommendedPlugins: [
       { plugin: 'comissoes', reason: 'Salões costumam pagar comissão para profissionais por atendimento', confidence: 'alta' },
-      { plugin: 'agenda-avancada', reason: 'Negócios com agendamento se beneficiam de uma agenda por profissional', confidence: 'media' },
+      { plugin: 'agenda', reason: 'Negócios com agendamento se beneficiam de uma agenda por profissional', confidence: 'media' },
     ],
   },
   clinica: {
@@ -245,8 +245,8 @@ export const BUSINESS_PROFILES: Record<BusinessTypeKey, BusinessProfile> = {
       'material': 'Reposição de materiais',
     },
     recommendedPlugins: [
-      { plugin: 'agenda-avancada', reason: 'Clínicas costumam precisar de agenda por profissional/sala', confidence: 'alta' },
-      { plugin: 'prontuario', reason: 'Atendimento clínico costuma exigir histórico do paciente', confidence: 'media' },
+      { plugin: 'agenda', reason: 'Clínicas costumam precisar de agenda por profissional/sala', confidence: 'alta' },
+      { plugin: 'clientes', reason: 'Atendimento clínico costuma exigir histórico do paciente', confidence: 'media' },
     ],
   },
   servicos: {
@@ -339,7 +339,7 @@ export const BUSINESS_PROFILES: Record<BusinessTypeKey, BusinessProfile> = {
     },
     recommendedPlugins: [
       { plugin: 'estoque', reason: 'E-commerces dependem de controle preciso de estoque para não vender o que não tem', confidence: 'alta' },
-      { plugin: 'integracao-marketplace', reason: 'Você pode vender em mais de um canal/marketplace', confidence: 'media' },
+      { plugin: 'vendas', reason: 'Você pode vender em mais de um canal/marketplace', confidence: 'media' },
     ],
   },
   escritorio: {
@@ -369,8 +369,8 @@ export const BUSINESS_PROFILES: Record<BusinessTypeKey, BusinessProfile> = {
       'prazo': 'Prazo de entrega',
     },
     recommendedPlugins: [
-      { plugin: 'contratos-recorrentes', reason: 'Escritórios costumam ter clientes com contrato mensal recorrente', confidence: 'media' },
-      { plugin: 'agenda-avancada', reason: 'Você mencionou atendimento agendado com clientes', confidence: 'media' },
+      { plugin: 'contratos', reason: 'Escritórios costumam ter clientes com contrato mensal recorrente', confidence: 'media' },
+      { plugin: 'agenda', reason: 'Você mencionou atendimento agendado com clientes', confidence: 'media' },
     ],
   },
   outro: {

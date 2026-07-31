@@ -19,6 +19,7 @@ import {
   buildMockExtractionResult,
 } from '../src/engine/openOnboardingEngine';
 import { OnboardingExtractionResult, CategorySuggestion } from '../src/ai/types';
+import { getPluginDefinition } from '../src/plugins/registry';
 import { ONBOARDING_INTRO } from '../src/data/onboardingQuestions';
 import {
   MASCOT_IMAGES,
@@ -42,26 +43,13 @@ interface Line {
 }
 
 /**
- * Nomes amigáveis para os plugins recomendados (o `plugin` retornado pela
- * extração é um id curto em texto livre — ver comentário em
- * `src/ai/extractionPrompt.ts` sobre a lista fechada de plugins que será
- * definida no Prompt 2). Qualquer id sem entrada aqui cai no fallback,
+ * Nomes amigáveis para os plugins recomendados — agora vêm do catálogo
+ * fechado em `src/plugins/registry.ts` (fonte única de verdade sobre os
+ * 11 plugins existentes). Qualquer id fora do catálogo cai no fallback,
  * que só capitaliza o próprio id.
  */
-const PLUGIN_FRIENDLY_NAMES: Record<string, string> = {
-  estoque: 'Estoque',
-  comissoes: 'Equipe e Comissões',
-  equipe: 'Equipe',
-  'ordens-de-servico': 'Ordens de Serviço',
-  'agenda-avancada': 'Agenda Avançada',
-  prontuario: 'Prontuário de Cliente',
-  orcamentos: 'Orçamentos',
-  'contratos-recorrentes': 'Contratos Recorrentes',
-  'integracao-marketplace': 'Integração com Marketplaces',
-};
-
 function friendlyPluginName(pluginId: string): string {
-  return PLUGIN_FRIENDLY_NAMES[pluginId]
+  return getPluginDefinition(pluginId)?.label
     ?? pluginId.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 }
 

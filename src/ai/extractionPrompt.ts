@@ -75,11 +75,11 @@ ${sections}
    fizerem sentido para o segmento (não apenas palavras citadas pelo
    usuário) — o objetivo é que o motor de auto-classificação do app já
    nasça com uma base rica de palavras-chave.
-4. Recomende plugins em "recommendedPlugins" (lista fechada — usar a lista
-   de plugins definida no documento do Prompt 2 desta iniciativa; esse
-   documento ainda não existe nesta etapa, então use o nome do plugin em
-   texto livre e curto, ex: "equipe", "comissoes", "estoque"), cada um com
-   "reason" humano e "confidence".
+4. Recomende plugins em "recommendedPlugins" usando APENAS ids da lista
+   fechada definida em src/plugins/registry.ts: "estoque", "clientes",
+   "fornecedores", "agenda", "orcamentos", "comissoes", "equipe",
+   "entregas", "vendas", "filiais", "contratos". Nunca invente um id fora
+   desta lista. Cada recomendação vem com "reason" humano e "confidence".
 5. NUNCA invente "businessName" ou "segment" caso não sejam identificáveis
    com segurança — use null nesses casos e registre o campo em
    "missingInformation".
