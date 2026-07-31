@@ -5,6 +5,7 @@ import {
   guessBusinessNameFallback,
 } from '../engine/openOnboardingEngine';
 import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardingContext';
+import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
 
 type Transaction = (typeof mockTransactions)[0];
 type Task = (typeof mockTasks)[0];
@@ -30,6 +31,33 @@ export interface AppStore {
   onboardingContext: OnboardingContextDTO | null;
 
   applyOpenOnboardingConfig: (answers: Record<string, string>) => void;
+
+  /**
+   * Resultado (mock ou, no futuro, real) da extração de categorias/tags do
+   * onboarding — ver `OnboardingExtractionResult` em `src/ai/types.ts`.
+   * Guardado por completo para referência, além de "espalhado" nos campos
+   * abaixo para consumo direto pelos 3 módulos.
+   */
+  onboardingExtraction: OnboardingExtractionResult | null;
+
+  /** Categorias/tags aplicadas aos 3 módulos existentes, com origin preservado. */
+  financialExpenseCategories: CategorySuggestion[];
+  financialIncomeCategories: CategorySuggestion[];
+  taskTags: CategorySuggestion[];
+  calendarEventTypes: CategorySuggestion[];
+  /** Palavra/expressão -> nome de categoria, para auto-classificação futura. */
+  keywordMap: Record<string, string>;
+
+  recommendedPlugins: RecommendedPlugin[];
+  /** Escolha do usuário na tela de resumo: 'Ativar agora' ou 'Talvez depois'. */
+  activatedPlugins: string[];
+  setPluginActivation: (pluginId: string, activated: boolean) => void;
+
+  /**
+   * Aplica o resultado da extração (mock hoje, IA real no futuro) aos 3
+   * módulos existentes e marca o onboarding como concluído.
+   */
+  applyOnboardingExtraction: (result: OnboardingExtractionResult) => void;
 
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
@@ -65,8 +93,35 @@ export const useAppStore = create<AppStore>((set) => ({
       businessType: guessBusinessTypeFallback(answers),
       businessName: guessBusinessNameFallback(answers),
       onboardingContext: buildOnboardingContextDTO(answers),
-      onboardingCompleted: true,
     }),
+
+  onboardingExtraction: null,
+  financialExpenseCategories: [],
+  financialIncomeCategories: [],
+  taskTags: [],
+  calendarEventTypes: [],
+  keywordMap: {},
+  recommendedPlugins: [],
+  activatedPlugins: [],
+  setPluginActivation: (pluginId, activated) =>
+    set((s) => ({
+      activatedPlugins: activated
+        ? [...new Set([...s.activatedPlugins, pluginId])]
+        : s.activatedPlugins.filter((id) => id !== pluginId),
+    })),
+
+  applyOnboardingExtraction: (result) =>
+    set((s) => ({
+      onboardingExtraction: result,
+      businessName: result.businessName ?? s.businessName,
+      financialExpenseCategories: result.coreCategories.financial.expense,
+      financialIncomeCategories: result.coreCategories.financial.income,
+      taskTags: result.coreCategories.taskTags,
+      calendarEventTypes: result.coreCategories.calendarEventTypes,
+      keywordMap: result.keywordMap,
+      recommendedPlugins: result.recommendedPlugins,
+      onboardingCompleted: true,
+    })),
 
   transactions: mockTransactions,
   addTransaction: (t) =>

@@ -7,27 +7,21 @@ import { OnboardingContextDTO, OnboardingQA } from './onboardingContext';
  * prompt se atualiza sozinho, sem precisar tocar no texto do prompt em si.
  */
 const SECTION_BLOCK_MAP: Record<string, string[]> = {
-  perfilDoUsuario: ['visaoGeral'],
-  rotina: ['rotina'],
-  operacao: ['operacao'],
-  dificuldades: ['dores'],
-  preferencias: ['clientes'],
-  restricoes: ['sazonalidade'],
-  objetivos: ['objetivos'],
-  prioridadeApp: ['prioridade'],
-  respostasLivres: ['complemento'],
+  negocioESegmento: ['negocio'],
+  rotinaFinanceira: ['financas'],
+  rotinaDeTarefas: ['tarefas'],
+  compromissosComData: ['compromissos'],
+  equipe: ['equipe'],
+  maiorAtrito: ['atrito'],
 };
 
 const SECTION_TITLES: Record<keyof typeof SECTION_BLOCK_MAP, string> = {
-  perfilDoUsuario: 'PERFIL DO USUÁRIO E DO NEGÓCIO',
-  rotina: 'ROTINA / OPERAÇÃO DO DIA A DIA',
-  operacao: 'EQUIPE E CONTROLE FINANCEIRO',
-  dificuldades: 'DIFICULDADES',
-  preferencias: 'PREFERÊNCIAS (relacionamento com clientes)',
-  restricoes: 'RESTRIÇÕES (sazonalidade)',
-  objetivos: 'OBJETIVOS',
-  prioridadeApp: 'PRIORIDADE DE USO DO APP',
-  respostasLivres: 'RESPOSTAS LIVRES (complemento opcional do usuário)',
+  negocioESegmento: 'NEGÓCIO E SEGMENTO',
+  rotinaFinanceira: 'ROTINA FINANCEIRA (de onde vem e pra onde vai o dinheiro)',
+  rotinaDeTarefas: 'ROTINA DE TAREFAS (o que precisa ser lembrado/organizado)',
+  compromissosComData: 'COMPROMISSOS COM DATA (entregas, pagamentos, atendimentos, reuniões)',
+  equipe: 'EQUIPE (sozinho ou com ajuda, e o que cada um faz)',
+  maiorAtrito: 'MAIOR ATRITO ATUAL (o que mais incomoda organizar hoje)',
 };
 
 function formatQAList(qas: OnboardingQA[]): string {
@@ -54,8 +48,9 @@ export function buildExtractionPrompt(dto: OnboardingContextDTO): string {
     .join('\n\n');
 
   return `Você é um analista especializado em microempresas, responsável por transformar
-relatos livres de donos de negócio em dados estruturados para configurar um
-sistema de gestão chamado Lumio.
+as 6 respostas de um onboarding conversacional em classificadores prontos
+(categorias e tags) para os 3 módulos que já existem no sistema de gestão
+Lumio: Financeiro, Tarefas e Calendário.
 
 ## CONTEXTO ADICIONAL
 - Onboarding concluído em: ${dto.submittedAt}
@@ -64,64 +59,62 @@ sistema de gestão chamado Lumio.
   (estes dois campos acima são apenas um chute por palavra-chave, feito sem IA
   — priorize sempre o que você conseguir inferir diretamente das respostas)
 
+## RESPOSTAS DO ONBOARDING (ler as 6, na ordem abaixo)
 ${sections}
 
 ## SUA TAREFA
-Leia todas as respostas com atenção e devolva SOMENTE um objeto JSON válido,
-seguindo exatamente o schema abaixo. Não inclua nenhum texto fora do JSON,
-nenhum comentário, nenhuma explicação, nenhum bloco de código markdown.
+1. Identifique o segmento do negócio a partir das respostas.
+2. Gere "coreCategories" cobrindo tanto o que foi dito nas respostas quanto
+   — e isso é ESSENCIAL — uma lista GENEROSA de categorias adicionais
+   plausíveis para aquele segmento, mesmo sem menção explícita do usuário.
+   Exemplo: se o segmento é "papelaria" e o usuário só falou "vendo material
+   escolar e faço xerox", você também deve sugerir coisas como "Cartolina/
+   EVA", "Encadernação", "Cartuchos de impressora", "Papelaria
+   personalizada", etc., marcadas como "suggested".
+3. Preencha "keywordMap" com o máximo de associações palavra → categoria que
+   fizerem sentido para o segmento (não apenas palavras citadas pelo
+   usuário) — o objetivo é que o motor de auto-classificação do app já
+   nasça com uma base rica de palavras-chave.
+4. Recomende plugins em "recommendedPlugins" (lista fechada — usar a lista
+   de plugins definida no documento do Prompt 2 desta iniciativa; esse
+   documento ainda não existe nesta etapa, então use o nome do plugin em
+   texto livre e curto, ex: "equipe", "comissoes", "estoque"), cada um com
+   "reason" humano e "confidence".
+5. NUNCA invente "businessName" ou "segment" caso não sejam identificáveis
+   com segurança — use null nesses casos e registre o campo em
+   "missingInformation".
+6. Retorne APENAS um objeto JSON válido, sem nenhum texto fora do schema,
+   sem comentário, sem explicação, sem bloco de código markdown.
 
-## REGRAS OBRIGATÓRIAS
-- Nunca invente informação que não esteja implícita ou explícita no texto do
-  usuário. Se uma informação não puder ser inferida com segurança, use o
-  valor null (para campos de texto/objeto) ou [] (para listas) e adicione o
-  nome do campo à lista "missingInformation".
-- Diferencie inferência razoável de invenção.
-- Escreva descrições e resumos em português, de forma objetiva, sem copiar
-  frases inteiras do usuário — parafraseie.
-- Se o usuário mencionar múltiplos produtos/serviços/dores/objetivos, liste
-  todos, não escolha só um.
-- Se o texto for ambíguo ou contraditório entre seções, sinalize isso em
-  "conflictsOrAmbiguities" em vez de resolver silenciosamente.
+## TOM DA RESPOSTA
+Seja generoso nas sugestões — é preferível sugerir uma categoria que o
+usuário não vai usar do que deixar de sugerir uma que ele precisava.
+
+## REGRAS SOBRE "origin"
+- "mentioned": o usuário citou isso literalmente ou de forma muito próxima
+  em alguma resposta.
+- "suggested": você inferiu com base no segmento, mesmo sem menção direta.
+Todo item de "coreCategories" (financial.expense, financial.income,
+taskTags, calendarEventTypes) precisa vir com um desses dois valores em
+"origin".
 
 ## SCHEMA DE SAÍDA (JSON)
 {
   "businessName": string | null,
   "segment": string | null,
-  "shortDescription": string | null,
-  "products": string[],
-  "services": string[],
-  "targetAudience": string | null,
-  "operationSummary": string | null,
-  "teamStructure": {
-    "worksAlone": boolean | null,
-    "teamSizeEstimate": string | null,
-    "rolesMentioned": string[]
+  "coreCategories": {
+    "financial": {
+      "expense": [{ "label": string, "origin": "mentioned" | "suggested" }],
+      "income": [{ "label": string, "origin": "mentioned" | "suggested" }]
+    },
+    "taskTags": [{ "label": string, "origin": "mentioned" | "suggested" }],
+    "calendarEventTypes": [{ "label": string, "origin": "mentioned" | "suggested" }]
   },
-  "currentFinancialControl": {
-    "toolsUsed": string[],
-    "organizationLevel": "nenhum" | "informal" | "parcialmente organizado" | "organizado" | null
-  },
-  "customerRelationship": {
-    "hasRecurringCustomers": boolean | null,
-    "followsUpWithCustomers": boolean | null,
-    "notes": string | null
-  },
-  "painPoints": string[],
-  "challenges": string[],
-  "seasonality": {
-    "hasSeasonalVariation": boolean | null,
-    "notes": string | null
-  },
-  "goals": string[],
-  "priorityModule": "financeiro" | "tarefas" | "agenda" | null,
-  "processesToOrganize": string[],
-  "recommendedModules": string[],
-  "automationOpportunities": string[],
-  "maturityLevel": "iniciante" | "em organização" | "estruturado" | null,
-  "missingInformation": string[],
-  "conflictsOrAmbiguities": string[],
-  "additionalNotes": string | null
+  "keywordMap": { "<palavra ou expressão>": "<nome de uma categoria acima>" },
+  "recommendedPlugins": [
+    { "plugin": string, "reason": string, "confidence": "alta" | "media" | "baixa" }
+  ],
+  "missingInformation": string[]
 }
 
 Responda apenas com o JSON, sem markdown, sem \`\`\`json, sem texto antes ou

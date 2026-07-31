@@ -1,14 +1,16 @@
 import { OnboardingContextDTO } from './onboardingContext';
 import { buildExtractionPrompt } from './extractionPrompt';
-import { ExtractedBusinessProfile } from './types';
+import { OnboardingExtractionResult } from './types';
 
 /**
  * Camada de integração futura com IA.
  *
  * NADA nesta função faz uma chamada de rede hoje. Ela existe para que o
  * restante do app (store, telas) já possa depender de uma interface estável
- * — `Promise<ExtractedBusinessProfile>` — sem precisar ser alterado quando a
- * IA for de fato conectada.
+ * — `Promise<OnboardingExtractionResult>` — sem precisar ser alterado quando
+ * a IA for de fato conectada. Hoje quem produz esse mesmo tipo é a
+ * heurística mock local (ver `openOnboardingEngine.ts` ->
+ * `buildMockExtractionResult`), usada pela tela de onboarding.
  *
  * ┌─────────────────────────────────────────────────────────────────────┐
  * │ COMO ESTA FUNÇÃO SERÁ IMPLEMENTADA QUANDO A IA FOR INTEGRADA:        │
@@ -22,7 +24,7 @@ import { ExtractedBusinessProfile } from './types';
  * │    ao modelo de IA, usando esse texto como prompt.                   │
  * │                                                                      │
  * │ 3. O backend deve validar que a resposta do modelo é um JSON válido  │
- * │    no formato `ExtractedBusinessProfile` antes de devolver ao app.   │
+ * │    no formato `OnboardingExtractionResult` antes de devolver ao app. │
  * │                                                                      │
  * │ Exemplo de como o corpo desta função ficará:                        │
  * │                                                                      │
@@ -34,12 +36,12 @@ import { ExtractedBusinessProfile } from './types';
  * │     }                                                                │
  * │   );                                                                 │
  * │   if (!response.ok) throw new Error('Falha ao processar onboarding');│
- * │   return (await response.json()) as ExtractedBusinessProfile;        │
+ * │   return (await response.json()) as OnboardingExtractionResult;      │
  * └─────────────────────────────────────────────────────────────────────┘
  */
 export async function extractBusinessProfile(
   dto: OnboardingContextDTO
-): Promise<ExtractedBusinessProfile> {
+): Promise<OnboardingExtractionResult> {
   // Mantido aqui só para deixar claro, em tempo de desenvolvimento, qual
   // seria o conteúdo exato enviado ao modelo quando a integração existir.
   // eslint-disable-next-line no-console

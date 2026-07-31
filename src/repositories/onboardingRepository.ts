@@ -12,7 +12,7 @@ import { StorageKeys } from '../constants/storageKeys';
  *
  * `structuredProfile` é o espaço reservado para o JSON que uma IA vai
  * gerar no futuro a partir de `responses`/`context` (ver `src/ai/types.ts`
- * -> `ExtractedBusinessProfile`). Ele nunca substitui `responses` — apenas
+ * -> `OnboardingExtractionResult`). Ele nunca substitui `responses` — apenas
  * se soma como mais uma camada de dados do usuário.
  */
 export interface OnboardingRecord {

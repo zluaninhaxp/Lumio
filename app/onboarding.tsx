@@ -16,7 +16,9 @@ import {
   OpenOnboardingAnswers,
   guessBusinessTypeFallback,
   guessBusinessNameFallback,
+  buildMockExtractionResult,
 } from '../src/engine/openOnboardingEngine';
+import { OnboardingExtractionResult, CategorySuggestion } from '../src/ai/types';
 import { ONBOARDING_INTRO } from '../src/data/onboardingQuestions';
 import {
   MASCOT_IMAGES,
@@ -39,9 +41,73 @@ interface Line {
   expression: MascotExpressionKey;
 }
 
+/**
+ * Nomes amigáveis para os plugins recomendados (o `plugin` retornado pela
+ * extração é um id curto em texto livre — ver comentário em
+ * `src/ai/extractionPrompt.ts` sobre a lista fechada de plugins que será
+ * definida no Prompt 2). Qualquer id sem entrada aqui cai no fallback,
+ * que só capitaliza o próprio id.
+ */
+const PLUGIN_FRIENDLY_NAMES: Record<string, string> = {
+  estoque: 'Estoque',
+  comissoes: 'Equipe e Comissões',
+  equipe: 'Equipe',
+  'ordens-de-servico': 'Ordens de Serviço',
+  'agenda-avancada': 'Agenda Avançada',
+  prontuario: 'Prontuário de Cliente',
+  orcamentos: 'Orçamentos',
+  'contratos-recorrentes': 'Contratos Recorrentes',
+  'integracao-marketplace': 'Integração com Marketplaces',
+};
+
+function friendlyPluginName(pluginId: string): string {
+  return PLUGIN_FRIENDLY_NAMES[pluginId]
+    ?? pluginId.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/**
+ * Grupo visual de categorias/tags geradas pelo onboarding. Cada item mostra
+ * um indicador discreto (ponto colorido) de origem: citada pelo usuário
+ * (`mentioned`) vs. sugerida com base no segmento (`suggested`) — ver
+ * `CategorySuggestion` em `src/ai/types.ts`.
+ */
+function CategoryGroup({
+  title, items, icon,
+}: {
+  title: string;
+  items: CategorySuggestion[];
+  icon: keyof typeof Ionicons.glyphMap;
+}) {
+  if (items.length === 0) return null;
+  return (
+    <View style={styles.categoryGroup}>
+      <View style={styles.categoryGroupHeader}>
+        <Ionicons name={icon} size={16} color={Colors.textSecondary} />
+        <Text style={styles.categoryGroupTitle}>{title}</Text>
+      </View>
+      <View style={styles.categoryChips}>
+        {items.map((item) => (
+          <View key={item.label} style={styles.categoryChip}>
+            <View
+              style={[
+                styles.categoryDot,
+                item.origin === 'suggested' && styles.categoryDotSuggested,
+              ]}
+            />
+            <Text style={styles.categoryChipText}>{item.label}</Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function OnboardingScreen() {
   const router = useRouter();
   const applyOpenOnboardingConfig = useAppStore((s) => s.applyOpenOnboardingConfig);
+  const applyOnboardingExtraction = useAppStore((s) => s.applyOnboardingExtraction);
+  const activatedPlugins = useAppStore((s) => s.activatedPlugins);
+  const setPluginActivation = useAppStore((s) => s.setPluginActivation);
   const { currentUser, isAuthenticated, loading, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
 
@@ -63,6 +129,7 @@ export default function OnboardingScreen() {
   const [showIntro, setShowIntro] = useState(true);
   const [introFinished, setIntroFinished] = useState(false);
   const [showSummary, setShowSummary] = useState(false);
+  const [extraction, setExtraction] = useState<OnboardingExtractionResult | null>(null);
   const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
 
@@ -125,6 +192,7 @@ export default function OnboardingScreen() {
     if (isEditingRef.current) {
       isEditingRef.current = false;
       setEditingBlockId(null);
+      setExtraction(buildMockExtractionResult(answersRef.current));
       setShowSummary(true);
       setBlockIndex(BLOCK_COUNT);
       blockIndexRef.current = BLOCK_COUNT;
@@ -133,6 +201,7 @@ export default function OnboardingScreen() {
 
     const next = currentIndex + 1;
     if (next >= BLOCK_COUNT) {
+      setExtraction(buildMockExtractionResult(answersRef.current));
       setShowSummary(true);
       setBlockIndex(next);
       blockIndexRef.current = next;
@@ -218,6 +287,9 @@ export default function OnboardingScreen() {
 
   const handleFinish = useCallback(async () => {
     applyOpenOnboardingConfig(answersRef.current);
+    if (extraction) {
+      applyOnboardingExtraction(extraction);
+    }
 
     if (currentUser) {
       const context = buildOnboardingContextDTO(answersRef.current);
@@ -232,7 +304,7 @@ export default function OnboardingScreen() {
     }
 
     router.replace('/celebration');
-  }, [applyOpenOnboardingConfig, currentUser, refreshUser, router]);
+  }, [applyOpenOnboardingConfig, applyOnboardingExtraction, extraction, currentUser, refreshUser, router]);
 
   const currentBlock = blockIndex < BLOCK_COUNT ? OPEN_QUESTIONS[blockIndex] : null;
   const stage = currentBlock?.stage ?? TOTAL_STAGES;
@@ -295,6 +367,50 @@ export default function OnboardingScreen() {
               </View>
             );
           })}
+
+          {extraction && (
+            <>
+              <CategoryGroup title="Categorias de despesa (Financeiro)" items={extraction.coreCategories.financial.expense} icon="arrow-down-circle" />
+              <CategoryGroup title="Categorias de receita (Financeiro)" items={extraction.coreCategories.financial.income} icon="arrow-up-circle" />
+              <CategoryGroup title="Tags de tarefa" items={extraction.coreCategories.taskTags} icon="checkbox-outline" />
+              <CategoryGroup title="Tipos de evento (Calendário)" items={extraction.coreCategories.calendarEventTypes} icon="calendar-outline" />
+
+              {extraction.recommendedPlugins.length > 0 && (
+                <View style={styles.pluginSection}>
+                  <Text style={styles.pluginSectionTitle}>Sugestões pra você</Text>
+                  {extraction.recommendedPlugins.map((p) => {
+                    const isActivated = activatedPlugins.includes(p.plugin);
+                    return (
+                      <View key={p.plugin} style={styles.pluginCard}>
+                        <Text style={styles.pluginName}>{friendlyPluginName(p.plugin)}</Text>
+                        <Text style={styles.pluginReason}>{p.reason}</Text>
+                        <View style={styles.pluginActions}>
+                          <TouchableOpacity
+                            style={[styles.pluginBtn, isActivated && styles.pluginBtnActive]}
+                            onPress={() => setPluginActivation(p.plugin, true)}
+                            activeOpacity={0.8}
+                          >
+                            <Text style={[styles.pluginBtnText, isActivated && styles.pluginBtnTextActive]}>
+                              {isActivated ? 'Ativado' : 'Ativar agora'}
+                            </Text>
+                          </TouchableOpacity>
+                          {!isActivated && (
+                            <TouchableOpacity
+                              style={styles.pluginBtnGhost}
+                              onPress={() => setPluginActivation(p.plugin, false)}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={styles.pluginBtnGhostText}>Talvez depois</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </>
+          )}
 
           <TouchableOpacity
             style={styles.finishBtn}
@@ -632,5 +748,116 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.md,
     color: '#FFFFFF',
+  },
+
+  // Category groups (financeiro/tarefas/calendário) no resumo
+  categoryGroup: {
+    marginBottom: Spacing.lg,
+  },
+  categoryGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  categoryGroupTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  categoryChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  categoryDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.accent,
+  },
+  categoryDotSuggested: {
+    backgroundColor: Colors.textMuted,
+  },
+  categoryChipText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+  },
+
+  // Plugins recomendados
+  pluginSection: {
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  pluginSectionTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.lg,
+    color: Colors.primary,
+    marginBottom: Spacing.md,
+  },
+  pluginCard: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  pluginName: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+    marginBottom: 4,
+  },
+  pluginReason: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  pluginActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  pluginBtn: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.accent,
+  },
+  pluginBtnActive: {
+    backgroundColor: Colors.primary,
+  },
+  pluginBtnText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: '#FFFFFF',
+  },
+  pluginBtnTextActive: {
+    color: '#FFFFFF',
+  },
+  pluginBtnGhost: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+  },
+  pluginBtnGhostText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
   },
 });

@@ -11,6 +11,10 @@ export interface OpenQuestionBlock {
    * Se presente, a pergunta é exibida como escolha rápida (chips/botões) em
    * vez de campo de texto livre. O valor enviado como resposta é o próprio
    * label escolhido.
+   *
+   * Nenhum dos 6 blocos atuais usa este campo — o roteiro atual é 100%
+   * pergunta aberta, de propósito. O campo permanece no tipo apenas para
+   * não quebrar suporte a esse padrão caso um bloco futuro precise dele.
    */
   options?: string[];
 }
@@ -27,100 +31,84 @@ export const ONBOARDING_INTRO = {
   ],
 };
 
+/**
+ * Roteiro de onboarding reorientado: cada bloco existe para alimentar um
+ * extrator específico de categorias/tags dos 3 módulos do app (Financeiro,
+ * Tarefas, Calendário) — ver `src/ai/types.ts` (OnboardingExtractionResult)
+ * e `src/ai/extractionPrompt.ts`. Perguntas genéricas sobre visão de futuro,
+ * história do negócio, sazonalidade e relacionamento com clientes deixaram
+ * de ser blocos dedicados — se o usuário tocar nesses assuntos
+ * espontaneamente, ótimo, mas não perguntamos mais por eles diretamente.
+ *
+ * Os 6 blocos ficam distribuídos em 4 estágios (barra de progresso) assim:
+ * estágio 1 → negocio; estágio 2 → financas + tarefas; estágio 3 →
+ * compromissos + equipe; estágio 4 → atrito.
+ */
 export const OPEN_QUESTIONS: OpenQuestionBlock[] = [
   {
-    id: 'visaoGeral',
+    id: 'negocio',
     stage: 1,
     question:
-      'Qual é o **nome do seu negócio**? E **o que ele vende ou faz**, pra quem?',
+      'Me conta rapidinho: qual o **nome do seu negócio**, o que vocês **vendem ou oferecem**, e pra **quem** costuma ser isso?',
     followUp:
-      'Me conta um pouco mais: qual é o segmento, e o que você vende ou oferece?',
+      'Me conta um pouco mais: qual é o nome do negócio, o que você vende ou oferece, e pra quem?',
     placeholder:
       'Ex: Tenho uma loja de roupas femininas chamada Estilo Único, atendo mulheres de 20 a 40 anos…',
     minLengthForFollowUp: 30,
     optional: false,
   },
   {
-    id: 'rotina',
-    stage: 1,
-    question:
-      'Conta como é um **dia normal** no seu negócio: o que acontece **desde a hora que abre até a hora que fecha**?',
-    followUp: 'Tem alguma tarefa nesse dia a dia que consome mais tempo do que deveria?',
-    placeholder:
-      'Ex: Abro às 8h, confiro o estoque, atendo clientes, fecho o caixa às 18h…',
-    minLengthForFollowUp: 30,
-    optional: false,
-  },
-  {
-    id: 'operacao',
+    id: 'financas',
     stage: 2,
     question:
-      'Você toca o negócio **sozinho ou tem equipe**? E como **controla as finanças** hoje? Usa planilha, caderno, app ou vai de cabeça?',
-    followUp: 'Alguém além de você mexe no financeiro, ou fica tudo com você?',
+      'Pensando no seu **financeiro**: de onde costuma **vir o dinheiro** que entra, e com que tipo de coisa você costuma **gastar** no dia a dia do negócio?',
+    followUp: 'Me dá mais um exemplo de onde entra e de onde sai dinheiro no seu negócio?',
     placeholder:
-      'Ex: Somos eu e mais dois funcionários. Uso uma planilha no Excel e anoto as vendas no caderno…',
+      'Ex: Entra dinheiro das vendas no balcão e pelo Instagram. Gasto com material, aluguel e fornecedor…',
     minLengthForFollowUp: 30,
     optional: false,
   },
   {
-    id: 'clientes',
+    id: 'tarefas',
     stage: 2,
     question:
-      'Como você se relaciona com seus clientes? Tem **cadastro**, **manda mensagem** ou o contato é **só na hora da venda**?',
-    followUp: 'Tem algo que faz eles voltarem?',
+      'No dia a dia, que tipo de coisa você costuma precisar **lembrar de fazer ou organizar**? Pode ser desde **repor algo** até **resolver uma pendência** com alguém.',
+    followUp: 'Tem mais alguma coisa que você vive precisando lembrar ou organizar?',
     placeholder:
-      'Ex: A maioria dos clientes é conhecida, mando novidades pelo WhatsApp, mas não tenho cadastro organizado…',
+      'Ex: Preciso lembrar de repor estoque, ligar pra fornecedor, cobrar cliente atrasado…',
     minLengthForFollowUp: 30,
     optional: false,
   },
   {
-    id: 'dores',
+    id: 'compromissos',
     stage: 3,
-    question: 'Qual é a **maior dor de cabeça** no seu negócio hoje?',
-    followUp: 'Mais alguma coisa que te consome tempo ou dinheiro sem precisar?',
+    question:
+      'Tem algum tipo de **compromisso que sempre tem uma data certa** pra acontecer — tipo entrega, pagamento, atendimento marcado, reunião? Me conta como costuma ser isso.',
+    followUp: 'Tem outro tipo de compromisso com data certa que também é comum pra você?',
+    placeholder:
+      'Ex: Tenho entrega toda sexta, pagamento de fornecedor no início do mês, e atendimentos marcados…',
+    minLengthForFollowUp: 30,
+    optional: false,
+  },
+  {
+    id: 'equipe',
+    stage: 3,
+    question:
+      'Você toca isso **sozinho ou tem mais gente envolvida**? Se tiver, me conta um pouco **o que cada um costuma fazer**.',
+    followUp: 'E as pessoas envolvidas, o que cada uma costuma fazer no dia a dia?',
+    placeholder:
+      'Ex: Somos eu e mais dois funcionários: um cuida do atendimento e outro da entrega…',
+    minLengthForFollowUp: 30,
+    optional: false,
+  },
+  {
+    id: 'atrito',
+    stage: 4,
+    question: 'De tudo isso, o que **mais te dá trabalho ou confusão** de organizar hoje?',
+    followUp: 'Me conta mais sobre o que mais pesa nisso pra você hoje?',
     placeholder:
       'Ex: Tenho dificuldade em saber quanto estou ganhando de verdade…',
     minLengthForFollowUp: 30,
     optional: false,
-  },
-  {
-    id: 'sazonalidade',
-    stage: 3,
-    question: 'O movimento do seu negócio **varia ao longo do ano** ou é **sempre parecido**?',
-    followUp: 'Como você se prepara nos períodos mais fracos?',
-    placeholder:
-      'Ex: Dezembro é bom por causa do Natal, mas janeiro é bem parado…',
-    minLengthForFollowUp: 30,
-    optional: false,
-  },
-  {
-    id: 'objetivos',
-    stage: 4,
-    question:
-      'Nos próximos anos, **o que você quer alcançar** com o negócio? Por exemplo: abrir outra loja, aumentar o faturamento, ter mais tempo livre…',
-    followUp: 'O que hoje mais te impede de chegar lá?',
-    placeholder:
-      'Ex: Quero abrir uma segunda loja em dois anos, mas hoje não consigo nem saber o lucro real da primeira…',
-    minLengthForFollowUp: 30,
-    optional: false,
-  },
-  {
-    id: 'prioridade',
-    stage: 4,
-    question: 'No Lumio, o que você quer **organizar primeiro**?',
-    followUp: '',
-    placeholder: '',
-    minLengthForFollowUp: 0,
-    optional: false,
-    options: ['Financeiro', 'Tarefas', 'Agenda'],
-  },
-  {
-    id: 'complemento',
-    stage: 4,
-    question: 'Quer **contar mais alguma coisa**? Fica à vontade, ou pode pular.',
-    followUp: 'Pode falar o que quiser, sem compromisso.',
-    placeholder: 'Ex: Também vendo online pelo Instagram, mas de forma bem informal…',
-    minLengthForFollowUp: 30,
-    optional: true,
   },
 ];

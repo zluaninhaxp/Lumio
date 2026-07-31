@@ -25,7 +25,10 @@ export default function PainelScreen() {
   const [completeTab, setCompleteTab] = useState<CompleteTab>('Financeiro');
   const [filter, setFilter] = useState<FilterType>('Todos');
 
-  const { transactions, tasks, events, removeTransaction, toggleTask, toggleEvent } = useAppStore();
+  const {
+    transactions, tasks, events, removeTransaction, toggleTask, toggleEvent,
+    financialExpenseCategories, financialIncomeCategories,
+  } = useAppStore();
 
   const handleLogout = () => {
     Alert.alert('Sair', 'Tem certeza que deseja sair da sua conta?', [
@@ -48,9 +51,17 @@ export default function PainelScreen() {
     return t.category === filter;
   });
 
-  const categories = [...new Set(transactions.map((t) => t.category))].filter(
-    (c) => c !== 'Receita'
-  );
+  // Categorias vindas do onboarding (ver `applyOnboardingExtraction` no
+  // store) aparecem como filtro mesmo antes de existir algum lançamento
+  // naquela categoria, além das categorias já usadas em transações.
+  const onboardingCategoryLabels = [
+    ...financialExpenseCategories,
+    ...financialIncomeCategories,
+  ].map((c) => c.label);
+
+  const categories = [
+    ...new Set([...transactions.map((t) => t.category), ...onboardingCategoryLabels]),
+  ].filter((c) => c !== 'Receita');
 
   const financialFilters = ['Todos', 'Entradas', 'Saídas', ...categories];
 

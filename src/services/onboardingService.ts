@@ -10,7 +10,7 @@ import { PublicUser } from '../types/user';
  * `src/ai/onboardingContext.ts`), associado ao usuário logado.
  *
  * `saveStructuredProfile` já existe como preparação para o futuro (ver
- * `src/ai/types.ts` -> `ExtractedBusinessProfile`), mas não é chamado por
+ * `src/ai/types.ts` -> `OnboardingExtractionResult`), mas não é chamado por
  * nenhuma tela ainda.
  */
 export const onboardingService = {
@@ -35,7 +35,7 @@ export const onboardingService = {
 
   /**
    * Reservado para a etapa futura: uma IA lê `responses`/`context` e
-   * devolve um JSON estruturado (`ExtractedBusinessProfile`), que é salvo
+   * devolve um JSON estruturado (`OnboardingExtractionResult`), que é salvo
    * aqui SEM apagar as respostas originais.
    */
   async saveStructuredProfile(userId: string, structuredProfile: unknown): Promise<OnboardingRecord> {

@@ -27,15 +27,12 @@ export type MascotExpressionKey = keyof typeof MASCOT_IMAGES;
 
 /** Expressão principal usada quando o mascote faz a pergunta de cada bloco. */
 export const BLOCK_MASCOT_EXPRESSION: Record<string, MascotExpressionKey> = {
-  visaoGeral: 'feliz',
-  rotina: 'focado',
-  operacao: 'calmo',
-  clientes: 'satisfeito',
-  dores: 'triste',
-  sazonalidade: 'serio',
-  objetivos: 'muitoFeliz',
-  prioridade: 'sorrisoLeve',
-  complemento: 'sorrisoLeve',
+  negocio: 'feliz',
+  financas: 'focado',
+  tarefas: 'calmo',
+  compromissos: 'serio',
+  equipe: 'satisfeito',
+  atrito: 'triste',
 };
 
 /** Expressão usada na transição/abertura de cada etapa (stage 1-4). */
