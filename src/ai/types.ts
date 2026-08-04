@@ -12,6 +12,13 @@ export interface OnboardingExtractionResult {
   businessName: string | null;
   segment: string | null;
 
+  /**
+   * Resumo geral, em 2-4 frases corridas, do que o usuário contou e do que
+   * foi entendido sobre o negócio — usado na tela de resumo pós-onboarding
+   * no lugar de exibir cada pergunta/resposta individualmente.
+   */
+  summary: string;
+
   coreCategories: {
     financial: {
       expense: CategorySuggestion[];

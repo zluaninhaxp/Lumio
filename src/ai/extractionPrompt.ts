@@ -64,26 +64,32 @@ ${sections}
 
 ## SUA TAREFA
 1. Identifique o segmento do negócio a partir das respostas.
-2. Gere "coreCategories" cobrindo tanto o que foi dito nas respostas quanto
+2. Escreva "summary": um resumo geral, em 2-4 frases corridas e em tom
+   humano (não uma lista), do que o usuário contou e do que você entendeu
+   sobre o negócio dele. Este resumo substitui, na tela final do app, a
+   exibição de cada pergunta/resposta individualmente — então ele precisa
+   sozinho transmitir o essencial (o que o negócio faz, como ele já se
+   organiza hoje, e o que mais pesa no dia a dia).
+3. Gere "coreCategories" cobrindo tanto o que foi dito nas respostas quanto
    — e isso é ESSENCIAL — uma lista GENEROSA de categorias adicionais
    plausíveis para aquele segmento, mesmo sem menção explícita do usuário.
    Exemplo: se o segmento é "papelaria" e o usuário só falou "vendo material
    escolar e faço xerox", você também deve sugerir coisas como "Cartolina/
    EVA", "Encadernação", "Cartuchos de impressora", "Papelaria
    personalizada", etc., marcadas como "suggested".
-3. Preencha "keywordMap" com o máximo de associações palavra → categoria que
+4. Preencha "keywordMap" com o máximo de associações palavra → categoria que
    fizerem sentido para o segmento (não apenas palavras citadas pelo
    usuário) — o objetivo é que o motor de auto-classificação do app já
    nasça com uma base rica de palavras-chave.
-4. Recomende plugins em "recommendedPlugins" usando APENAS ids da lista
+5. Recomende plugins em "recommendedPlugins" usando APENAS ids da lista
    fechada definida em src/plugins/registry.ts: "estoque", "clientes",
    "fornecedores", "agenda", "orcamentos", "comissoes", "equipe",
    "entregas", "vendas", "filiais", "contratos". Nunca invente um id fora
    desta lista. Cada recomendação vem com "reason" humano e "confidence".
-5. NUNCA invente "businessName" ou "segment" caso não sejam identificáveis
+6. NUNCA invente "businessName" ou "segment" caso não sejam identificáveis
    com segurança — use null nesses casos e registre o campo em
    "missingInformation".
-6. Retorne APENAS um objeto JSON válido, sem nenhum texto fora do schema,
+7. Retorne APENAS um objeto JSON válido, sem nenhum texto fora do schema,
    sem comentário, sem explicação, sem bloco de código markdown.
 
 ## TOM DA RESPOSTA
@@ -102,6 +108,7 @@ taskTags, calendarEventTypes) precisa vir com um desses dois valores em
 {
   "businessName": string | null,
   "segment": string | null,
+  "summary": string,
   "coreCategories": {
     "financial": {
       "expense": [{ "label": string, "origin": "mentioned" | "suggested" }],

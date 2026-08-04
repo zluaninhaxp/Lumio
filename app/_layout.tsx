@@ -23,6 +23,7 @@ export default function RootLayout() {
         <Stack.Screen name="register" />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="celebration" />
+        <Stack.Screen name="onboarding-summary" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="plugins/store" />
         <Stack.Screen name="plugins/estoque" />

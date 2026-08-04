@@ -68,6 +68,15 @@ export interface AppStore {
    */
   onboardingExtraction: OnboardingExtractionResult | null;
 
+  /**
+   * Resultado calculado na tela de celebração (`app/celebration.tsx`),
+   * aguardando confirmação do usuário na tela de resumo
+   * (`app/onboarding-summary.tsx`). Só vira `onboardingExtraction`
+   * definitivo (e só reflete nos 3 módulos) quando o usuário confirma.
+   */
+  pendingOnboardingExtraction: OnboardingExtractionResult | null;
+  setPendingOnboardingExtraction: (result: OnboardingExtractionResult | null) => void;
+
   /** Categorias/tags aplicadas aos 3 módulos existentes, com origin preservado. */
   financialExpenseCategories: CategorySuggestion[];
   financialIncomeCategories: CategorySuggestion[];
@@ -153,6 +162,8 @@ export const useAppStore = create<AppStore>((set) => ({
     }),
 
   onboardingExtraction: null,
+  pendingOnboardingExtraction: null,
+  setPendingOnboardingExtraction: (result) => set({ pendingOnboardingExtraction: result }),
   financialExpenseCategories: [],
   financialIncomeCategories: [],
   taskTags: [],
@@ -219,6 +230,7 @@ export const useAppStore = create<AppStore>((set) => ({
   applyOnboardingExtraction: (result) =>
     set((s) => ({
       onboardingExtraction: result,
+      pendingOnboardingExtraction: null,
       businessName: result.businessName ?? s.businessName,
       financialExpenseCategories: result.coreCategories.financial.expense,
       financialIncomeCategories: result.coreCategories.financial.income,

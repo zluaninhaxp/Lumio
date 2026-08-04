@@ -73,6 +73,44 @@ function toSuggestions(labels: string[], userText: string): CategorySuggestion[]
  * `OnboardingExtractionResult` usado aqui, então trocar a implementação não
  * deve exigir mudanças nas telas ou no store.
  */
+/**
+ * Gera o texto de "summary" (resumo geral, 2-4 frases) exigido por
+ * `OnboardingExtractionResult`. Puramente heurístico — a versão real virá
+ * do modelo de IA (ver instrução 2 em `extractionPrompt.ts`), mas o
+ * formato/objetivo é o mesmo: substituir a exibição pergunta-a-pergunta na
+ * tela final por um parágrafo corrido.
+ */
+function buildSummaryText(
+  answers: OpenOnboardingAnswers,
+  businessName: string | null,
+  segmentLabel: string | null
+): string {
+  const parts: string[] = [];
+
+  if (businessName && segmentLabel) {
+    parts.push(`${businessName} é um negócio do tipo ${segmentLabel.toLowerCase()}.`);
+  } else if (segmentLabel) {
+    parts.push(`Pelo que você contou, seu negócio se parece com ${segmentLabel.toLowerCase()}.`);
+  } else {
+    parts.push('Entendemos o funcionamento geral do seu negócio a partir das suas respostas.');
+  }
+
+  if (answers.financas) {
+    parts.push('Já organizamos categorias financeiras pra você começar a lançar gastos e receitas sem esforço.');
+  }
+  if (answers.tarefas) {
+    parts.push('Também preparamos tags de tarefa com base no que você disse que costuma fazer no dia a dia.');
+  }
+  if (answers.compromissos) {
+    parts.push('E deixamos tipos de evento prontos pra sua agenda, pensando nos compromissos que você mencionou.');
+  }
+  if (answers.atrito) {
+    parts.push('Vamos priorizar justamente o que mais tem pesado pra você organizar hoje.');
+  }
+
+  return parts.join(' ');
+}
+
 export function buildMockExtractionResult(answers: OpenOnboardingAnswers): OnboardingExtractionResult {
   const businessAnswer = answers.negocio ?? '';
   const segmentKey: BusinessTypeKey | null = guessBusinessType(businessAnswer);
@@ -101,6 +139,7 @@ export function buildMockExtractionResult(answers: OpenOnboardingAnswers): Onboa
   return {
     businessName,
     segment,
+    summary: buildSummaryText(answers, businessName, segment),
     coreCategories: {
       financial: { expense, income },
       taskTags,
