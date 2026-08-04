@@ -75,7 +75,7 @@ export default function ChatScreen() {
       }
     } else if (parsed.intent === 'TASK_ADD') {
       actions = ['Concluir'];
-      addTask({ description: parsed.entities.description || '', done: false, dueDate: null });
+      addTask({ description: parsed.entities.description || '', done: false, dueDate: null, priority: 'media', subtasks: [], tags: [], createdAt: new Date().toISOString() });
     } else if (parsed.intent === 'TASK_WITH_DATE') {
       actions = ['Concluir'];
       addEvent({
@@ -136,7 +136,7 @@ export default function ChatScreen() {
       }
     } else if (parsed.intent === 'TASK_ADD') {
       actions = ['Concluir'];
-      addTask({ description: parsed.entities.description || '', done: false, dueDate: null });
+      addTask({ description: parsed.entities.description || '', done: false, dueDate: null, priority: 'media', subtasks: [], tags: [], createdAt: new Date().toISOString() });
     } else if (parsed.intent === 'TASK_WITH_DATE') {
       actions = ['Concluir'];
       addEvent({

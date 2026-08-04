@@ -12,11 +12,11 @@ export const mockTransactions = [
 ];
 
 export const mockTasks = [
-  { id: '1', description: 'Fazer orçamento — obra do seu Zé', done: false, dueDate: null },
-  { id: '2', description: 'Ligar para fornecedor de tintas', done: false, dueDate: null },
-  { id: '3', description: 'Trocar óleo da van de entrega', done: false, dueDate: null },
-  { id: '4', description: 'Comprar material de limpeza', done: true, dueDate: null },
-  { id: '5', description: 'Emitir nota da última venda', done: true, dueDate: null },
+  { id: '1', description: 'Fazer orçamento — obra do seu Zé', done: false, dueDate: null, priority: 'alta' as const, subtasks: [] as { id: string; text: string; done: boolean }[], tags: ['Clientes'] as string[], createdAt: '2026-07-15T10:00:00.000Z' },
+  { id: '2', description: 'Ligar para fornecedor de tintas', done: false, dueDate: null, priority: 'media' as const, subtasks: [], tags: ['Fornecedor'] as string[], createdAt: '2026-07-14T10:00:00.000Z' },
+  { id: '3', description: 'Trocar óleo da van de entrega', done: false, dueDate: null, priority: 'alta' as const, subtasks: [], tags: ['Peças', 'Estoque'] as string[], createdAt: '2026-07-13T10:00:00.000Z' },
+  { id: '4', description: 'Comprar material de limpeza', done: true, dueDate: null, priority: 'baixa' as const, subtasks: [], tags: ['Estoque'] as string[], createdAt: '2026-07-12T10:00:00.000Z' },
+  { id: '5', description: 'Emitir nota da última venda', done: true, dueDate: null, priority: 'media' as const, subtasks: [], tags: [] as string[], createdAt: '2026-07-11T10:00:00.000Z' },
 ];
 
 export const mockCalendarEvents = [

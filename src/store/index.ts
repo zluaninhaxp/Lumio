@@ -9,7 +9,18 @@ import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } fro
 import { PluginId } from '../plugins/registry';
 
 type Transaction = (typeof mockTransactions)[0];
-type Task = (typeof mockTasks)[0];
+export interface Task {
+  id: string;
+  description: string;
+  done: boolean;
+  dueDate: string | null;
+  dueDateLabel?: string | null;
+  priority: 'alta' | 'media' | 'baixa';
+  subtasks: { id: string; text: string; done: boolean }[];
+  tags: string[];
+  createdAt: string;
+}
+
 type CalendarEvent = (typeof mockCalendarEvents)[0];
 
 export interface EstoqueItem {
@@ -131,8 +142,13 @@ export interface AppStore {
 
   tasks: Task[];
   addTask: (t: Omit<Task, 'id'>) => void;
+  updateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   toggleTask: (id: string) => void;
   removeTask: (id: string) => void;
+
+  customTaskTags: string[];
+  addCustomTaskTag: (tag: string) => void;
+  removeCustomTaskTag: (tag: string) => void;
 
   events: CalendarEvent[];
   addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
@@ -249,17 +265,36 @@ export const useAppStore = create<AppStore>((set) => ({
   removeTransaction: (id) =>
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
 
-  tasks: mockTasks,
+  tasks: mockTasks as Task[],
   addTask: (t) =>
     set((s) => ({
-      tasks: [{ ...t, id: Date.now().toString() }, ...s.tasks],
+      tasks: [{ ...t, id: Date.now().toString() } as Task, ...s.tasks],
+    })),
+  updateTask: (id, updates) =>
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } as Task : t)),
     })),
   toggleTask: (id) =>
     set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } as Task : t)),
     })),
   removeTask: (id) =>
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+
+  customTaskTags: ['Peças', 'Clientes', 'Financeiro', 'Estoque', 'Fornecedor'],
+  addCustomTaskTag: (tag) =>
+    set((s) => {
+      if (s.customTaskTags.includes(tag)) return s;
+      return { customTaskTags: [...s.customTaskTags, tag] };
+    }),
+  removeCustomTaskTag: (tag) =>
+    set((s) => ({
+      customTaskTags: s.customTaskTags.filter((t) => t !== tag),
+      tasks: s.tasks.map((task) => ({
+        ...task,
+        tags: task.tags.filter((t) => t !== tag),
+      })) as Task[],
+    })),
 
   events: mockCalendarEvents,
   addEvent: (e) =>
