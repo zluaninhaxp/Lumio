@@ -32,7 +32,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem } = useAppStore();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
@@ -71,7 +71,31 @@ export default function ChatScreen() {
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
+    if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
+      if (parsed.intent === 'ORDER_OPEN_QUERY') {
+        const openOrders = pedidos.filter((order) => order.status === 'aberto');
+        botText = openOrders.length ? `Pedidos em aberto: ${openOrders.map((order) => `#${order.id.slice(-6)}`).join(', ')}.` : 'Não há pedidos em aberto.';
+      } else if (parsed.intent === 'SALES_WEEK_QUERY') {
+        const now = new Date();
+        const start = new Date(now);
+        const day = start.getDay() || 7;
+        start.setDate(start.getDate() - day + 1);
+        start.setHours(0, 0, 0, 0);
+        const sold = pedidos.filter((order) => order.status === 'concluido' && new Date(order.createdAt) >= start).reduce((sum, order) => sum + order.total, 0);
+        botText = `Você vendeu ${formatMoney(sold)} nesta semana.`;
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de registrar o pedido.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else {
+          const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
+          const quantity = parsed.entities.orderQuantity || 0;
+          const unitPrice = parsed.entities.unitPrice || 0;
+          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
+          botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
+        }
+      }
+    } else if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
       if (parsed.intent === 'STOCK_LOW_QUERY') {
         const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
         botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
@@ -162,7 +186,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [input, addTransaction, addTask, addEvent, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
+  }, [input, addTransaction, addTask, addEvent, addPedido, pedidos, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -180,7 +204,31 @@ export default function ChatScreen() {
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
+    if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
+      if (parsed.intent === 'ORDER_OPEN_QUERY') {
+        const openOrders = pedidos.filter((order) => order.status === 'aberto');
+        botText = openOrders.length ? `Pedidos em aberto: ${openOrders.map((order) => `#${order.id.slice(-6)}`).join(', ')}.` : 'Não há pedidos em aberto.';
+      } else if (parsed.intent === 'SALES_WEEK_QUERY') {
+        const now = new Date();
+        const start = new Date(now);
+        const day = start.getDay() || 7;
+        start.setDate(start.getDate() - day + 1);
+        start.setHours(0, 0, 0, 0);
+        const sold = pedidos.filter((order) => order.status === 'concluido' && new Date(order.createdAt) >= start).reduce((sum, order) => sum + order.total, 0);
+        botText = `Você vendeu ${formatMoney(sold)} nesta semana.`;
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de registrar o pedido.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else {
+          const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
+          const quantity = parsed.entities.orderQuantity || 0;
+          const unitPrice = parsed.entities.unitPrice || 0;
+          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
+          botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
+        }
+      }
+    } else if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
       if (parsed.intent === 'STOCK_LOW_QUERY') {
         const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
         botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
@@ -269,7 +317,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [scrollToBottom, addTransaction, addTask, addEvent, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
+  }, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

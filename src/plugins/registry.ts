@@ -201,7 +201,7 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     icon: 'receipt',
     description: 'Registre uma venda com os itens vendidos.',
     route: '/plugins/vendas',
-    implemented: false,
+    implemented: true,
     itemLabel: 'venda',
     itemLabelPlural: 'vendas',
     fields: [

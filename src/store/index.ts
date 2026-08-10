@@ -23,6 +23,7 @@ export interface Transaction {
   stockItemId?: string;
   stockQuantity?: number;
   stockReceived?: boolean;
+  orderId?: string;
 }
 export interface Task {
   id: string;
@@ -69,6 +70,29 @@ export interface StockMovement {
   reason: string;
   createdAt: string;
   sourceTransactionId?: string;
+  sourceOrderId?: string;
+}
+
+export interface OrderItem {
+  id: string;
+  name: string;
+  quantity: number;
+  unitPrice: number;
+  stockItemId?: string;
+}
+
+export type OrderStatus = 'aberto' | 'concluido' | 'cancelado';
+
+export interface Pedido {
+  id: string;
+  clientId?: string;
+  items: OrderItem[];
+  total: number;
+  status: OrderStatus;
+  date: string;
+  createdAt: string;
+  financeTransactionId?: string;
+  stockDeductions?: Array<{ stockItemId: string; quantity: number }>;
 }
 
 export interface FornecedorItem {
@@ -158,6 +182,12 @@ export interface AppStore {
   moveEstoqueItem: (itemId: string, quantity: number, reason?: string, sourceTransactionId?: string) => boolean;
   receiveStockFromPurchase: (transactionId: string, itemId: string, quantity: number) => boolean;
 
+  pedidos: Pedido[];
+  addPedido: (pedido: Omit<Pedido, 'id' | 'financeTransactionId' | 'stockDeductions'>) => string;
+  updatePedido: (id: string, updates: Partial<Omit<Pedido, 'id'>>) => boolean;
+  completePedido: (id: string) => boolean;
+  removePedido: (id: string) => void;
+
   clienteItems: ClienteItem[];
   addClienteItem: (item: Omit<ClienteItem, 'id'>) => string;
   updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
@@ -211,6 +241,55 @@ export interface AppStore {
   messages: ChatMessage[];
   addMessage: (m: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   clearMessages: () => void;
+}
+
+function getOrderStockDeductions(order: Pedido, stockItems: EstoqueItem[]): Array<{ stockItemId: string; quantity: number }> {
+  const deductions = new Map<string, number>();
+  order.items.forEach((item) => {
+    const normalizedName = item.name.trim().toLowerCase();
+    const stockItem = item.stockItemId
+      ? stockItems.find((candidate) => candidate.id === item.stockItemId)
+      : stockItems.find((candidate) => candidate.name.trim().toLowerCase() === normalizedName);
+    if (stockItem && item.quantity > 0) deductions.set(stockItem.id, (deductions.get(stockItem.id) ?? 0) + item.quantity);
+  });
+  return [...deductions].map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
+}
+
+function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Pedido, 'id'>>): Partial<AppStore> | null {
+  const current = state.pedidos.find((pedido) => pedido.id === id);
+  if (!current) return null;
+  const next: Pedido = { ...current, ...updates, id };
+  const wasCompleted = current.status === 'concluido';
+  const willBeCompleted = next.status === 'concluido';
+  const oldDeductions = current.stockDeductions ?? [];
+  const newDeductions = willBeCompleted ? getOrderStockDeductions(next, state.estoqueItems) : [];
+  const deltas = new Map<string, number>();
+  oldDeductions.forEach((entry) => deltas.set(entry.stockItemId, (deltas.get(entry.stockItemId) ?? 0) + entry.quantity));
+  newDeductions.forEach((entry) => deltas.set(entry.stockItemId, (deltas.get(entry.stockItemId) ?? 0) - entry.quantity));
+  for (const [stockItemId, delta] of deltas) {
+    const item = state.estoqueItems.find((stockItem) => stockItem.id === stockItemId);
+    if (!item || item.quantity + delta < 0) return null;
+  }
+  const nextItems = state.estoqueItems.map((item) => {
+    const delta = deltas.get(item.id) ?? 0;
+    return delta === 0 ? item : { ...item, quantity: item.quantity + delta };
+  });
+  const nextMovements = [...state.stockMovements];
+  deltas.forEach((delta, stockItemId) => {
+    if (delta !== 0) nextMovements.unshift({ id: generateId('mov_'), itemId: stockItemId, quantity: delta, reason: 'Pedido concluído atualizado', createdAt: new Date().toISOString(), sourceOrderId: id });
+  });
+  let transactionId = current.financeTransactionId;
+  let transactions = state.transactions;
+  if (willBeCompleted) {
+    transactionId = transactionId ?? generateId('txn_');
+    const transaction: Transaction = { id: transactionId, date: next.date, description: `Pedido ${id}`, amount: next.total, category: 'Receita', clientId: next.clientId, orderId: id };
+    const exists = transactions.some((item) => item.id === transactionId);
+    transactions = exists ? transactions.map((item) => item.id === transactionId ? transaction : item) : [transaction, ...transactions];
+  } else if (wasCompleted && transactionId) {
+    transactions = transactions.filter((item) => item.id !== transactionId);
+    transactionId = undefined;
+  }
+  return { pedidos: state.pedidos.map((pedido) => pedido.id === id ? { ...next, financeTransactionId: transactionId, stockDeductions: newDeductions } : pedido), estoqueItems: nextItems, stockMovements: nextMovements, transactions };
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -294,6 +373,45 @@ export const useAppStore = create<AppStore>((set) => ({
     });
     return received;
   },
+
+  pedidos: [],
+  addPedido: (pedido) => {
+    const id = generateId('ord_');
+    set((s) => ({ pedidos: [{ ...pedido, id }, ...s.pedidos] }));
+    return id;
+  },
+  updatePedido: (id, updates) => {
+    let updated = false;
+    set((s) => {
+      const result = applyOrderUpdate(s, id, updates);
+      if (!result) return s;
+      updated = true;
+      return result;
+    });
+    return updated;
+  },
+  completePedido: (id): boolean => {
+    let completed = false;
+    set((s) => {
+      const result = applyOrderUpdate(s, id, { status: 'concluido' });
+      if (!result) return s;
+      completed = true;
+      return result;
+    });
+    return completed;
+  },
+  removePedido: (id) => set((s) => {
+    const pedido = s.pedidos.find((item) => item.id === id);
+    if (!pedido) return s;
+    if (pedido.status === 'concluido') {
+      const restoredItems = s.estoqueItems.map((item) => {
+        const deduction = pedido.stockDeductions?.find((entry) => entry.stockItemId === item.id);
+        return deduction ? { ...item, quantity: item.quantity + deduction.quantity } : item;
+      });
+      return { pedidos: s.pedidos.filter((item) => item.id !== id), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId) : s.transactions };
+    }
+    return { pedidos: s.pedidos.filter((item) => item.id !== id) };
+  }),
 
   clienteItems: [],
   addClienteItem: (item) => {

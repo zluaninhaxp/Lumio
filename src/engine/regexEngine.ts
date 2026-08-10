@@ -13,6 +13,9 @@ export type Intent =
   | 'STOCK_BALANCE_QUERY'
   | 'STOCK_DECREASE'
   | 'STOCK_LOW_QUERY'
+  | 'ORDER_CREATE'
+  | 'ORDER_OPEN_QUERY'
+  | 'SALES_WEEK_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -26,6 +29,9 @@ export interface ParsedMessage {
     supplierName?: string;
     paymentDays?: number;
     stockItemName?: string;
+    orderItemName?: string;
+    orderQuantity?: number;
+    unitPrice?: number;
   };
   raw: string;
 }
@@ -52,6 +58,9 @@ const SUPPLIER_DUE_QUERY_PATTERN = /quando\s+vence\s+a\s+última\s+compra\s+(?:d
 const STOCK_BALANCE_QUERY_PATTERN = /quantos\s+(.+?)\s+(?:eu\s+)?tenho(?:\?|$)/i;
 const STOCK_DECREASE_PATTERN = /dei\s+baixa\s+de\s+(\d+(?:[.,]\d+)?)\s+(.+?)(?:\?|$)/i;
 const STOCK_LOW_QUERY_PATTERN = /o\s+que\s+est[aá]\s+acabando/i;
+const ORDER_CREATE_PATTERN = /(?:registra|registre|cria|criar)\s+(?:uma\s+)?venda\s+de\s+(\d+(?:[.,]\d+)?)\s+(.+?)\s+(?:pro|para\s+o|para\s+a)\s+(.+?)\s+a\s+(?:r\$\s*)?(\d+(?:[.,]\d+)?)\s+reais?\s+cada/i;
+const ORDER_OPEN_QUERY_PATTERN = /quais\s+pedidos\s+est[aã]o\s+em\s+aberto/i;
+const SALES_WEEK_QUERY_PATTERN = /quanto\s+vendi\s+essa\s+semana/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -59,6 +68,11 @@ function parseValue(raw: string): number {
 
 export function parseMessage(input: string): ParsedMessage {
   const text = input.trim();
+
+  const orderCreateMatch = text.match(ORDER_CREATE_PATTERN);
+  if (orderCreateMatch) return { intent: 'ORDER_CREATE', entities: { orderQuantity: parseValue(orderCreateMatch[1]), orderItemName: orderCreateMatch[2].trim(), clientName: orderCreateMatch[3].trim(), unitPrice: parseValue(orderCreateMatch[4]) }, raw: text };
+  if (ORDER_OPEN_QUERY_PATTERN.test(text)) return { intent: 'ORDER_OPEN_QUERY', entities: {}, raw: text };
+  if (SALES_WEEK_QUERY_PATTERN.test(text)) return { intent: 'SALES_WEEK_QUERY', entities: {}, raw: text };
 
   const supplierBalanceMatch = text.match(SUPPLIER_BALANCE_QUERY_PATTERN);
   if (supplierBalanceMatch) return { intent: 'SUPPLIER_BALANCE_QUERY', entities: { supplierName: supplierBalanceMatch[1].trim() }, raw: text };
@@ -177,6 +191,10 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'STOCK_BALANCE_QUERY':
     case 'STOCK_DECREASE':
     case 'STOCK_LOW_QUERY':
+      return '';
+    case 'ORDER_CREATE':
+    case 'ORDER_OPEN_QUERY':
+    case 'SALES_WEEK_QUERY':
       return '';
     default:
       return '';
