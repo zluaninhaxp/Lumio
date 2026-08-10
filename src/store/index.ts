@@ -95,6 +95,19 @@ export interface Pedido {
   stockDeductions?: Array<{ stockItemId: string; quantity: number }>;
 }
 
+export type QuoteStatus = 'pendente' | 'aprovado' | 'recusado' | 'expirado';
+
+export interface Orcamento {
+  id: string;
+  clientId?: string;
+  items: OrderItem[];
+  total: number;
+  validUntil: string;
+  status: QuoteStatus;
+  createdAt: string;
+  orderId?: string;
+}
+
 export interface FornecedorItem {
   id: string;
   name: string;
@@ -188,6 +201,12 @@ export interface AppStore {
   completePedido: (id: string) => boolean;
   removePedido: (id: string) => void;
 
+  orcamentos: Orcamento[];
+  addOrcamento: (orcamento: Omit<Orcamento, 'id' | 'orderId'>) => string;
+  updateOrcamento: (id: string, updates: Partial<Omit<Orcamento, 'id'>>) => void;
+  approveOrcamento: (id: string) => string | null;
+  refreshOrcamentos: () => void;
+
   clienteItems: ClienteItem[];
   addClienteItem: (item: Omit<ClienteItem, 'id'>) => string;
   updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
@@ -253,6 +272,13 @@ function getOrderStockDeductions(order: Pedido, stockItems: EstoqueItem[]): Arra
     if (stockItem && item.quantity > 0) deductions.set(stockItem.id, (deductions.get(stockItem.id) ?? 0) + item.quantity);
   });
   return [...deductions].map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
+}
+
+function isQuoteExpired(validUntil: string): boolean {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const validity = new Date(`${validUntil}T00:00:00`);
+  return validity.getTime() < today.getTime();
 }
 
 function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Pedido, 'id'>>): Partial<AppStore> | null {
@@ -412,6 +438,28 @@ export const useAppStore = create<AppStore>((set) => ({
     }
     return { pedidos: s.pedidos.filter((item) => item.id !== id) };
   }),
+
+  orcamentos: [],
+  addOrcamento: (orcamento) => {
+    const id = generateId('orc_');
+    set((s) => ({ orcamentos: [{ ...orcamento, id }, ...s.orcamentos] }));
+    return id;
+  },
+  updateOrcamento: (id, updates) =>
+    set((s) => ({ orcamentos: s.orcamentos.map((orcamento) => orcamento.id === id ? { ...orcamento, ...updates, id } : orcamento) })),
+  approveOrcamento: (id) => {
+    let orderId: string | null = null;
+    set((s) => {
+      const quote = s.orcamentos.find((orcamento) => orcamento.id === id);
+      if (!quote || quote.orderId || quote.status !== 'pendente' || isQuoteExpired(quote.validUntil)) return s;
+      orderId = generateId('ord_');
+      const order: Pedido = { id: orderId, clientId: quote.clientId, items: quote.items, total: quote.total, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() };
+      return { pedidos: [order, ...s.pedidos], orcamentos: s.orcamentos.map((orcamento) => orcamento.id === id ? { ...orcamento, status: 'aprovado' as const, orderId: order.id } : orcamento) };
+    });
+    return orderId;
+  },
+  refreshOrcamentos: () =>
+    set((s) => ({ orcamentos: s.orcamentos.map((orcamento) => orcamento.status === 'pendente' && isQuoteExpired(orcamento.validUntil) ? { ...orcamento, status: 'expirado' as const } : orcamento) })),
 
   clienteItems: [],
   addClienteItem: (item) => {

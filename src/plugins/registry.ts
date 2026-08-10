@@ -134,16 +134,12 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     icon: 'document-text',
     description: 'Feche o preço com o cliente antes do serviço.',
     route: '/plugins/orcamentos',
-    implemented: false,
+    implemented: true,
     itemLabel: 'orçamento',
     itemLabelPlural: 'orçamentos',
     fields: [
-      { key: 'items', label: 'Itens', type: 'text', primary: true, placeholder: 'Ex: Troca de óleo + filtro' },
-      { key: 'value', label: 'Valor', type: 'number', placeholder: '0' },
-      {
-        key: 'status', label: 'Status', type: 'select',
-        options: ['Pendente', 'Aprovado', 'Recusado'],
-      },
+      { key: 'items', label: 'Itens', type: 'text', primary: true, placeholder: 'Ex: 2x Camiseta' },
+      { key: 'validUntil', label: 'Validade', type: 'text', placeholder: 'AAAA-MM-DD' },
     ],
   },
   comissoes: {

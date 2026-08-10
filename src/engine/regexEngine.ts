@@ -16,6 +16,9 @@ export type Intent =
   | 'ORDER_CREATE'
   | 'ORDER_OPEN_QUERY'
   | 'SALES_WEEK_QUERY'
+  | 'QUOTE_CREATE'
+  | 'QUOTE_STATUS_QUERY'
+  | 'QUOTE_EXPIRING_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -32,6 +35,7 @@ export interface ParsedMessage {
     orderItemName?: string;
     orderQuantity?: number;
     unitPrice?: number;
+    quoteItemsText?: string;
   };
   raw: string;
 }
@@ -61,6 +65,9 @@ const STOCK_LOW_QUERY_PATTERN = /o\s+que\s+est[aá]\s+acabando/i;
 const ORDER_CREATE_PATTERN = /(?:registra|registre|cria|criar)\s+(?:uma\s+)?venda\s+de\s+(\d+(?:[.,]\d+)?)\s+(.+?)\s+(?:pro|para\s+o|para\s+a)\s+(.+?)\s+a\s+(?:r\$\s*)?(\d+(?:[.,]\d+)?)\s+reais?\s+cada/i;
 const ORDER_OPEN_QUERY_PATTERN = /quais\s+pedidos\s+est[aã]o\s+em\s+aberto/i;
 const SALES_WEEK_QUERY_PATTERN = /quanto\s+vendi\s+essa\s+semana/i;
+const QUOTE_CREATE_PATTERN = /(?:cria|criar|registra|registre)\s+(?:um|uma)?\s*orçamento\s+(?:pro|para\s+o|para\s+a)\s+cliente\s+(.+?)\s+com\s+(.+)/i;
+const QUOTE_STATUS_QUERY_PATTERN = /o\s+orçamento\s+(?:do|da)\s+(.+?)\s+foi\s+aprovado/i;
+const QUOTE_EXPIRING_QUERY_PATTERN = /quais\s+orçamentos\s+vencem\s+essa\s+semana/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -68,6 +75,12 @@ function parseValue(raw: string): number {
 
 export function parseMessage(input: string): ParsedMessage {
   const text = input.trim();
+
+  const quoteCreateMatch = text.match(QUOTE_CREATE_PATTERN);
+  if (quoteCreateMatch) return { intent: 'QUOTE_CREATE', entities: { clientName: quoteCreateMatch[1].trim(), quoteItemsText: quoteCreateMatch[2].trim() }, raw: text };
+  const quoteStatusMatch = text.match(QUOTE_STATUS_QUERY_PATTERN);
+  if (quoteStatusMatch) return { intent: 'QUOTE_STATUS_QUERY', entities: { clientName: quoteStatusMatch[1].trim() }, raw: text };
+  if (QUOTE_EXPIRING_QUERY_PATTERN.test(text)) return { intent: 'QUOTE_EXPIRING_QUERY', entities: {}, raw: text };
 
   const orderCreateMatch = text.match(ORDER_CREATE_PATTERN);
   if (orderCreateMatch) return { intent: 'ORDER_CREATE', entities: { orderQuantity: parseValue(orderCreateMatch[1]), orderItemName: orderCreateMatch[2].trim(), clientName: orderCreateMatch[3].trim(), unitPrice: parseValue(orderCreateMatch[4]) }, raw: text };
@@ -195,6 +208,10 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'ORDER_CREATE':
     case 'ORDER_OPEN_QUERY':
     case 'SALES_WEEK_QUERY':
+      return '';
+    case 'QUOTE_CREATE':
+    case 'QUOTE_STATUS_QUERY':
+    case 'QUOTE_EXPIRING_QUERY':
       return '';
     default:
       return '';

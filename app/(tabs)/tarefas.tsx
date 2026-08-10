@@ -158,7 +158,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -226,10 +226,17 @@ export default function TarefasScreen() {
     addTask({ description: `Fazer follow-up do pedido ${order.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
   }, [addTask, clienteItems]);
 
+  const quoteFollowUpSuggestions = useMemo(() => orcamentos.filter((quote) => quote.status === 'pendente' && (Date.now() - new Date(quote.createdAt).getTime()) >= 3 * 24 * 60 * 60 * 1000 && !tasks.some((task) => task.description.includes(quote.id) && !task.done)), [orcamentos, tasks]);
+  const confirmQuoteFollowUp = useCallback((quote: (typeof quoteFollowUpSuggestions)[number]) => {
+    const client = clienteItems.find((item) => item.id === quote.clientId);
+    addTask({ description: `Fazer follow-up do orçamento ${quote.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
+  }, [addTask, clienteItems]);
+
   useEffect(() => {
+    refreshOrcamentos();
     const timer = setTimeout(() => setIsLoading(false), 600);
     return () => clearTimeout(timer);
-  }, []);
+  }, [refreshOrcamentos]);
 
   useEffect(() => {
     if (datePicker) {
@@ -1162,6 +1169,7 @@ export default function TarefasScreen() {
           {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
 
           <View style={styles.searchContainer}>
             <Ionicons name="search-outline" size={17} color={Colors.textMuted} style={styles.searchIcon} />
@@ -1403,6 +1411,15 @@ const styles = StyleSheet.create({
     borderColor: '#F2B8B8',
   },
   orderSuggestion: {
+    marginHorizontal: CONTENT_H,
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: '#FFF8E7',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#F5D98A',
+  },
+  quoteSuggestion: {
     marginHorizontal: CONTENT_H,
     marginBottom: Spacing.sm,
     padding: Spacing.md,

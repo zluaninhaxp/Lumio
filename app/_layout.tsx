@@ -30,6 +30,7 @@ export default function RootLayout() {
         <Stack.Screen name="plugins/clientes" />
         <Stack.Screen name="plugins/fornecedores" />
         <Stack.Screen name="plugins/vendas" />
+        <Stack.Screen name="plugins/orcamentos" />
         <Stack.Screen name="plugins/[id]" />
       </Stack>
     </AuthProvider>
