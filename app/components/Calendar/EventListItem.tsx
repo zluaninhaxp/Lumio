@@ -1,0 +1,169 @@
+import React, { useCallback, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+} from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import type { CalendarEvent } from '../../../src/store';
+
+interface EventListItemProps {
+  item: CalendarEvent;
+  onToggle: (id: string) => void;
+  onDelete: (id: string) => void;
+  completingId: string | null;
+  onCompleteStart: (id: string) => void;
+  onCompleteEnd: (id: string) => void;
+}
+
+export function EventListItem({
+  item,
+  onToggle,
+  onDelete,
+  completingId,
+  onCompleteStart,
+  onCompleteEnd,
+}: EventListItemProps) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const isCompleting = completingId === item.id;
+
+  useEffect(() => {
+    if (!isCompleting && item.done) {
+      opacity.setValue(0.5);
+    } else if (!isCompleting && !item.done) {
+      opacity.setValue(1);
+    }
+  }, [isCompleting, item.done, opacity]);
+
+  const handleToggle = useCallback(() => {
+    if (item.type === 'task') {
+      onCompleteStart(item.id);
+      Animated.sequence([
+        Animated.timing(opacity, {
+          toValue: 0.5,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.delay(600),
+      ]).start(() => {
+        onToggle(item.id);
+        onCompleteEnd(item.id);
+      });
+    }
+  }, [item, onToggle, onCompleteStart, onCompleteEnd, opacity]);
+
+  const handleDelete = useCallback(() => {
+    Animated.timing(opacity, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      onDelete(item.id);
+    });
+  }, [item.id, onDelete, opacity]);
+
+  const isTask = item.type === 'task';
+
+  return (
+    <Animated.View style={[styles.card, { opacity }]}>
+      <View style={styles.row}>
+        {isTask ? (
+          <TouchableOpacity
+            style={[styles.checkbox, item.done && styles.checkboxDone]}
+            onPress={handleToggle}
+            activeOpacity={0.7}
+          >
+            {item.done && <Ionicons name="checkmark" size={14} color="#FFF" />}
+          </TouchableOpacity>
+        ) : (
+          <View style={[styles.eventBar, { backgroundColor: Colors.accent }]} />
+        )}
+
+        <View style={styles.info}>
+          {item.time && (
+            <Text style={styles.time}>
+              {item.time}
+              {item.type === 'event' && (
+                <Text style={styles.typeBadge}> · Evento</Text>
+              )}
+            </Text>
+          )}
+          <Text
+            style={[
+              styles.description,
+              item.done && styles.descriptionDone,
+            ]}
+            numberOfLines={2}
+          >
+            {item.description}
+          </Text>
+        </View>
+
+        <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
+          <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+        </TouchableOpacity>
+      </View>
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    marginBottom: Spacing.sm,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxDone: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  eventBar: {
+    width: 4,
+    height: 36,
+    borderRadius: 2,
+  },
+  info: { flex: 1, gap: 2 },
+  time: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.accent,
+  },
+  typeBadge: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  description: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+  },
+  descriptionDone: {
+    color: Colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  deleteBtn: {
+    padding: Spacing.xs,
+  },
+});

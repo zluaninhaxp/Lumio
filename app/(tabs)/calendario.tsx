@@ -1,170 +1,205 @@
-import { useState } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, ScrollView, SafeAreaView, PanResponder,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
-import { useAppStore } from '../../src/store';
-
-const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const DAYS_SHORT = ['D','S','T','Q','Q','S','S'];
-
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate();
-}
-function getFirstDayOfMonth(year: number, month: number) {
-  return new Date(year, month, 1).getDay();
-}
+import { Colors, Spacing, FontSize } from '../../src/constants/theme';
+import { useAppStore, type CalendarEvent } from '../../src/store';
+import { useCalendarState } from '../../src/hooks/useCalendarState';
+import { CollapsibleCalendar } from '../components/Calendar/CollapsibleCalendar';
+import { BottomSheet } from '../components/Calendar/BottomSheet';
+import { EventForm } from '../components/Calendar/EventForm';
+import { EventListItem } from '../components/Calendar/EventListItem';
+import { FilterChips } from '../components/Calendar/FilterChips';
+import { SkeletonLoader } from '../components/Calendar/SkeletonLoader';
+import { EmptyState } from '../components/Calendar/EmptyState';
+import { FAB } from '../components/Calendar/FAB';
 
 export default function CalendarioScreen() {
-  const today = new Date();
-  const [year, setYear] = useState(today.getFullYear());
-  const [month, setMonth] = useState(today.getMonth());
-  const [selectedDate, setSelectedDate] = useState(
-    today.toISOString().split('T')[0]
+  const {
+    visibleYear,
+    visibleMonth,
+    selectedDate,
+    calendarExpanded,
+    filter,
+    monthLabel,
+    cells,
+    selectedWeekDays,
+    setFilter,
+    toggleCalendar,
+    selectDay,
+    prevMonth,
+    nextMonth,
+    prevDay,
+    nextDay,
+    isToday,
+    isSelected,
+    dateString,
+    formatSelectedDate,
+  } = useCalendarState();
+
+  const { events, toggleEvent, removeEvent, addEvent } = useAppStore();
+  const [sheetVisible, setSheetVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [completingId, setCompletingId] = useState<string | null>(null);
+
+  const eventsForSelectedDate = useMemo(() => {
+    const filtered = events.filter((e) => e.date === selectedDate);
+    if (filter !== 'all') {
+      return filtered.filter((e) => e.type === filter);
+    }
+    return filtered;
+  }, [events, selectedDate, filter]);
+
+  const sortedEvents = useMemo(() => {
+    return [...eventsForSelectedDate].sort((a, b) => {
+      if (!a.time && !b.time) return 0;
+      if (!a.time) return -1;
+      if (!b.time) return 1;
+      return a.time.localeCompare(b.time);
+    });
+  }, [eventsForSelectedDate]);
+
+  const filterCounts = useMemo(() => {
+    const allEvents = events.filter((e) => e.date === selectedDate);
+    return {
+      all: allEvents.length,
+      event: allEvents.filter((e) => e.type === 'event').length,
+      task: allEvents.filter((e) => e.type === 'task').length,
+    };
+  }, [events, selectedDate]);
+
+  const handleMonthChange = useCallback(
+    (direction: -1 | 1) => {
+      setLoading(true);
+      if (direction === -1) prevMonth();
+      else nextMonth();
+      const timer = setTimeout(() => setLoading(false), 400);
+      return () => clearTimeout(timer);
+    },
+    [prevMonth, nextMonth]
   );
-  const { events, toggleEvent } = useAppStore();
 
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfMonth(year, month);
+  const handleSelectDayEvent = useCallback(
+    (day: number) => {
+      setLoading(true);
+      selectDay(day);
+      const timer = setTimeout(() => setLoading(false), 300);
+      return () => clearTimeout(timer);
+    },
+    [selectDay]
+  );
 
-  const eventsForDate = (dateStr: string) =>
-    events.filter((e) => e.date === dateStr);
+  const handleSave = useCallback(
+    (data: Omit<CalendarEvent, 'id' | 'done'>) => {
+      addEvent(data);
+      setSheetVisible(false);
+    },
+    [addEvent]
+  );
 
-  const hasEvents = (day: number) => {
-    const d = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return eventsForDate(d).length > 0;
-  };
+  const handleCompleteStart = useCallback((id: string) => {
+    setCompletingId(id);
+  }, []);
 
-  const selectedEvents = eventsForDate(selectedDate);
+  const handleCompleteEnd = useCallback((id: string) => {
+    setCompletingId(null);
+  }, []);
 
-  const formatSelectedDate = () => {
-    const d = new Date(selectedDate + 'T12:00:00');
-    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }).toUpperCase();
-  };
-
-  const prevMonth = () => {
-    if (month === 0) { setMonth(11); setYear(y => y - 1); }
-    else setMonth(m => m - 1);
-  };
-  const nextMonth = () => {
-    if (month === 11) { setMonth(0); setYear(y => y + 1); }
-    else setMonth(m => m + 1);
-  };
-
-  const selectDay = (day: number) => {
-    const d = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    setSelectedDate(d);
-  };
-
-  const isToday = (day: number) => {
-    return day === today.getDate() && month === today.getMonth() && year === today.getFullYear();
-  };
-
-  const isSelected = (day: number) => {
-    const d = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return d === selectedDate;
-  };
-
-  const cells = Array(firstDay).fill(null).concat(
-    Array.from({ length: daysInMonth }, (_, i) => i + 1)
+  const listPanResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gs) =>
+          Math.abs(gs.dx) > 25 && Math.abs(gs.dy) < 15,
+        onPanResponderRelease: (_, gs) => {
+          if (gs.dx > 50) {
+            setLoading(true);
+            prevDay();
+            const t = setTimeout(() => setLoading(false), 300);
+            return () => clearTimeout(t);
+          } else if (gs.dx < -50) {
+            setLoading(true);
+            nextDay();
+            const t = setTimeout(() => setLoading(false), 300);
+            return () => clearTimeout(t);
+          }
+        },
+      }),
+    [prevDay, nextDay]
   );
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendário</Text>
-        <View style={styles.avatar}><Text style={styles.avatarText}>OJ</Text></View>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>OJ</Text>
+        </View>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Calendar card */}
-        <View style={styles.calCard}>
-          {/* Month nav */}
-          <View style={styles.monthNav}>
-            <TouchableOpacity onPress={prevMonth} style={styles.navBtn}>
-              <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-            <Text style={styles.monthLabel}>{MONTHS[month]} {year}</Text>
-            <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
-              <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        {...listPanResponder.panHandlers}
+      >
+        <CollapsibleCalendar
+          visibleYear={visibleYear}
+          visibleMonth={visibleMonth}
+          selectedDate={selectedDate}
+          calendarExpanded={calendarExpanded}
+          monthLabel={monthLabel}
+          cells={cells}
+          selectedWeekDays={selectedWeekDays}
+          isToday={isToday}
+          isSelected={isSelected}
+          dateString={dateString}
+          events={events}
+          onSelectDay={handleSelectDayEvent}
+          onPrevMonth={() => handleMonthChange(-1)}
+          onNextMonth={() => handleMonthChange(1)}
+          onToggleExpand={toggleCalendar}
+        />
 
-          {/* Day headers */}
-          <View style={styles.dayHeaders}>
-            {DAYS_SHORT.map((d, i) => (
-              <Text key={i} style={styles.dayHeader}>{d}</Text>
-            ))}
-          </View>
-
-          {/* Grid */}
-          <View style={styles.grid}>
-            {cells.map((day, i) => (
-              <TouchableOpacity
-                key={i}
-                style={styles.cell}
-                onPress={() => day && selectDay(day)}
-                disabled={!day}
-              >
-                {day && (
-                  <View style={[
-                    styles.dayCircle,
-                    isSelected(day) && styles.dayCircleSelected,
-                    isToday(day) && !isSelected(day) && styles.dayCircleToday,
-                  ]}>
-                    <Text style={[
-                      styles.dayText,
-                      isSelected(day) && styles.dayTextSelected,
-                      isToday(day) && !isSelected(day) && styles.dayTextToday,
-                    ]}>
-                      {day}
-                    </Text>
-                    {hasEvents(day) && !isSelected(day) && (
-                      <View style={styles.dot} />
-                    )}
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Events for selected day */}
         <View style={styles.eventsSection}>
-          <Text style={styles.eventsDateLabel}>{formatSelectedDate()}</Text>
+          <View style={styles.eventsHeader}>
+            <Text style={styles.eventsDateLabel}>{formatSelectedDate()}</Text>
+            <Text style={styles.eventsCount}>
+              {filterCounts.all > 0
+                ? `${filterCounts.all} compromisso${filterCounts.all > 1 ? 's' : ''}`
+                : ''}
+            </Text>
+          </View>
 
-          {selectedEvents.length === 0 ? (
-            <View style={styles.emptyEvents}>
-              <Text style={styles.emptyText}>Nenhuma tarefa para este dia.</Text>
-            </View>
+          <FilterChips selected={filter} onSelect={setFilter} counts={filterCounts} />
+
+          {loading ? (
+            <SkeletonLoader />
+          ) : sortedEvents.length === 0 ? (
+            <EmptyState filter={filter !== 'all' ? filter : undefined} />
           ) : (
-            selectedEvents.map((event) => (
-              <TouchableOpacity
-                key={event.id}
-                style={styles.eventCard}
-                onPress={() => toggleEvent(event.id)}
-                activeOpacity={0.7}
-              >
-                <TouchableOpacity
-                  style={[styles.checkbox, event.done && styles.checkboxDone]}
-                  onPress={() => toggleEvent(event.id)}
-                >
-                  {event.done && <Ionicons name="checkmark" size={14} color="#FFF" />}
-                </TouchableOpacity>
-                <View style={styles.eventInfo}>
-                  {event.time && (
-                    <Text style={styles.eventTime}>{event.time}</Text>
-                  )}
-                  <Text style={[styles.eventDesc, event.done && styles.eventDescDone]}>
-                    {event.description}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+            sortedEvents.map((event) => (
+              <View key={event.id} style={styles.eventItemWrapper}>
+                <EventListItem
+                  item={event}
+                  onToggle={toggleEvent}
+                  onDelete={removeEvent}
+                  completingId={completingId}
+                  onCompleteStart={handleCompleteStart}
+                  onCompleteEnd={handleCompleteEnd}
+                />
+              </View>
             ))
           )}
         </View>
       </ScrollView>
+
+      <FAB onPress={() => setSheetVisible(true)} />
+
+      <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)}>
+        <EventForm
+          initialDate={selectedDate}
+          onSave={handleSave}
+          onCancel={() => setSheetVisible(false)}
+        />
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -172,96 +207,53 @@ export default function CalendarioScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   header: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.md,
   },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
-    fontSize: FontSize.xxl, color: Colors.primary,
+    fontSize: FontSize.xxl,
+    color: Colors.primary,
   },
   avatar: {
-    width: 36, height: 36, borderRadius: Radius.full,
-    backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 999,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatarText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: '#FFF' },
-
-  calCard: {
-    marginHorizontal: Spacing.xl,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,
+  avatarText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 13,
+    color: '#FFF',
   },
-  monthNav: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: Spacing.lg,
-  },
-  navBtn: { padding: Spacing.xs },
-  monthLabel: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.md, color: Colors.primary,
-  },
-  dayHeaders: { flexDirection: 'row', marginBottom: Spacing.xs },
-  dayHeader: {
-    flex: 1, textAlign: 'center',
-    fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.xs, color: Colors.textMuted,
-  },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: '14.28%', alignItems: 'center', paddingVertical: 4 },
-  dayCircle: {
-    width: 34, height: 34, borderRadius: 17,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  dayCircleSelected: { backgroundColor: Colors.accent },
-  dayCircleToday: { borderWidth: 1.5, borderColor: Colors.accent },
-  dayText: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm, color: Colors.primary,
-  },
-  dayTextSelected: { color: '#FFF', fontFamily: 'PlusJakartaSans_700Bold' },
-  dayTextToday: { color: Colors.accent, fontFamily: 'PlusJakartaSans_700Bold' },
-  dot: {
-    position: 'absolute', bottom: 2, width: 4, height: 4,
-    borderRadius: 2, backgroundColor: Colors.accent,
-  },
-
   eventsSection: {
-    paddingHorizontal: Spacing.xl, paddingTop: Spacing.xl, paddingBottom: 100,
+    paddingTop: Spacing.xl,
+    paddingBottom: 100,
+  },
+  eventsHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
   },
   eventsDateLabel: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.xs, color: Colors.textMuted,
-    letterSpacing: 1, marginBottom: Spacing.md,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    letterSpacing: 1,
   },
-  emptyEvents: { paddingVertical: Spacing.xl, alignItems: 'center' },
-  emptyText: {
+  eventsCount: {
     fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md, color: Colors.textMuted,
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
   },
-  eventCard: {
-    flexDirection: 'row', alignItems: 'center',
-    backgroundColor: Colors.bgCard, borderRadius: Radius.lg,
-    paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md,
-    marginBottom: Spacing.sm, gap: Spacing.md,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04, shadowRadius: 3, elevation: 1,
+  eventItemWrapper: {
+    paddingHorizontal: Spacing.xl,
   },
-  checkbox: {
-    width: 24, height: 24, borderRadius: 12,
-    borderWidth: 2, borderColor: Colors.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  checkboxDone: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  eventInfo: { flex: 1, gap: 2 },
-  eventTime: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.sm, color: Colors.accent,
-  },
-  eventDesc: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md, color: Colors.primary,
-  },
-  eventDescDone: { color: Colors.textMuted, textDecorationLine: 'line-through' },
 });
