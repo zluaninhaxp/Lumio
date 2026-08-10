@@ -20,12 +20,12 @@ export const mockTasks = [
 ];
 
 export const mockCalendarEvents = [
-  { id: '1', date: '2026-07-17', time: '10:00', description: 'Visita cliente Seu Zé', done: false },
-  { id: '2', date: '2026-07-17', time: null, description: 'Repor estoque de parafusos', done: false },
-  { id: '3', date: '2026-07-19', time: null, description: 'Repor estoque de parafusos', done: false },
-  { id: '4', date: '2026-07-22', time: '14:00', description: 'Reunião com fornecedor', done: false },
-  { id: '5', date: '2026-07-24', time: '09:00', description: 'Revisão mensal das contas', done: false },
-  { id: '6', date: '2026-07-31', time: null, description: 'Fechar balanço do mês', done: false },
+  { id: '1', date: '2026-07-17', time: '10:00', description: 'Visita cliente Seu Zé', done: false, type: 'event' as const },
+  { id: '2', date: '2026-07-17', time: null, description: 'Repor estoque de parafusos', done: false, type: 'task' as const },
+  { id: '3', date: '2026-07-19', time: null, description: 'Repor estoque de parafusos', done: false, type: 'task' as const },
+  { id: '4', date: '2026-07-22', time: '14:00', description: 'Reunião com fornecedor', done: false, type: 'event' as const },
+  { id: '5', date: '2026-07-24', time: '09:00', description: 'Revisão mensal das contas', done: false, type: 'event' as const },
+  { id: '6', date: '2026-07-31', time: null, description: 'Fechar balanço do mês', done: false, type: 'task' as const },
 ];
 
 export const mockBusiness = {

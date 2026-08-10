@@ -83,6 +83,7 @@ export default function ChatScreen() {
         time: null,
         description: parsed.entities.description || '',
         done: false,
+        type: 'task',
       });
     }
 
@@ -144,6 +145,7 @@ export default function ChatScreen() {
         time: null,
         description: parsed.entities.description || '',
         done: false,
+        type: 'task',
       });
     }
 

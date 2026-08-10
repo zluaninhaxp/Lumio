@@ -8,7 +8,13 @@ import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardin
 import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
 import { PluginId } from '../plugins/registry';
 
-type Transaction = (typeof mockTransactions)[0];
+export interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  category: string;
+}
 export interface Task {
   id: string;
   description: string;
@@ -21,7 +27,14 @@ export interface Task {
   createdAt: string;
 }
 
-type CalendarEvent = (typeof mockCalendarEvents)[0];
+export interface CalendarEvent {
+  id: string;
+  date: string;
+  time: string | null;
+  description: string;
+  done: boolean;
+  type: 'event' | 'task';
+}
 
 export interface EstoqueItem {
   id: string;
@@ -139,6 +152,8 @@ export interface AppStore {
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id'>) => void;
   removeTransaction: (id: string) => void;
+  updateTransaction: (id: string, updates: Partial<Omit<Transaction, 'id'>>) => void;
+  removeTransactions: (ids: string[]) => void;
 
   tasks: Task[];
   addTask: (t: Omit<Task, 'id'>) => void;
@@ -151,8 +166,10 @@ export interface AppStore {
   removeCustomTaskTag: (tag: string) => void;
 
   events: CalendarEvent[];
-  addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
+  addEvent: (e: Omit<CalendarEvent, 'id' | 'done'> & { done?: boolean }) => void;
   toggleEvent: (id: string) => void;
+  removeEvent: (id: string) => void;
+  updateEvent: (id: string, updates: Partial<Omit<CalendarEvent, 'id'>>) => void;
 
   messages: ChatMessage[];
   addMessage: (m: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
@@ -264,6 +281,16 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   removeTransaction: (id) =>
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
+  updateTransaction: (id, updates) =>
+    set((s) => ({
+      transactions: s.transactions.map((t) =>
+        t.id === id ? { ...t, ...updates } : t
+      ),
+    })),
+  removeTransactions: (ids) =>
+    set((s) => ({
+      transactions: s.transactions.filter((t) => !ids.includes(t.id)),
+    })),
 
   tasks: mockTasks as Task[],
   addTask: (t) =>
@@ -299,11 +326,17 @@ export const useAppStore = create<AppStore>((set) => ({
   events: mockCalendarEvents,
   addEvent: (e) =>
     set((s) => ({
-      events: [...s.events, { ...e, id: Date.now().toString() }],
+      events: [...s.events, { ...e, done: e.done ?? false, id: Date.now().toString() }],
     })),
   toggleEvent: (id) =>
     set((s) => ({
       events: s.events.map((e) => (e.id === id ? { ...e, done: !e.done } : e)),
+    })),
+  removeEvent: (id) =>
+    set((s) => ({ events: s.events.filter((e) => e.id !== id) })),
+  updateEvent: (id, updates) =>
+    set((s) => ({
+      events: s.events.map((e) => (e.id === id ? { ...e, ...updates } : e)),
     })),
 
   messages: [],
