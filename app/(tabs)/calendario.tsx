@@ -38,17 +38,27 @@ export default function CalendarioScreen() {
   } = useCalendarState();
 
   const { events, toggleEvent, removeEvent, addEvent } = useAppStore();
+  const { transactions, fornecedorItems, markSupplierTransactionPaid } = useAppStore();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
 
+  const supplierDueEvents = useMemo(() => transactions.flatMap((transaction) => {
+    if (!transaction.supplierId || !transaction.supplierDueDate || transaction.supplierPaid) return [];
+    const supplier = fornecedorItems.find((item) => item.id === transaction.supplierId);
+    if (!supplier) return [];
+    return [{ id: `supplier-due:${transaction.id}`, date: transaction.supplierDueDate, time: null, description: `Vencimento: ${supplier.name} · ${transaction.description}`, done: false, type: 'event' as const }];
+  }), [transactions, fornecedorItems]);
+
+  const calendarEvents = useMemo(() => [...events, ...supplierDueEvents], [events, supplierDueEvents]);
+
   const eventsForSelectedDate = useMemo(() => {
-    const filtered = events.filter((e) => e.date === selectedDate);
+    const filtered = calendarEvents.filter((e) => e.date === selectedDate);
     if (filter !== 'all') {
       return filtered.filter((e) => e.type === filter);
     }
     return filtered;
-  }, [events, selectedDate, filter]);
+  }, [calendarEvents, selectedDate, filter]);
 
   const sortedEvents = useMemo(() => {
     return [...eventsForSelectedDate].sort((a, b) => {
@@ -60,13 +70,21 @@ export default function CalendarioScreen() {
   }, [eventsForSelectedDate]);
 
   const filterCounts = useMemo(() => {
-    const allEvents = events.filter((e) => e.date === selectedDate);
+    const allEvents = calendarEvents.filter((e) => e.date === selectedDate);
     return {
       all: allEvents.length,
       event: allEvents.filter((e) => e.type === 'event').length,
       task: allEvents.filter((e) => e.type === 'task').length,
     };
-  }, [events, selectedDate]);
+  }, [calendarEvents, selectedDate]);
+
+  const handleToggleCalendarEvent = useCallback((id: string) => {
+    if (id.startsWith('supplier-due:')) {
+      markSupplierTransactionPaid(id.replace('supplier-due:', ''), true);
+      return;
+    }
+    toggleEvent(id);
+  }, [markSupplierTransactionPaid, toggleEvent]);
 
   const handleMonthChange = useCallback(
     (direction: -1 | 1) => {
@@ -151,7 +169,7 @@ export default function CalendarioScreen() {
           isToday={isToday}
           isSelected={isSelected}
           dateString={dateString}
-          events={events}
+           events={calendarEvents}
           onSelectDay={handleSelectDayEvent}
           onPrevMonth={() => handleMonthChange(-1)}
           onNextMonth={() => handleMonthChange(1)}
@@ -179,7 +197,7 @@ export default function CalendarioScreen() {
               <View key={event.id} style={styles.eventItemWrapper}>
                 <EventListItem
                   item={event}
-                  onToggle={toggleEvent}
+                   onToggle={handleToggleCalendarEvent}
                   onDelete={removeEvent}
                   completingId={completingId}
                   onCompleteStart={handleCompleteStart}
