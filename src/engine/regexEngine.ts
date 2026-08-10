@@ -6,6 +6,8 @@ export type Intent =
   | 'TASK_ADD'
   | 'TASK_WITH_DATE'
   | 'QUERY_REPORT'
+  | 'CLIENT_PAYMENT_QUERY'
+  | 'CLIENT_PENDING_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -15,6 +17,7 @@ export interface ParsedMessage {
     category?: string;
     description?: string;
     date?: string;
+    clientName?: string;
   };
   raw: string;
 }
@@ -23,7 +26,7 @@ const EXPENSE_PATTERN =
   /(?:gastei|paguei|comprei|custo[u]?|despesa de?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:de\s+)?(.+)?/i;
 
 const INCOME_PATTERN =
-  /(?:recebi|entrou|vendi|fiz|ganhei|pagamento de?|recebimento de?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:de\s+)?(.+)?/i;
+  /(?:recebi|entrou|vendi|fiz|ganhei|pagamento de?|recebimento de?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:(?:de|do|da)\s+)?(.+)?/i;
 
 const TASK_DATE_PATTERN =
   /(?:preciso|tenho que|devo|lembra(?:r)?(?:\s+de)?)\s+(.+?)\s+(?:até|para|no dia|na|em)\s+(segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}\/\d{1,2})/i;
@@ -34,12 +37,25 @@ const TASK_PATTERN =
 const QUERY_PATTERN =
   /(?:quanto\s+(?:gastei|recebi|tenho)|resumo|relatório|total|balanço)/i;
 
+const CLIENT_PAYMENT_QUERY_PATTERN = /quanto\s+(?:o|a)?\s*(.+?)\s+(?:já\s+)?pagou(?:\s+esse\s+per[ií]odo)?/i;
+const CLIENT_PENDING_QUERY_PATTERN = /(?:o|a)?\s*(.+?)\s+tem\s+pend[eê]ncia/i;
+
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
 }
 
 export function parseMessage(input: string): ParsedMessage {
   const text = input.trim();
+
+  const clientPaymentMatch = text.match(CLIENT_PAYMENT_QUERY_PATTERN);
+  if (clientPaymentMatch) {
+    return { intent: 'CLIENT_PAYMENT_QUERY', entities: { clientName: clientPaymentMatch[1].trim() }, raw: text };
+  }
+
+  const clientPendingMatch = text.match(CLIENT_PENDING_QUERY_PATTERN);
+  if (clientPendingMatch) {
+    return { intent: 'CLIENT_PENDING_QUERY', entities: { clientName: clientPendingMatch[1].trim() }, raw: text };
+  }
 
   // Despesa
   const expenseMatch = text.match(EXPENSE_PATTERN);
@@ -126,6 +142,10 @@ export function buildBotResponse(parsed: ParsedMessage): string {
       return `✓ Adicionado ao calendário: ${entities.description} — ${entities.date}.`;
     case 'QUERY_REPORT':
       return `Você gastou R$ 1.640,00 este mês, distribuídos em:\n• Combustível: R$ 620,00\n• Materiais: R$ 480,00\n• Fornecedores: R$ 350,00\n• Alimentação: R$ 190,00\n\nEntradas: R$ 3.200,00 — Saldo: R$ 1.560,00`;
+    case 'CLIENT_PAYMENT_QUERY':
+      return '';
+    case 'CLIENT_PENDING_QUERY':
+      return '';
     default:
       return '';
   }

@@ -31,7 +31,14 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent } = useAppStore();
+  const { addTransaction, addTask, addEvent, clienteItems, transactions } = useAppStore();
+
+  const resolveClient = useCallback((name: string) => {
+    const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
+    return clienteItems.filter((client) => client.name.toLowerCase().includes(normalized) || normalized.includes(client.name.toLowerCase()));
+  }, [clienteItems]);
+
+  const formatMoney = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -49,12 +56,22 @@ export default function ChatScreen() {
     };
 
     const parsed = parseMessage(text);
-    const botText = buildBotResponse(parsed);
+    let botText = buildBotResponse(parsed);
 
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'UNKNOWN') {
+    if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
+      const matches = resolveClient(parsed.entities.clientName || '');
+      if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
+      else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
+        const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0).reduce((sum, transaction) => sum + transaction.amount, 0);
+        botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
+      } else {
+        botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;
+      }
+    } else if (parsed.intent === 'UNKNOWN') {
       botType = 'fallback';
     } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
       actions = ['Editar', 'Excluir'];
@@ -66,12 +83,22 @@ export default function ChatScreen() {
           category: parsed.entities.category || 'Outros',
         });
       } else {
+        const matches = resolveClient(parsed.entities.description || '');
+        if (matches.length > 1) {
+          botText = `Encontrei mais de um cliente parecido com "${parsed.entities.description}". Informe o nome completo antes de registrar.`;
+          botType = 'bot';
+        } else if (matches.length === 0 && parsed.entities.description && parsed.entities.description !== 'Receita') {
+          botText = `Não encontrei um cliente chamado "${parsed.entities.description}". Você quer cadastrá-lo antes de registrar essa receita?`;
+          botType = 'bot';
+        } else {
         addTransaction({
           date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
           description: parsed.entities.description || 'Receita',
           amount: parsed.entities.value || 0,
           category: 'Receita',
+          clientId: matches[0]?.id,
         });
+        }
       }
     } else if (parsed.intent === 'TASK_ADD') {
       actions = ['Concluir'];
@@ -98,7 +125,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [input]);
+  }, [input, addTransaction, addTask, addEvent, resolveClient, transactions]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -111,12 +138,22 @@ export default function ChatScreen() {
     };
 
     const parsed = parseMessage(transcript.trim());
-    const botText = buildBotResponse(parsed);
+    let botText = buildBotResponse(parsed);
 
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'UNKNOWN') {
+    if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
+      const matches = resolveClient(parsed.entities.clientName || '');
+      if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
+      else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
+        const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0).reduce((sum, transaction) => sum + transaction.amount, 0);
+        botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
+      } else {
+        botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;
+      }
+    } else if (parsed.intent === 'UNKNOWN') {
       botType = 'fallback';
     } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
       actions = ['Editar', 'Excluir'];
@@ -128,12 +165,20 @@ export default function ChatScreen() {
           category: parsed.entities.category || 'Outros',
         });
       } else {
+        const matches = resolveClient(parsed.entities.description || '');
+        if (matches.length > 1) {
+          botText = `Encontrei mais de um cliente parecido com "${parsed.entities.description}". Informe o nome completo antes de registrar.`;
+        } else if (matches.length === 0 && parsed.entities.description && parsed.entities.description !== 'Receita') {
+          botText = `Não encontrei um cliente chamado "${parsed.entities.description}". Você quer cadastrá-lo antes de registrar essa receita?`;
+        } else {
         addTransaction({
           date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
           description: parsed.entities.description || 'Receita',
           amount: parsed.entities.value || 0,
           category: 'Receita',
+          clientId: matches[0]?.id,
         });
+        }
       }
     } else if (parsed.intent === 'TASK_ADD') {
       actions = ['Concluir'];
@@ -160,7 +205,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [scrollToBottom, addTransaction, addTask, addEvent]);
+  }, [scrollToBottom, addTransaction, addTask, addEvent, resolveClient, transactions]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

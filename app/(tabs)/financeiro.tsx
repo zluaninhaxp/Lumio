@@ -6,12 +6,13 @@ import {
   Animated,
   SectionList,
   TouchableOpacity,
+  Pressable,
   SafeAreaView,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, FontSize } from '../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
 import type { Transaction } from '../../src/store';
@@ -29,7 +30,7 @@ import { BottomSheet } from '../components/Calendar/BottomSheet';
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
 
-export default function PainelScreen() {
+export default function FinanceiroScreen() {
   const router = useRouter();
   const { logout } = useAuth();
 
@@ -224,20 +225,9 @@ export default function PainelScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <Text style={styles.title}>Painel</Text>
+        <Text style={styles.title}>Financeiro</Text>
         <View style={styles.topActions}>
-          <TouchableOpacity
-            onPress={() => setSearchVisible((v) => !v)}
-            hitSlop={12}
-            style={styles.topBtn}
-          >
-            <Ionicons
-              name={searchVisible ? 'close-outline' : 'search-outline'}
-              size={20}
-              color={Colors.textSecondary}
-            />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout} hitSlop={12}>
+          <TouchableOpacity onPress={handleLogout} hitSlop={12} accessibilityLabel="Sair">
             <Ionicons name="log-out-outline" size={20} color={Colors.textSecondary} />
           </TouchableOpacity>
         </View>
@@ -250,6 +240,9 @@ export default function PainelScreen() {
       />
 
       <View style={styles.body}>
+        {searchVisible && (
+          <Pressable style={styles.searchBackdrop} onPress={() => setSearchVisible(false)} />
+        )}
         <CollapsingHeader
           summary={summary}
           scrollY={scrollY}
@@ -259,13 +252,10 @@ export default function PainelScreen() {
           selectedFilter={filter}
           onFilterSelect={setFilter}
           onHeightChange={handleHeightChange}
-          searchValue={search}
-          onSearchChange={setSearch}
+          search={search}
           searchVisible={searchVisible}
-          onSearchClose={() => {
-            setSearchVisible(false);
-            setSearch('');
-          }}
+          onSearchChange={setSearch}
+          onSearchToggle={() => setSearchVisible((visible) => !visible)}
         />
 
         <SectionList
@@ -345,8 +335,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  topBtn: {
-    padding: 4,
+  searchBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 5,
   },
   body: {
     flex: 1,

@@ -52,10 +52,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="painel"
+        name="financeiro"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="grid" focused={focused} label="Painel" />
+            <TabIcon name="grid" focused={focused} label="Financeiro" />
           ),
         }}
       />

@@ -2,8 +2,6 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  TouchableOpacity,
   StyleSheet,
   Animated,
   LayoutChangeEvent,
@@ -34,10 +32,10 @@ interface CollapsingHeaderProps {
   selectedFilter: string;
   onFilterSelect: (filter: string) => void;
   onHeightChange?: (height: number) => void;
-  searchValue: string;
-  onSearchChange: (text: string) => void;
+  search: string;
   searchVisible: boolean;
-  onSearchClose: () => void;
+  onSearchChange: (text: string) => void;
+  onSearchToggle: () => void;
 }
 
 const FILTERS_STRIP_HEIGHT = 54;
@@ -51,10 +49,10 @@ export function CollapsingHeader({
   selectedFilter,
   onFilterSelect,
   onHeightChange,
-  searchValue,
-  onSearchChange,
+  search,
   searchVisible,
-  onSearchClose,
+  onSearchChange,
+  onSearchToggle,
 }: CollapsingHeaderProps) {
   const [cardHeight, setCardHeight] = useState(0);
 
@@ -173,27 +171,6 @@ export function CollapsingHeader({
           )}
         </View>
 
-        {searchVisible && (
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              value={searchValue}
-              onChangeText={onSearchChange}
-              placeholder="Buscar por descrição, categoria ou valor..."
-              placeholderTextColor={Colors.textMuted}
-              autoFocus
-            />
-            {searchValue.length > 0 && (
-              <TouchableOpacity onPress={() => onSearchChange('')} hitSlop={8}>
-                <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity onPress={onSearchClose} hitSlop={8}>
-              <Ionicons name="chevron-up" size={20} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </View>
-        )}
       </Animated.View>
 
       <Animated.View
@@ -221,6 +198,10 @@ export function CollapsingHeader({
           options={filterOptions}
           selected={selectedFilter}
           onSelect={onFilterSelect}
+          search={search}
+          searchVisible={searchVisible}
+          onSearchChange={onSearchChange}
+          onSearchToggle={onSearchToggle}
         />
       </View>
     </Animated.View>
@@ -341,27 +322,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
+    marginHorizontal: -Spacing.sm,
     paddingTop: Spacing.sm,
     backgroundColor: Colors.bg,
   },
 
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: Spacing.sm,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    height: 44,
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  searchInput: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-    paddingVertical: 0,
-  },
 });

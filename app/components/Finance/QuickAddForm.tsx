@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 import type { Transaction } from '../../../src/store';
+import { useAppStore } from '../../../src/store';
 
 interface QuickAddFormProps {
   onSave: (data: Omit<Transaction, 'id'>) => void;
@@ -49,6 +50,11 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
     ? editData.date
     : today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const [transactionDate, setTransactionDate] = useState(initialDateStr);
+  const { clienteItems, addClienteItem } = useAppStore();
+  const [clientId, setClientId] = useState(editData?.clientId);
+  const [newClientName, setNewClientName] = useState('');
+  const [newClientContact, setNewClientContact] = useState('');
+  const [creatingClient, setCreatingClient] = useState(false);
 
   const amountRef = useRef<TextInput>(null);
 
@@ -72,11 +78,22 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
 
     const finalDate = transactionDate.trim() || initialDateStr;
 
+    let selectedClientId = clientId;
+    if (type === 'entrada' && creatingClient && newClientName.trim()) {
+      selectedClientId = addClienteItem({
+        name: newClientName.trim(),
+        contact: newClientContact.trim(),
+        notes: '',
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     onSave({
       date: finalDate,
       description: description.trim() || (type === 'entrada' ? 'Receita' : 'Despesa'),
       amount: type === 'entrada' ? num : -num,
       category: category || 'Outros',
+      clientId: type === 'entrada' ? selectedClientId : undefined,
     });
   };
 
@@ -157,6 +174,29 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
               );
             })}
           </ScrollView>
+        </>
+      )}
+
+      {type === 'entrada' && (
+        <>
+          <Text style={styles.label}>Quem pagou?</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+            <TouchableOpacity style={[styles.categoryChip, !clientId && !creatingClient && styles.categoryChipActive]} onPress={() => { setClientId(undefined); setCreatingClient(false); }}>
+              <Text style={[styles.categoryChipText, !clientId && !creatingClient && styles.categoryChipTextActive]}>Sem cliente</Text>
+            </TouchableOpacity>
+            {clienteItems.map((client) => (
+              <TouchableOpacity key={client.id} style={[styles.categoryChip, clientId === client.id && styles.categoryChipActive]} onPress={() => { setClientId(client.id); setCreatingClient(false); }}>
+                <Text style={[styles.categoryChipText, clientId === client.id && styles.categoryChipTextActive]}>{client.name}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[styles.categoryChip, creatingClient && styles.categoryChipActive]} onPress={() => { setCreatingClient(true); setClientId(undefined); }}>
+              <Text style={[styles.categoryChipText, creatingClient && styles.categoryChipTextActive]}>+ Criar cliente</Text>
+            </TouchableOpacity>
+          </ScrollView>
+          {creatingClient && <>
+            <TextInput style={styles.input} value={newClientName} onChangeText={setNewClientName} placeholder="Nome do novo cliente" placeholderTextColor={Colors.textMuted} />
+            <TextInput style={styles.input} value={newClientContact} onChangeText={setNewClientContact} placeholder="Contato (opcional)" placeholderTextColor={Colors.textMuted} />
+          </>}
         </>
       )}
 

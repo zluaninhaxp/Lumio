@@ -7,6 +7,7 @@ import {
 import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardingContext';
 import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
 import { PluginId } from '../plugins/registry';
+import { generateId } from '../utils/id';
 
 export interface Transaction {
   id: string;
@@ -14,6 +15,8 @@ export interface Transaction {
   description: string;
   amount: number;
   category: string;
+  /** Cliente central associado à receita, quando aplicável. */
+  clientId?: string;
 }
 export interface Task {
   id: string;
@@ -49,8 +52,8 @@ export interface ClienteItem {
   id: string;
   name: string;
   contact: string;
-  pending: string;
-  lastInteraction: string;
+  notes: string;
+  createdAt: string;
 }
 
 /**
@@ -130,9 +133,10 @@ export interface AppStore {
   removeEstoqueItem: (id: string) => void;
 
   clienteItems: ClienteItem[];
-  addClienteItem: (item: Omit<ClienteItem, 'id'>) => void;
+  addClienteItem: (item: Omit<ClienteItem, 'id'>) => string;
   updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
   removeClienteItem: (id: string) => void;
+  linkTransactionToClient: (transactionId: string, clientId: string | undefined) => void;
 
   /**
    * Dados dos 9 plugins com tela mínima genérica, indexados por
@@ -150,7 +154,7 @@ export interface AppStore {
   applyOnboardingExtraction: (result: OnboardingExtractionResult) => void;
 
   transactions: Transaction[];
-  addTransaction: (t: Omit<Transaction, 'id'>) => void;
+  addTransaction: (t: Omit<Transaction, 'id'>) => string;
   removeTransaction: (id: string) => void;
   updateTransaction: (id: string, updates: Partial<Omit<Transaction, 'id'>>) => void;
   removeTransactions: (ids: string[]) => void;
@@ -230,16 +234,26 @@ export const useAppStore = create<AppStore>((set) => ({
     set((s) => ({ estoqueItems: s.estoqueItems.filter((i) => i.id !== id) })),
 
   clienteItems: [],
-  addClienteItem: (item) =>
-    set((s) => ({
-      clienteItems: [{ ...item, id: Date.now().toString() }, ...s.clienteItems],
-    })),
+  addClienteItem: (item) => {
+    const id = generateId('cli_');
+    set((s) => ({ clienteItems: [{ ...item, id }, ...s.clienteItems] }));
+    return id;
+  },
   updateClienteItem: (id, item) =>
     set((s) => ({
       clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)),
     })),
   removeClienteItem: (id) =>
-    set((s) => ({ clienteItems: s.clienteItems.filter((i) => i.id !== id) })),
+    set((s) => ({
+      clienteItems: s.clienteItems.filter((i) => i.id !== id),
+      transactions: s.transactions.map((t) => t.clientId === id ? { ...t, clientId: undefined } : t),
+    })),
+  linkTransactionToClient: (transactionId, clientId) =>
+    set((s) => ({
+      transactions: s.transactions.map((t) =>
+        t.id === transactionId ? { ...t, clientId } : t
+      ),
+    })),
 
   genericPluginItems: {},
   addGenericPluginItem: (pluginId, values) =>
@@ -275,10 +289,11 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
 
   transactions: mockTransactions,
-  addTransaction: (t) =>
-    set((s) => ({
-      transactions: [{ ...t, id: Date.now().toString() }, ...s.transactions],
-    })),
+  addTransaction: (t) => {
+    const id = generateId('txn_');
+    set((s) => ({ transactions: [{ ...t, id }, ...s.transactions] }));
+    return id;
+  },
   removeTransaction: (id) =>
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
   updateTransaction: (id, updates) =>

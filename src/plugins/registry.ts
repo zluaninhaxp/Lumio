@@ -93,8 +93,7 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     fields: [
       { key: 'name', label: 'Nome', type: 'text', primary: true, placeholder: 'Nome do cliente' },
       { key: 'contact', label: 'Contato', type: 'text', placeholder: 'Telefone ou e-mail' },
-      { key: 'pending', label: 'Pendências', type: 'text', placeholder: 'Ex: R$ 50 em aberto' },
-      { key: 'lastInteraction', label: 'Última interação', type: 'text', placeholder: 'Ex: 12/07' },
+      { key: 'notes', label: 'Observações', type: 'text', placeholder: 'Ex: pagamento em aberto' },
     ],
   },
   fornecedores: {
