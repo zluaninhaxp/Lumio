@@ -17,6 +17,12 @@ export interface Transaction {
   category: string;
   /** Cliente central associado à receita, quando aplicável. */
   clientId?: string;
+  supplierId?: string;
+  supplierDueDate?: string;
+  supplierPaid?: boolean;
+  stockItemId?: string;
+  stockQuantity?: number;
+  stockReceived?: boolean;
 }
 export interface Task {
   id: string;
@@ -54,6 +60,23 @@ export interface ClienteItem {
   contact: string;
   notes: string;
   createdAt: string;
+}
+
+export interface StockMovement {
+  id: string;
+  itemId: string;
+  quantity: number;
+  reason: string;
+  createdAt: string;
+  sourceTransactionId?: string;
+}
+
+export interface FornecedorItem {
+  id: string;
+  name: string;
+  contact: string;
+  paymentTerm: string;
+  notes: string;
 }
 
 /**
@@ -131,12 +154,22 @@ export interface AppStore {
   addEstoqueItem: (item: Omit<EstoqueItem, 'id'>) => void;
   updateEstoqueItem: (id: string, item: Omit<EstoqueItem, 'id'>) => void;
   removeEstoqueItem: (id: string) => void;
+  stockMovements: StockMovement[];
+  moveEstoqueItem: (itemId: string, quantity: number, reason?: string, sourceTransactionId?: string) => boolean;
+  receiveStockFromPurchase: (transactionId: string, itemId: string, quantity: number) => boolean;
 
   clienteItems: ClienteItem[];
   addClienteItem: (item: Omit<ClienteItem, 'id'>) => string;
   updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
   removeClienteItem: (id: string) => void;
   linkTransactionToClient: (transactionId: string, clientId: string | undefined) => void;
+
+  fornecedorItems: FornecedorItem[];
+  addFornecedorItem: (item: Omit<FornecedorItem, 'id'>) => string;
+  updateFornecedorItem: (id: string, item: Omit<FornecedorItem, 'id'>) => void;
+  removeFornecedorItem: (id: string) => void;
+  linkTransactionToSupplier: (transactionId: string, supplierId: string | undefined, updates?: Pick<Transaction, 'supplierDueDate' | 'supplierPaid'>) => void;
+  markSupplierTransactionPaid: (transactionId: string, paid: boolean) => void;
 
   /**
    * Dados dos 9 plugins com tela mínima genérica, indexados por
@@ -232,6 +265,35 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   removeEstoqueItem: (id) =>
     set((s) => ({ estoqueItems: s.estoqueItems.filter((i) => i.id !== id) })),
+  stockMovements: [],
+  moveEstoqueItem: (itemId, quantity, reason = 'Ajuste manual', sourceTransactionId) => {
+    let moved = false;
+    set((s) => {
+      const item = s.estoqueItems.find((i) => i.id === itemId);
+      if (!item || !Number.isFinite(quantity) || quantity === 0 || item.quantity + quantity < 0) return s;
+      moved = true;
+      return {
+        estoqueItems: s.estoqueItems.map((i) => i.id === itemId ? { ...i, quantity: i.quantity + quantity } : i),
+        stockMovements: [{ id: generateId('mov_'), itemId, quantity, reason: reason.trim() || 'Ajuste manual', createdAt: new Date().toISOString(), sourceTransactionId }, ...s.stockMovements],
+      };
+    });
+    return moved;
+  },
+  receiveStockFromPurchase: (transactionId, itemId, quantity) => {
+    let received = false;
+    set((s) => {
+      const transaction = s.transactions.find((t) => t.id === transactionId);
+      const item = s.estoqueItems.find((i) => i.id === itemId);
+      if (!transaction || !item || transaction.stockReceived || !Number.isFinite(quantity) || quantity <= 0) return s;
+      received = true;
+      return {
+        estoqueItems: s.estoqueItems.map((i) => i.id === itemId ? { ...i, quantity: i.quantity + quantity } : i),
+        stockMovements: [{ id: generateId('mov_'), itemId, quantity, reason: 'Compra recebida', createdAt: new Date().toISOString(), sourceTransactionId: transactionId }, ...s.stockMovements],
+        transactions: s.transactions.map((t) => t.id === transactionId ? { ...t, stockItemId: itemId, stockQuantity: quantity, stockReceived: true } : t),
+      };
+    });
+    return received;
+  },
 
   clienteItems: [],
   addClienteItem: (item) => {
@@ -254,6 +316,26 @@ export const useAppStore = create<AppStore>((set) => ({
         t.id === transactionId ? { ...t, clientId } : t
       ),
     })),
+
+  fornecedorItems: [],
+  addFornecedorItem: (item) => {
+    const id = generateId('sup_');
+    set((s) => ({ fornecedorItems: [{ ...item, id }, ...s.fornecedorItems] }));
+    return id;
+  },
+  updateFornecedorItem: (id, item) =>
+    set((s) => ({ fornecedorItems: s.fornecedorItems.map((i) => i.id === id ? { ...item, id } : i) })),
+  removeFornecedorItem: (id) =>
+    set((s) => ({
+      fornecedorItems: s.fornecedorItems.filter((i) => i.id !== id),
+      transactions: s.transactions.map((t) => t.supplierId === id ? { ...t, supplierId: undefined, supplierDueDate: undefined, supplierPaid: undefined } : t),
+    })),
+  linkTransactionToSupplier: (transactionId, supplierId, updates = {}) =>
+    set((s) => ({
+      transactions: s.transactions.map((t) => t.id === transactionId ? { ...t, supplierId, ...updates } : t),
+    })),
+  markSupplierTransactionPaid: (transactionId, paid) =>
+    set((s) => ({ transactions: s.transactions.map((t) => t.id === transactionId ? { ...t, supplierPaid: paid } : t) })),
 
   genericPluginItems: {},
   addGenericPluginItem: (pluginId, values) =>

@@ -9,6 +9,7 @@ import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { useAppStore } from '../../src/store';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
+import { suggestedDueDate } from '../../src/utils/supplier';
 
 interface Message {
   id: string;
@@ -31,7 +32,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, clienteItems, transactions } = useAppStore();
+  const { addTransaction, addTask, addEvent, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
@@ -39,6 +40,15 @@ export default function ChatScreen() {
   }, [clienteItems]);
 
   const formatMoney = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
+  const resolveSupplier = useCallback((name: string) => {
+    const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
+    return fornecedorItems.filter((supplier) => supplier.name.toLowerCase().includes(normalized) || normalized.includes(supplier.name.toLowerCase()));
+  }, [fornecedorItems]);
+  const formatDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR');
+  const resolveStockItem = useCallback((name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return estoqueItems.filter((item) => item.name.toLowerCase().includes(normalized) || normalized.includes(item.name.toLowerCase()));
+  }, [estoqueItems]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -61,7 +71,30 @@ export default function ChatScreen() {
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
+    if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
+      if (parsed.intent === 'STOCK_LOW_QUERY') {
+        const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
+        botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
+      } else {
+        const matches = resolveStockItem(parsed.entities.stockItemName || '');
+        if (matches.length === 0) botText = `Não encontrei o item "${parsed.entities.stockItemName}" no estoque.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um item parecido com "${parsed.entities.stockItemName}". Informe o nome completo.`;
+        else if (parsed.intent === 'STOCK_BALANCE_QUERY') botText = `Você tem ${matches[0].quantity} ${matches[0].unit} de ${matches[0].name}.`;
+        else if (moveEstoqueItem(matches[0].id, -(parsed.entities.value || 0), 'uso interno')) botText = `✓ Baixa de ${parsed.entities.value} ${matches[0].unit} de ${matches[0].name} registrada.`;
+        else botText = `Não foi possível dar baixa: o estoque de ${matches[0].name} não pode ficar negativo.`;
+      }
+    } else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY' || parsed.intent === 'SUPPLIER_DUE_QUERY') {
+      const matches = resolveSupplier(parsed.entities.supplierName || '');
+      if (matches.length === 0) botText = `Não encontrei um fornecedor chamado "${parsed.entities.supplierName}". Cadastre-o em Fornecedores antes de consultar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um fornecedor parecido com "${parsed.entities.supplierName}". Informe o nome completo.`;
+      else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY') {
+        const debt = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0 && !transaction.supplierPaid).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+        botText = `Você deve ${formatMoney(debt)} para ${matches[0].name}.`;
+      } else {
+        const purchases = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0).sort((a, b) => b.id.localeCompare(a.id));
+        botText = purchases[0]?.supplierDueDate ? `A última compra de ${matches[0].name} vence em ${formatDate(purchases[0].supplierDueDate)}.` : `A última compra de ${matches[0].name} não tem vencimento informado.`;
+      }
+    } else if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
       const matches = resolveClient(parsed.entities.clientName || '');
       if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
       else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
@@ -76,12 +109,16 @@ export default function ChatScreen() {
     } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
       actions = ['Editar', 'Excluir'];
       if (parsed.intent === 'EXPENSE_RECORD') {
-        addTransaction({
-          date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          description: parsed.entities.description || 'Despesa',
-          amount: -(parsed.entities.value || 0),
-          category: parsed.entities.category || 'Outros',
-        });
+        const supplierMatches = parsed.entities.supplierName ? resolveSupplier(parsed.entities.supplierName) : [];
+        if (parsed.entities.category === 'Fornecedores' && (supplierMatches.length !== 1)) {
+          actions = [];
+          botText = supplierMatches.length > 1 ? 'Encontrei mais de um fornecedor parecido. Informe o nome completo antes de registrar.' : `Não encontrei o fornecedor "${parsed.entities.supplierName || 'informado'}". Cadastre-o em Fornecedores antes de registrar.`;
+        } else {
+          const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          const supplier = supplierMatches[0];
+          addTransaction({ date, description: parsed.entities.description || 'Despesa', amount: -(parsed.entities.value || 0), category: parsed.entities.category || 'Outros', supplierId: supplier?.id, supplierDueDate: supplier ? (parsed.entities.paymentDays !== undefined ? suggestedDueDate(date, `${parsed.entities.paymentDays} dias`) : suggestedDueDate(date, supplier.paymentTerm)) : undefined, supplierPaid: supplier ? false : undefined });
+          botText = supplier ? `✓ Compra de ${formatMoney(parsed.entities.value || 0)} para ${supplier.name} registrada como pendente.` : botText;
+        }
       } else {
         const matches = resolveClient(parsed.entities.description || '');
         if (matches.length > 1) {
@@ -125,7 +162,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [input, addTransaction, addTask, addEvent, resolveClient, transactions]);
+  }, [input, addTransaction, addTask, addEvent, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -143,7 +180,30 @@ export default function ChatScreen() {
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
+    if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
+      if (parsed.intent === 'STOCK_LOW_QUERY') {
+        const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
+        botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
+      } else {
+        const matches = resolveStockItem(parsed.entities.stockItemName || '');
+        if (matches.length === 0) botText = `Não encontrei o item "${parsed.entities.stockItemName}" no estoque.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um item parecido com "${parsed.entities.stockItemName}". Informe o nome completo.`;
+        else if (parsed.intent === 'STOCK_BALANCE_QUERY') botText = `Você tem ${matches[0].quantity} ${matches[0].unit} de ${matches[0].name}.`;
+        else if (moveEstoqueItem(matches[0].id, -(parsed.entities.value || 0), 'uso interno')) botText = `✓ Baixa de ${parsed.entities.value} ${matches[0].unit} de ${matches[0].name} registrada.`;
+        else botText = `Não foi possível dar baixa: o estoque de ${matches[0].name} não pode ficar negativo.`;
+      }
+    } else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY' || parsed.intent === 'SUPPLIER_DUE_QUERY') {
+      const matches = resolveSupplier(parsed.entities.supplierName || '');
+      if (matches.length === 0) botText = `Não encontrei um fornecedor chamado "${parsed.entities.supplierName}". Cadastre-o em Fornecedores antes de consultar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um fornecedor parecido com "${parsed.entities.supplierName}". Informe o nome completo.`;
+      else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY') {
+        const debt = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0 && !transaction.supplierPaid).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+        botText = `Você deve ${formatMoney(debt)} para ${matches[0].name}.`;
+      } else {
+        const purchases = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0).sort((a, b) => b.id.localeCompare(a.id));
+        botText = purchases[0]?.supplierDueDate ? `A última compra de ${matches[0].name} vence em ${formatDate(purchases[0].supplierDueDate)}.` : `A última compra de ${matches[0].name} não tem vencimento informado.`;
+      }
+    } else if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
       const matches = resolveClient(parsed.entities.clientName || '');
       if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
       else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
@@ -158,12 +218,16 @@ export default function ChatScreen() {
     } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
       actions = ['Editar', 'Excluir'];
       if (parsed.intent === 'EXPENSE_RECORD') {
-        addTransaction({
-          date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          description: parsed.entities.description || 'Despesa',
-          amount: -(parsed.entities.value || 0),
-          category: parsed.entities.category || 'Outros',
-        });
+        const supplierMatches = parsed.entities.supplierName ? resolveSupplier(parsed.entities.supplierName) : [];
+        if (parsed.entities.category === 'Fornecedores' && supplierMatches.length !== 1) {
+          actions = [];
+          botText = supplierMatches.length > 1 ? 'Encontrei mais de um fornecedor parecido. Informe o nome completo antes de registrar.' : `Não encontrei o fornecedor "${parsed.entities.supplierName || 'informado'}". Cadastre-o em Fornecedores antes de registrar.`;
+        } else {
+          const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+          const supplier = supplierMatches[0];
+          addTransaction({ date, description: parsed.entities.description || 'Despesa', amount: -(parsed.entities.value || 0), category: parsed.entities.category || 'Outros', supplierId: supplier?.id, supplierDueDate: supplier ? (parsed.entities.paymentDays !== undefined ? suggestedDueDate(date, `${parsed.entities.paymentDays} dias`) : suggestedDueDate(date, supplier.paymentTerm)) : undefined, supplierPaid: supplier ? false : undefined });
+          botText = supplier ? `✓ Compra de ${formatMoney(parsed.entities.value || 0)} para ${supplier.name} registrada como pendente.` : botText;
+        }
       } else {
         const matches = resolveClient(parsed.entities.description || '');
         if (matches.length > 1) {
@@ -205,7 +269,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [scrollToBottom, addTransaction, addTask, addEvent, resolveClient, transactions]);
+  }, [scrollToBottom, addTransaction, addTask, addEvent, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

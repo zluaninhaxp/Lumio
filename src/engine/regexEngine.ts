@@ -8,6 +8,11 @@ export type Intent =
   | 'QUERY_REPORT'
   | 'CLIENT_PAYMENT_QUERY'
   | 'CLIENT_PENDING_QUERY'
+  | 'SUPPLIER_BALANCE_QUERY'
+  | 'SUPPLIER_DUE_QUERY'
+  | 'STOCK_BALANCE_QUERY'
+  | 'STOCK_DECREASE'
+  | 'STOCK_LOW_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -18,12 +23,15 @@ export interface ParsedMessage {
     description?: string;
     date?: string;
     clientName?: string;
+    supplierName?: string;
+    paymentDays?: number;
+    stockItemName?: string;
   };
   raw: string;
 }
 
 const EXPENSE_PATTERN =
-  /(?:gastei|paguei|comprei|custo[u]?|despesa de?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:de\s+)?(.+)?/i;
+  /(?:gastei|paguei|comprei|custo[u]?|despesa de?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:reais?\s*)?(?:de\s+)?(.+)?/i;
 
 const INCOME_PATTERN =
   /(?:recebi|entrou|vendi|fiz|ganhei|pagamento de?|recebimento de?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s*(?:(?:de|do|da)\s+)?(.+)?/i;
@@ -39,6 +47,11 @@ const QUERY_PATTERN =
 
 const CLIENT_PAYMENT_QUERY_PATTERN = /quanto\s+(?:o|a)?\s*(.+?)\s+(?:já\s+)?pagou(?:\s+esse\s+per[ií]odo)?/i;
 const CLIENT_PENDING_QUERY_PATTERN = /(?:o|a)?\s*(.+?)\s+tem\s+pend[eê]ncia/i;
+const SUPPLIER_BALANCE_QUERY_PATTERN = /quanto\s+devo\s+(?:pro|para\s+o|para\s+a)\s+fornecedor\s+(.+?)(?:\?|$)/i;
+const SUPPLIER_DUE_QUERY_PATTERN = /quando\s+vence\s+a\s+última\s+compra\s+(?:da|do)\s+(.+?)(?:\?|$)/i;
+const STOCK_BALANCE_QUERY_PATTERN = /quantos\s+(.+?)\s+(?:eu\s+)?tenho(?:\?|$)/i;
+const STOCK_DECREASE_PATTERN = /dei\s+baixa\s+de\s+(\d+(?:[.,]\d+)?)\s+(.+?)(?:\?|$)/i;
+const STOCK_LOW_QUERY_PATTERN = /o\s+que\s+est[aá]\s+acabando/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -46,6 +59,16 @@ function parseValue(raw: string): number {
 
 export function parseMessage(input: string): ParsedMessage {
   const text = input.trim();
+
+  const supplierBalanceMatch = text.match(SUPPLIER_BALANCE_QUERY_PATTERN);
+  if (supplierBalanceMatch) return { intent: 'SUPPLIER_BALANCE_QUERY', entities: { supplierName: supplierBalanceMatch[1].trim() }, raw: text };
+  const supplierDueMatch = text.match(SUPPLIER_DUE_QUERY_PATTERN);
+  if (supplierDueMatch) return { intent: 'SUPPLIER_DUE_QUERY', entities: { supplierName: supplierDueMatch[1].trim() }, raw: text };
+  const stockDecreaseMatch = text.match(STOCK_DECREASE_PATTERN);
+  if (stockDecreaseMatch) return { intent: 'STOCK_DECREASE', entities: { value: parseValue(stockDecreaseMatch[1]), stockItemName: stockDecreaseMatch[2].trim() }, raw: text };
+  if (STOCK_LOW_QUERY_PATTERN.test(text)) return { intent: 'STOCK_LOW_QUERY', entities: {}, raw: text };
+  const stockBalanceMatch = text.match(STOCK_BALANCE_QUERY_PATTERN);
+  if (stockBalanceMatch) return { intent: 'STOCK_BALANCE_QUERY', entities: { stockItemName: stockBalanceMatch[1].trim() }, raw: text };
 
   const clientPaymentMatch = text.match(CLIENT_PAYMENT_QUERY_PATTERN);
   if (clientPaymentMatch) {
@@ -66,6 +89,8 @@ export function parseMessage(input: string): ParsedMessage {
         value: parseValue(expenseMatch[1]),
         description: expenseMatch[2]?.trim() || 'Despesa',
         category: guessCategory(expenseMatch[2] || ''),
+        supplierName: expenseMatch[2]?.match(/(?:do|da|de)\s+fornecedor\s+(.+?)(?:,\s*pago\s+em\s+\d+\s+dias?)?$/i)?.[1]?.trim(),
+        paymentDays: expenseMatch[2]?.match(/pago\s+em\s+(\d+)\s+dias?/i)?.[1] ? Number(expenseMatch[2].match(/pago\s+em\s+(\d+)\s+dias?/i)![1]) : undefined,
       },
       raw: text,
     };
@@ -145,6 +170,13 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'CLIENT_PAYMENT_QUERY':
       return '';
     case 'CLIENT_PENDING_QUERY':
+      return '';
+    case 'SUPPLIER_BALANCE_QUERY':
+    case 'SUPPLIER_DUE_QUERY':
+      return '';
+    case 'STOCK_BALANCE_QUERY':
+    case 'STOCK_DECREASE':
+    case 'STOCK_LOW_QUERY':
       return '';
     default:
       return '';

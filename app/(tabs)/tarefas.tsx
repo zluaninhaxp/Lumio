@@ -9,6 +9,7 @@ import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler'
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
+import { daysUntil } from '../../src/utils/supplier';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -157,7 +158,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -190,6 +191,34 @@ export default function TarefasScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const newTaskInputRef = useRef<TextInput>(null);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+
+  const supplierSuggestions = useMemo(() => transactions.flatMap((transaction) => {
+    if (transaction.amount >= 0 || !transaction.supplierId || !transaction.supplierDueDate || transaction.supplierPaid) return [];
+    const days = daysUntil(transaction.supplierDueDate);
+    if (days < 0 || days > 2) return [];
+    const supplier = fornecedorItems.find((item) => item.id === transaction.supplierId);
+    if (!supplier || tasks.some((task) => task.description.includes(transaction.description) && !task.done)) return [];
+    return [{ transaction, supplier, days }];
+  }), [transactions, fornecedorItems, tasks]);
+
+  const confirmSupplierSuggestion = useCallback((suggestion: (typeof supplierSuggestions)[number]) => {
+    addTask({
+      description: `Confirmar pagamento para ${suggestion.supplier.name}: ${suggestion.transaction.description}`,
+      done: false,
+      dueDate: suggestion.transaction.supplierDueDate ?? null,
+      dueDateLabel: suggestion.days === 0 ? 'Hoje' : suggestion.days === 1 ? 'Amanhã' : undefined,
+      priority: suggestion.days === 0 ? 'alta' : 'media',
+      subtasks: [],
+      tags: ['Fornecedor', 'Financeiro'],
+      createdAt: new Date().toISOString(),
+    });
+  }, [addTask]);
+
+  const stockSuggestions = useMemo(() => estoqueItems.filter((item) => item.quantity < item.minAlert && !tasks.some((task) => task.description.toLowerCase().includes(item.name.toLowerCase()) && !task.done)), [estoqueItems, tasks]);
+
+  const confirmStockSuggestion = useCallback((item: (typeof stockSuggestions)[number]) => {
+    addTask({ description: `Comprar ${item.name}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Estoque'], createdAt: new Date().toISOString() });
+  }, [addTask]);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 600);
@@ -1124,6 +1153,9 @@ export default function TarefasScreen() {
             </View>
           </View>
 
+          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+
           <View style={styles.searchContainer}>
             <Ionicons name="search-outline" size={17} color={Colors.textMuted} style={styles.searchIcon} />
             <TextInput
@@ -1345,6 +1377,32 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bg,
     zIndex: 1,
   },
+  supplierSuggestion: {
+    marginHorizontal: CONTENT_H,
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: '#FFF8E7',
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#F5D98A',
+  },
+  stockSuggestion: {
+    marginHorizontal: CONTENT_H,
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+    backgroundColor: Colors.dangerLight,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: '#F2B8B8',
+  },
+  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
+  suggestionTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', color: Colors.primary, fontSize: FontSize.sm },
+  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
+  suggestionBody: { flex: 1 },
+  suggestionText: { fontFamily: 'PlusJakartaSans_500Medium', color: Colors.primary, fontSize: FontSize.xs },
+  suggestionMeta: { color: Colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
+  suggestionButton: { backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  suggestionButtonText: { color: '#FFFFFF', fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
 
   // Header
   header: {

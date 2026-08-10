@@ -99,12 +99,15 @@ export default function FinanceiroScreen() {
 
   const handleSaveTransaction = useCallback(
     (data: Omit<Transaction, 'id'>) => {
+      let transactionId: string;
       if (editingItem) {
         updateTransaction(editingItem.id, data);
+        transactionId = editingItem.id;
       } else {
-        addTransaction(data);
+        transactionId = addTransaction(data);
       }
       closeSheet();
+      return transactionId;
     },
     [editingItem, addTransaction, updateTransaction, closeSheet]
   );

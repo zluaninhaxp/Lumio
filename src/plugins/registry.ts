@@ -102,14 +102,14 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     icon: 'briefcase',
     description: 'Quem você compra e os prazos combinados.',
     route: '/plugins/fornecedores',
-    implemented: false,
+    implemented: true,
     itemLabel: 'fornecedor',
     itemLabelPlural: 'fornecedores',
     fields: [
       { key: 'name', label: 'Nome', type: 'text', primary: true, placeholder: 'Nome do fornecedor' },
-      { key: 'category', label: 'Categoria', type: 'text', placeholder: 'Ex: Bebidas' },
       { key: 'contact', label: 'Contato', type: 'text', placeholder: 'Telefone ou e-mail' },
       { key: 'paymentTerm', label: 'Prazo de pagamento', type: 'text', placeholder: 'Ex: 30 dias' },
+      { key: 'notes', label: 'Observações', type: 'text', placeholder: 'Observações' },
     ],
   },
   agenda: {
