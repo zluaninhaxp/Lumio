@@ -84,7 +84,7 @@ ${sections}
 5. Recomende plugins em "recommendedPlugins" usando APENAS ids da lista
    fechada definida em src/plugins/registry.ts: "estoque", "clientes",
    "fornecedores", "agenda", "orcamentos", "comissoes", "equipe",
-   "entregas", "vendas", "filiais", "contratos". Nunca invente um id fora
+   "entregas", "vendas", "contratos". Nunca invente um id fora
    desta lista. Cada recomendação vem com "reason" humano e "confidence".
 6. NUNCA invente "businessName" ou "segment" caso não sejam identificáveis
    com segurança — use null nesses casos e registre o campo em

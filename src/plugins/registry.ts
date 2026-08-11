@@ -9,7 +9,7 @@
  * (`implemented: false`, ver `GenericPluginField[]` abaixo e
  * `app/plugins/[id].tsx`).
  *
- * NÃO adicione plugins fora desta lista fechada de 11 itens.
+ * NÃO adicione plugins fora desta lista fechada.
  */
 
 export type PluginId =
@@ -22,7 +22,6 @@ export type PluginId =
   | 'equipe'
   | 'entregas'
   | 'vendas'
-  | 'filiais'
   | 'contratos';
 
 /** Tipo de campo suportado pelo formulário genérico dos plugins mínimos. */
@@ -198,20 +197,6 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
       { key: 'paymentMethod', label: 'Forma de pagamento', type: 'text', placeholder: 'Ex: Pix, Cartão' },
     ],
   },
-  filiais: {
-    id: 'filiais',
-    label: 'Filiais',
-    icon: 'business',
-    description: 'Gerencie mais de uma unidade do seu negócio.',
-    route: '/plugins/filiais',
-    implemented: false,
-    itemLabel: 'filial',
-    itemLabelPlural: 'filiais',
-    fields: [
-      { key: 'name', label: 'Nome da unidade', type: 'text', primary: true, placeholder: 'Ex: Loja Centro' },
-      { key: 'data', label: 'Dados replicados', type: 'text', placeholder: 'Ex: mesmo catálogo, caixa próprio' },
-    ],
-  },
   contratos: {
     id: 'contratos',
     label: 'Contratos / Assinaturas',
@@ -230,7 +215,7 @@ export const PLUGIN_LIST: PluginDefinition[] = Object.values(PLUGIN_REGISTRY);
 /** Ordem de prioridade sugerida para implementação dos plugins mínimos. */
 export const PLUGIN_PRIORITY_ORDER: PluginId[] = [
   'fornecedores', 'agenda', 'vendas', 'equipe', 'entregas',
-  'orcamentos', 'comissoes', 'contratos', 'filiais',
+  'orcamentos', 'comissoes', 'contratos',
 ];
 
 export function getPluginDefinition(id: string): PluginDefinition | undefined {
