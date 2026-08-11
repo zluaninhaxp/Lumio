@@ -38,14 +38,16 @@ interface Line {
 export default function OnboardingScreen() {
   const router = useRouter();
   const applyOpenOnboardingConfig = useAppStore((s) => s.applyOpenOnboardingConfig);
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, currentUser, loading } = useAuth();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
       router.replace('/login');
+    } else if (!loading && currentUser?.onboardingCompleted) {
+      router.replace('/(tabs)/chat');
     }
-  }, [loading, isAuthenticated, router]);
+  }, [loading, isAuthenticated, currentUser, router]);
 
   const blockIndexRef = useRef(0);
   const answersRef = useRef<OpenOnboardingAnswers>({});

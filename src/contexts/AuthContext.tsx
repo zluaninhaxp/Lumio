@@ -13,8 +13,8 @@ export interface AuthContextValue {
   /** true enquanto a sessão salva ainda está sendo verificada (abertura do app). */
   loading: boolean;
 
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<PublicUser>;
+  register: (name: string, email: string, password: string) => Promise<PublicUser>;
   logout: () => Promise<void>;
   updateUser: (updates: UpdateUserInput) => Promise<void>;
   /** Recarrega `currentUser` do storage — útil após alterações feitas via services diretamente. */
@@ -61,16 +61,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [hydrateOnboarding]);
 
-  const login = useCallback(async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string): Promise<PublicUser> => {
     const result = await authService.login({ email, password });
     setCurrentUser(result.user);
     await hydrateOnboarding(result.user);
+    return result.user;
   }, [hydrateOnboarding]);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
+  const register = useCallback(async (name: string, email: string, password: string): Promise<PublicUser> => {
     const result = await authService.register({ name, email, password });
     setCurrentUser(result.user);
     await hydrateOnboarding(result.user);
+    return result.user;
   }, [hydrateOnboarding]);
 
   const logout = useCallback(async () => {

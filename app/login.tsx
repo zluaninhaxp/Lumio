@@ -22,8 +22,8 @@ export default function LoginScreen() {
     setErrorMessage(null);
     setSubmitting(true);
     try {
-      await login(email, password);
-      router.replace('/onboarding');
+      const user = await login(email, password);
+      router.replace(user.onboardingCompleted ? '/(tabs)/chat' : '/onboarding');
     } catch (error: any) {
       setErrorMessage(error?.message ?? 'Não foi possível entrar. Tente novamente.');
     } finally {
