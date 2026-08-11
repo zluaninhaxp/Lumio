@@ -27,6 +27,9 @@ export type Intent =
   | 'DELIVERY_PENDING_QUERY'
   | 'CONTRACT_DUE_QUERY'
   | 'CONTRACT_STATUS_QUERY'
+  | 'FREE_SLOT_QUERY'
+  | 'APPOINTMENT_CREATE'
+  | 'APPOINTMENT_TODAY_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -36,6 +39,7 @@ export interface ParsedMessage {
     category?: string;
     description?: string;
     date?: string;
+    time?: string;
     clientName?: string;
     supplierName?: string;
     paymentDays?: number;
@@ -86,6 +90,9 @@ const DELIVERY_STATUS_QUERY_PATTERN = /a\s+entrega\s+do\s+pedido\s+#?([\w-]+)\s+
 const DELIVERY_PENDING_QUERY_PATTERN = /quais\s+entregas\s+est[aã]o\s+pendentes\s+hoje\??$/i;
 const CONTRACT_DUE_QUERY_PATTERN = /quais\s+contratos\s+vencem\s+esse\s+m[eê]s\??$/i;
 const CONTRACT_STATUS_QUERY_PATTERN = /o\s+contrato\s+do\s+(.+?)\s+est[aá]\s+em\s+dia\??$/i;
+const FREE_SLOT_QUERY_PATTERN = /tenho\s+hor[aá]rio\s+livre\s+(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)\s+[`aà]s?\s+(\d{1,2})(?::(\d{2}))?\s*h?\??$/i;
+const APPOINTMENT_CREATE_PATTERN = /marca\s+(?:o|a)?\s*(.+?)\s+para\s+(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)\s+[`aà]s?\s+(\d{1,2})(?::(\d{2}))?\s*h?\??$/i;
+const APPOINTMENT_TODAY_QUERY_PATTERN = /quais\s+atendimentos\s+tenho\s+hoje\??$/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -108,6 +115,11 @@ const taskAssignMatch = text.match(TASK_ASSIGN_PATTERN);
   if (CONTRACT_DUE_QUERY_PATTERN.test(text)) return { intent: 'CONTRACT_DUE_QUERY', entities: {}, raw: text };
   const contractStatusMatch = text.match(CONTRACT_STATUS_QUERY_PATTERN);
   if (contractStatusMatch) return { intent: 'CONTRACT_STATUS_QUERY', entities: { clientName: contractStatusMatch[1].trim() }, raw: text };
+  const freeSlotMatch = text.match(FREE_SLOT_QUERY_PATTERN);
+  if (freeSlotMatch) return { intent: 'FREE_SLOT_QUERY', entities: { date: freeSlotMatch[1].trim(), time: `${freeSlotMatch[2].padStart(2, '0')}:${freeSlotMatch[3] ?? '00'}` }, raw: text };
+  const appointmentCreateMatch = text.match(APPOINTMENT_CREATE_PATTERN);
+  if (appointmentCreateMatch) return { intent: 'APPOINTMENT_CREATE', entities: { clientName: appointmentCreateMatch[1].trim(), date: appointmentCreateMatch[2].trim(), time: `${appointmentCreateMatch[3].padStart(2, '0')}:${appointmentCreateMatch[4] ?? '00'}` }, raw: text };
+  if (APPOINTMENT_TODAY_QUERY_PATTERN.test(text)) return { intent: 'APPOINTMENT_TODAY_QUERY', entities: {}, raw: text };
 
   const quoteCreateMatch = text.match(QUOTE_CREATE_PATTERN);
   if (quoteCreateMatch) return { intent: 'QUOTE_CREATE', entities: { clientName: quoteCreateMatch[1].trim(), quoteItemsText: quoteCreateMatch[2].trim() }, raw: text };
@@ -251,6 +263,9 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'DELIVERY_PENDING_QUERY':
     case 'CONTRACT_DUE_QUERY':
     case 'CONTRACT_STATUS_QUERY':
+    case 'FREE_SLOT_QUERY':
+    case 'APPOINTMENT_CREATE':
+    case 'APPOINTMENT_TODAY_QUERY':
       return '';
     default:
       return '';

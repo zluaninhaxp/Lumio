@@ -117,7 +117,7 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     label: 'Agenda / Atendimento',
     icon: 'time',
     description: 'Organize horários marcados com clientes.',
-    route: '/plugins/agenda',
+    route: '/(tabs)/calendario',
     implemented: true,
     itemLabel: 'atendimento',
     itemLabelPlural: 'atendimentos',
@@ -251,6 +251,7 @@ export const PLUGIN_DEPENDENCIES: Partial<Record<PluginId, PluginId[]>> = {
   comissoes: ['equipe', 'vendas'],
   entregas: ['vendas'],
   contratos: ['clientes'],
+  agenda: ['clientes'],
 };
 
 export function canActivatePlugin(

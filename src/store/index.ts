@@ -152,6 +152,21 @@ export interface FornecedorItem {
   notes: string;
 }
 
+export type AppointmentStatus = 'confirmado' | 'concluido' | 'cancelado';
+
+export interface Atendimento {
+  id: string;
+  clientId?: string;
+  quoteId?: string;
+  date: string;
+  time: string;
+  duration: number;
+  service: string;
+  status: AppointmentStatus;
+  calendarEventId: string;
+  createdAt: string;
+}
+
 export interface EmployeeItem {
   id: string;
   name: string;
@@ -267,6 +282,12 @@ export interface AppStore {
   updatePedido: (id: string, updates: Partial<Omit<Pedido, 'id'>>) => boolean;
   completePedido: (id: string) => boolean;
   removePedido: (id: string) => void;
+
+  atendimentos: Atendimento[];
+  addAtendimento: (atendimento: Omit<Atendimento, 'id' | 'calendarEventId'>) => string | null;
+  updateAtendimento: (id: string, updates: Partial<Omit<Atendimento, 'id'>>) => boolean;
+  concludeAtendimento: (id: string) => boolean;
+  removeAtendimento: (id: string) => void;
 
   entregas: Entrega[];
   addEntrega: (entrega: Omit<Entrega, 'id' | 'financeTransactionId' | 'calendarEventId'>, createFreightExpense?: boolean) => string | null;
@@ -575,6 +596,65 @@ export const useAppStore = create<AppStore>((set) => ({
     return { pedidos: s.pedidos.filter((item) => item.id !== id) };
   }),
 
+  atendimentos: [],
+  addAtendimento: (atendimento) => {
+    let id: string | null = null;
+    set((s) => {
+      const client = atendimento.clientId ? s.clienteItems.find((item) => item.id === atendimento.clientId) : undefined;
+      const quote = atendimento.quoteId ? s.orcamentos.find((item) => item.id === atendimento.quoteId) : undefined;
+      if ((atendimento.clientId && !client) || (quote && (quote.status !== 'aprovado' || (client && quote.clientId !== client.id))) || (atendimento.quoteId && !quote)) return s;
+      id = generateId('apt_');
+      const calendarEventId = `appointment:${id}`;
+      const description = `${atendimento.service}${client ? ` · ${client.name}` : ''}`;
+      return {
+        atendimentos: [{ ...atendimento, id, calendarEventId }, ...s.atendimentos],
+        events: [...s.events, { id: calendarEventId, date: atendimento.date, time: atendimento.time, description, done: false, type: 'event' as const }],
+      };
+    });
+    return id;
+  },
+  updateAtendimento: (id, updates) => {
+    let updated = false;
+    set((s) => {
+      const current = s.atendimentos.find((item) => item.id === id);
+      if (!current) return s;
+      const next = { ...current, ...updates, id };
+      if (next.quoteId) {
+        const quote = s.orcamentos.find((item) => item.id === next.quoteId);
+        if (!quote || quote.status !== 'aprovado' || (next.clientId && quote.clientId !== next.clientId)) return s;
+      }
+      updated = true;
+      const client = next.clientId ? s.clienteItems.find((item) => item.id === next.clientId) : undefined;
+      return {
+        atendimentos: s.atendimentos.map((item) => item.id === id ? next : item),
+        events: s.events.map((event) => event.id === next.calendarEventId ? { ...event, date: next.date, time: next.time, description: `${next.service}${client ? ` · ${client.name}` : ''}`, done: next.status !== 'confirmado' } : event),
+      };
+    });
+    return updated;
+  },
+  concludeAtendimento: (id) => {
+    const current = useAppStore.getState().atendimentos.find((item) => item.id === id);
+    if (!current || current.status !== 'confirmado') return false;
+    if (current.quoteId) {
+      const quote = useAppStore.getState().orcamentos.find((item) => item.id === current.quoteId);
+      const order = quote?.orderId ? useAppStore.getState().pedidos.find((item) => item.id === quote.orderId) : undefined;
+      if (!quote || quote.status !== 'aprovado' || !order) return false;
+      if (order.status !== 'concluido' && !useAppStore.getState().completePedido(order.id)) return false;
+    }
+    let concluded = false;
+    set((s) => {
+      if (!s.atendimentos.some((item) => item.id === id && item.status === 'confirmado')) return s;
+      concluded = true;
+      return { atendimentos: s.atendimentos.map((item) => item.id === id ? { ...item, status: 'concluido' as const } : item), events: s.events.map((event) => event.id === current.calendarEventId ? { ...event, done: true } : event) };
+    });
+    return concluded;
+  },
+  removeAtendimento: (id) => set((s) => {
+    const appointment = s.atendimentos.find((item) => item.id === id);
+    if (!appointment) return s;
+    return { atendimentos: s.atendimentos.filter((item) => item.id !== id), events: s.events.filter((event) => event.id !== appointment.calendarEventId) };
+  }),
+
   entregas: [],
   addEntrega: (entrega, createFreightExpense = false) => {
     let deliveryId: string | null = null;
@@ -647,11 +727,13 @@ export const useAppStore = create<AppStore>((set) => ({
   removeClienteItem: (id) =>
     set((s) => {
       const contractIds = new Set(s.contratos.filter((contrato) => contrato.clientId === id).map((contrato) => contrato.id));
+      const appointmentEventIds = new Set(s.atendimentos.filter((atendimento) => atendimento.clientId === id).map((atendimento) => atendimento.calendarEventId));
       return {
         clienteItems: s.clienteItems.filter((i) => i.id !== id),
         transactions: s.transactions.filter((transaction) => !contractIds.has(transaction.contractId ?? '')).map((transaction) => transaction.clientId === id ? { ...transaction, clientId: undefined } : transaction),
-        events: s.events.filter((event) => ![...contractIds].some((contractId) => event.id.startsWith(`contract-due:${contractId}:`))),
+        events: s.events.filter((event) => !appointmentEventIds.has(event.id) && ![...contractIds].some((contractId) => event.id.startsWith(`contract-due:${contractId}:`))),
         contratos: s.contratos.filter((contrato) => !contractIds.has(contrato.id)),
+        atendimentos: s.atendimentos.filter((atendimento) => atendimento.clientId !== id),
       };
     }),
   linkTransactionToClient: (transactionId, clientId) =>

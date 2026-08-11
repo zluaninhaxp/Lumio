@@ -158,7 +158,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -265,6 +265,17 @@ export default function TarefasScreen() {
   const confirmDeliverySuggestion = useCallback((delivery: (typeof deliverySuggestions)[number]['delivery']) => {
     addTask({ description: `Acompanhar entrega ${delivery.id.slice(-6)} do pedido ${delivery.orderId.slice(-6)}`, done: false, dueDate: delivery.estimatedDate, dueDateLabel: 'Prazo próximo', priority: 'alta', subtasks: [], tags: ['Entregas'], createdAt: new Date().toISOString(), employeeId: delivery.employeeId });
   }, [addTask]);
+
+  const appointmentSuggestions = useMemo(() => atendimentos.flatMap((appointment) => {
+    if (appointment.status !== 'confirmado') return [];
+    const days = daysUntil(appointment.date);
+    if (days < 0 || days > 2 || tasks.some((task) => task.description.includes(appointment.id) && !task.done)) return [];
+    return [{ appointment, days }];
+  }), [atendimentos, tasks]);
+  const confirmAppointmentSuggestion = useCallback((appointment: (typeof appointmentSuggestions)[number]['appointment']) => {
+    const client = clienteItems.find((item) => item.id === appointment.clientId);
+    addTask({ description: `Confirmar atendimento ${appointment.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: appointment.date, dueDateLabel: 'Próximo', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
+  }, [addTask, clienteItems]);
 
   useEffect(() => {
     refreshOrcamentos();
@@ -1209,6 +1220,7 @@ export default function TarefasScreen() {
           </View>
 
           {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}

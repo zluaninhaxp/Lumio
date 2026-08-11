@@ -32,10 +32,10 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas } = useAppStore();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
-    const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
+    const normalized = name.trim().toLowerCase().replace(/^(?:o|a|do|da|de)\s+/i, '');
     return clienteItems.filter((client) => client.name.toLowerCase().includes(normalized) || normalized.includes(client.name.toLowerCase()));
   }, [clienteItems]);
 
@@ -54,6 +54,20 @@ export default function ChatScreen() {
     return employeeItems.filter((employee) => employee.name.toLowerCase().includes(normalized) || normalized.includes(employee.name.toLowerCase()));
   }, [employeeItems]);
   const parseQuoteItems = (text: string) => text.split(/\s+e\s+|,/i).map((part, index) => { const match = part.trim().match(/^(\d+(?:[.,]\d+)?)\s+(.+)$/); return { id: `${Date.now()}-${index}`, name: match?.[2]?.trim() || part.trim(), quantity: match ? Number(match[1].replace(',', '.')) : 1, unitPrice: 0 }; }).filter((item) => item.name);
+  const dateForToken = (token: string) => {
+    const normalized = token.toLowerCase();
+    const date = new Date();
+    if (/amanh/.test(normalized)) date.setDate(date.getDate() + 1);
+    else if (!/hoje/.test(normalized)) {
+      const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+      const target = weekdays.findIndex((day) => normalized.startsWith(day.slice(0, 3)));
+      if (target >= 0) {
+        const delta = (target - date.getDay() + 7) % 7;
+        date.setDate(date.getDate() + delta);
+      }
+    }
+    return date.toISOString().split('T')[0];
+  };
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -132,6 +146,25 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
         const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
         botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
+      }
+    } else if (parsed.intent === 'FREE_SLOT_QUERY' || parsed.intent === 'APPOINTMENT_CREATE' || parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
+      if (!activatedPlugins.includes('agenda')) {
+        botText = 'Ative o módulo Agenda / Atendimento em Apps para agendar horários.';
+      } else if (parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
+        const today = new Date().toISOString().split('T')[0];
+        const todayAppointments = atendimentos.filter((appointment) => appointment.date === today && appointment.status !== 'cancelado');
+        botText = todayAppointments.length ? `Hoje você tem: ${todayAppointments.map((appointment) => `${appointment.time} — ${appointment.service}`).join('; ')}.` : 'Você não tem atendimentos agendados para hoje.';
+      } else {
+        const date = dateForToken(parsed.entities.date || 'hoje');
+        const occupied = atendimentos.some((appointment) => appointment.date === date && appointment.time === parsed.entities.time && appointment.status !== 'cancelado');
+        if (parsed.intent === 'FREE_SLOT_QUERY') botText = occupied ? `Esse horário já está ocupado em ${date} às ${parsed.entities.time}.` : `Sim, o horário de ${date} às ${parsed.entities.time} está livre.`;
+        else {
+          const matches = resolveClient(parsed.entities.clientName || '');
+          if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de agendar.`;
+          else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+          else if (occupied) botText = `O horário de ${date} às ${parsed.entities.time} já está ocupado.`;
+          else { const id = addAtendimento({ clientId: matches[0].id, date, time: parsed.entities.time || '00:00', duration: 60, service: 'Atendimento', status: 'confirmado', createdAt: new Date().toISOString() }); botText = id ? `✓ Atendimento de ${matches[0].name} marcado para ${date} às ${parsed.entities.time}.` : 'Não foi possível criar o atendimento.'; }
+        }
       }
     } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
       const now = new Date();
@@ -263,7 +296,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas]);
+}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -337,6 +370,25 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
         const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
         botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
+      }
+    } else if (parsed.intent === 'FREE_SLOT_QUERY' || parsed.intent === 'APPOINTMENT_CREATE' || parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
+      if (!activatedPlugins.includes('agenda')) {
+        botText = 'Ative o módulo Agenda / Atendimento em Apps para agendar horários.';
+      } else if (parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
+        const today = new Date().toISOString().split('T')[0];
+        const todayAppointments = atendimentos.filter((appointment) => appointment.date === today && appointment.status !== 'cancelado');
+        botText = todayAppointments.length ? `Hoje você tem: ${todayAppointments.map((appointment) => `${appointment.time} — ${appointment.service}`).join('; ')}.` : 'Você não tem atendimentos agendados para hoje.';
+      } else {
+        const date = dateForToken(parsed.entities.date || 'hoje');
+        const occupied = atendimentos.some((appointment) => appointment.date === date && appointment.time === parsed.entities.time && appointment.status !== 'cancelado');
+        if (parsed.intent === 'FREE_SLOT_QUERY') botText = occupied ? `Esse horário já está ocupado em ${date} às ${parsed.entities.time}.` : `Sim, o horário de ${date} às ${parsed.entities.time} está livre.`;
+        else {
+          const matches = resolveClient(parsed.entities.clientName || '');
+          if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de agendar.`;
+          else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+          else if (occupied) botText = `O horário de ${date} às ${parsed.entities.time} já está ocupado.`;
+          else { const id = addAtendimento({ clientId: matches[0].id, date, time: parsed.entities.time || '00:00', duration: 60, service: 'Atendimento', status: 'confirmado', createdAt: new Date().toISOString() }); botText = id ? `✓ Atendimento de ${matches[0].name} marcado para ${date} às ${parsed.entities.time}.` : 'Não foi possível criar o atendimento.'; }
+        }
       }
     } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
       const now = new Date();
@@ -466,7 +518,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-}, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem]);
+}, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

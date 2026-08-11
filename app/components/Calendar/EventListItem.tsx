@@ -14,6 +14,7 @@ interface EventListItemProps {
   item: CalendarEvent;
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
+  onCancel?: (id: string) => void;
   completingId: string | null;
   onCompleteStart: (id: string) => void;
   onCompleteEnd: (id: string) => void;
@@ -23,6 +24,7 @@ export function EventListItem({
   item,
   onToggle,
   onDelete,
+  onCancel,
   completingId,
   onCompleteStart,
   onCompleteEnd,
@@ -39,7 +41,7 @@ export function EventListItem({
   }, [isCompleting, item.done, opacity]);
 
   const handleToggle = useCallback(() => {
-    if (item.type === 'task') {
+    if (item.type === 'task' || item.id.startsWith('appointment:')) {
       onCompleteStart(item.id);
       Animated.sequence([
         Animated.timing(opacity, {
@@ -70,7 +72,7 @@ export function EventListItem({
   return (
     <Animated.View style={[styles.card, { opacity }]}>
       <View style={styles.row}>
-        {isTask ? (
+        {isTask || item.id.startsWith('appointment:') ? (
           <TouchableOpacity
             style={[styles.checkbox, item.done && styles.checkboxDone]}
             onPress={handleToggle}
@@ -102,6 +104,7 @@ export function EventListItem({
           </Text>
         </View>
 
+        {item.id.startsWith('appointment:') && onCancel && <TouchableOpacity onPress={() => onCancel(item.id)} style={styles.deleteBtn}><Ionicons name="close-circle-outline" size={16} color={Colors.warning} /></TouchableOpacity>}
         <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
           <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
         </TouchableOpacity>

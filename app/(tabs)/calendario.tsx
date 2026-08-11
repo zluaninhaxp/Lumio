@@ -1,9 +1,10 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, SafeAreaView, PanResponder,
+  View, Text, StyleSheet, ScrollView, SafeAreaView, PanResponder, TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize } from '../../src/constants/theme';
-import { useAppStore, type CalendarEvent } from '../../src/store';
+import { useAppStore, type CalendarEvent, type Atendimento } from '../../src/store';
 import { useCalendarState } from '../../src/hooks/useCalendarState';
 import { CollapsibleCalendar } from '../components/Calendar/CollapsibleCalendar';
 import { BottomSheet } from '../components/Calendar/BottomSheet';
@@ -13,6 +14,7 @@ import { FilterChips } from '../components/Calendar/FilterChips';
 import { SkeletonLoader } from '../components/Calendar/SkeletonLoader';
 import { EmptyState } from '../components/Calendar/EmptyState';
 import { FAB } from '../components/Calendar/FAB';
+import { AppointmentForm } from '../components/Calendar/AppointmentForm';
 
 export default function CalendarioScreen() {
   const {
@@ -37,11 +39,12 @@ export default function CalendarioScreen() {
     formatSelectedDate,
   } = useCalendarState();
 
-  const { events, toggleEvent, removeEvent, addEvent, refreshContratos, markTransactionReceived } = useAppStore();
+  const { events, toggleEvent, removeEvent, addEvent, refreshContratos, markTransactionReceived, clienteItems, orcamentos, activatedPlugins, addAtendimento, concludeAtendimento, updateAtendimento, removeAtendimento } = useAppStore();
   const { transactions, fornecedorItems, markSupplierTransactionPaid } = useAppStore();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [appointmentSheetVisible, setAppointmentSheetVisible] = useState(false);
 
   useEffect(() => { refreshContratos(); }, [refreshContratos]);
 
@@ -91,8 +94,12 @@ export default function CalendarioScreen() {
       if (transaction) markTransactionReceived(transaction.id, true);
       return;
     }
+    if (id.startsWith('appointment:')) {
+      concludeAtendimento(id.replace('appointment:', ''));
+      return;
+    }
     toggleEvent(id);
-  }, [markSupplierTransactionPaid, markTransactionReceived, toggleEvent]);
+  }, [markSupplierTransactionPaid, markTransactionReceived, concludeAtendimento, toggleEvent]);
 
   const handleMonthChange = useCallback(
     (direction: -1 | 1) => {
@@ -122,6 +129,19 @@ export default function CalendarioScreen() {
     },
     [addEvent]
   );
+
+  const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => {
+    if (addAtendimento(data)) setAppointmentSheetVisible(false);
+  }, [addAtendimento]);
+
+  const handleDeleteCalendarItem = useCallback((id: string) => {
+    if (id.startsWith('appointment:')) removeAtendimento(id.replace('appointment:', ''));
+    else removeEvent(id);
+  }, [removeAtendimento, removeEvent]);
+
+  const handleCancelCalendarItem = useCallback((id: string) => {
+    if (id.startsWith('appointment:')) updateAtendimento(id.replace('appointment:', ''), { status: 'cancelado' });
+  }, [updateAtendimento]);
 
   const handleCompleteStart = useCallback((id: string) => {
     setCompletingId(id);
@@ -157,8 +177,11 @@ export default function CalendarioScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendário</Text>
-        <View style={styles.avatar}>
+        <View style={styles.headerActions}>
+          {activatedPlugins.includes('agenda') && <TouchableOpacity style={styles.newAppointment} onPress={() => setAppointmentSheetVisible(true)}><Ionicons name="time-outline" size={18} color={Colors.accent} /><Text style={styles.newAppointmentText}>Atendimento</Text></TouchableOpacity>}
+          <View style={styles.avatar}>
           <Text style={styles.avatarText}>OJ</Text>
+          </View>
         </View>
       </View>
 
@@ -206,7 +229,8 @@ export default function CalendarioScreen() {
                 <EventListItem
                   item={event}
                    onToggle={handleToggleCalendarEvent}
-                  onDelete={removeEvent}
+                   onDelete={handleDeleteCalendarItem}
+                   onCancel={handleCancelCalendarItem}
                   completingId={completingId}
                   onCompleteStart={handleCompleteStart}
                   onCompleteEnd={handleCompleteEnd}
@@ -226,6 +250,9 @@ export default function CalendarioScreen() {
           onCancel={() => setSheetVisible(false)}
         />
       </BottomSheet>
+      <BottomSheet visible={appointmentSheetVisible} onClose={() => setAppointmentSheetVisible(false)}>
+        <AppointmentForm initialDate={selectedDate} clients={clienteItems} quotes={activatedPlugins.includes('orcamentos') ? orcamentos : []} onSave={handleSaveAppointment} onCancel={() => setAppointmentSheetVisible(false)} />
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -239,6 +266,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
   },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  newAppointment: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.accentLight, borderRadius: 999, paddingHorizontal: Spacing.sm, paddingVertical: 7 },
+  newAppointmentText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
     fontSize: FontSize.xxl,
