@@ -89,7 +89,9 @@ export default function OnboardingSummaryScreen() {
         await onboardingService.completeOnboarding(
           currentUser.id,
           openAnswers,
-          onboardingContext ?? undefined
+          onboardingContext ?? undefined,
+          extraction,
+          activatedPlugins
         );
         await refreshUser();
       } catch (error) {
@@ -100,7 +102,7 @@ export default function OnboardingSummaryScreen() {
     }
 
     router.replace('/(tabs)/chat');
-  }, [applyOnboardingExtraction, currentUser, extraction, onboardingContext, openAnswers, refreshUser, router]);
+  }, [applyOnboardingExtraction, currentUser, extraction, onboardingContext, openAnswers, activatedPlugins, refreshUser, router]);
 
   if (!extraction) return null;
 

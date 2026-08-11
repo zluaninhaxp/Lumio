@@ -26,9 +26,11 @@ export const onboardingService = {
   async completeOnboarding(
     userId: string,
     responses: unknown,
-    context?: unknown
+    context?: unknown,
+    structuredProfile?: unknown,
+    activatedPlugins: string[] = []
   ): Promise<{ record: OnboardingRecord; user: PublicUser }> {
-    const record = await onboardingRepository.save(userId, { responses, context });
+    const record = await onboardingRepository.save(userId, { responses, context, structuredProfile, activatedPlugins });
     const user = await userService.markOnboardingCompleted(userId, true);
     return { record, user };
   },

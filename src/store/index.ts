@@ -346,6 +346,12 @@ employeeItems: EmployeeItem[];
    * módulos existentes e marca o onboarding como concluído.
    */
   applyOnboardingExtraction: (result: OnboardingExtractionResult) => void;
+  hydrateOnboarding: (data: {
+    responses: Record<string, string>;
+    context: OnboardingContextDTO | null;
+    structuredProfile: OnboardingExtractionResult | null;
+    activatedPlugins: string[];
+  }) => void;
 
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id'>) => string;
@@ -886,6 +892,28 @@ updateEmployeeItem: (id, item) =>
       recommendedPlugins: result.recommendedPlugins,
       onboardingCompleted: true,
     })),
+  hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins }) =>
+    set((s) => structuredProfile ? {
+      openAnswers: responses,
+      onboardingContext: context,
+      onboardingExtraction: structuredProfile,
+      pendingOnboardingExtraction: null,
+      businessName: structuredProfile.businessName ?? s.businessName,
+      businessType: structuredProfile.segment ?? s.businessType,
+      financialExpenseCategories: structuredProfile.coreCategories.financial.expense,
+      financialIncomeCategories: structuredProfile.coreCategories.financial.income,
+      taskTags: structuredProfile.coreCategories.taskTags,
+      calendarEventTypes: structuredProfile.coreCategories.calendarEventTypes,
+      keywordMap: structuredProfile.keywordMap,
+      recommendedPlugins: structuredProfile.recommendedPlugins,
+      activatedPlugins,
+      onboardingCompleted: true,
+    } : {
+      openAnswers: responses,
+      onboardingContext: context,
+      activatedPlugins,
+      onboardingCompleted: true,
+    }),
 
   transactions: mockTransactions,
   addTransaction: (t) => {

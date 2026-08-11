@@ -3,6 +3,7 @@ import { authRepository } from '../repositories/authRepository';
 import { AuthError } from '../types/errors';
 import { AuthResult, PublicUser, Session, User, toPublicUser } from '../types/user';
 import { generateFakeToken, generateId } from '../utils/id';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 6;
@@ -35,6 +36,29 @@ async function createSessionForUser(userId: string): Promise<Session> {
   return session;
 }
 
+async function getRemoteProfile(userId: string, fallback?: { name?: string; email?: string }): Promise<PublicUser> {
+  const { data, error } = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed').eq('id', userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return {
+    id: userId,
+    name: data?.name ?? fallback?.name ?? '',
+    email: data?.email ?? fallback?.email ?? '',
+    photo: data?.photo ?? null,
+    onboardingCompleted: data?.onboarding_completed ?? false,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function remoteSession(accessToken: string, userId: string): Session {
+  return { userId, token: accessToken, loginAt: new Date().toISOString() };
+}
+
+function throwRemoteAuthError(message: string): never {
+  if (/already registered|already exists/i.test(message)) throw new AuthError('EMAIL_ALREADY_REGISTERED');
+  if (/invalid login credentials|invalid password/i.test(message)) throw new AuthError('INVALID_PASSWORD');
+  throw new Error(message);
+}
+
 export interface RegisterInput {
   name: string;
   email: string;
@@ -57,6 +81,19 @@ export const authService = {
     assertValidName(name);
     assertValidEmail(email);
     assertValidPassword(password);
+
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase!.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: { data: { name: name.trim() } },
+      });
+      if (error) throwRemoteAuthError(error.message);
+      if (!data.user) throw new Error('O Supabase não retornou o usuário criado.');
+      if (!data.session) throw new AuthError('EMAIL_CONFIRMATION_REQUIRED');
+      const user = await getRemoteProfile(data.user.id, { name, email });
+      return { user, session: remoteSession(data.session.access_token, data.user.id) };
+    }
 
     const existing = await userRepository.findByEmail(email);
     if (existing) {
@@ -82,6 +119,14 @@ export const authService = {
   async login({ email, password }: LoginInput): Promise<AuthResult> {
     assertValidEmail(email);
 
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase!.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+      if (error) throwRemoteAuthError(error.message);
+      if (!data.user || !data.session) throw new Error('Sessão inválida retornada pelo Supabase.');
+      const user = await getRemoteProfile(data.user.id, { email });
+      return { user, session: remoteSession(data.session.access_token, data.user.id) };
+    }
+
     const user = await userRepository.findByEmail(email);
     if (!user) {
       throw new AuthError('USER_NOT_FOUND');
@@ -95,6 +140,11 @@ export const authService = {
   },
 
   async logout(): Promise<void> {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase!.auth.signOut();
+      if (error) throw new Error(error.message);
+      return;
+    }
     // Remove apenas a sessão ativa — os usuários cadastrados permanecem.
     await authRepository.clearSession();
   },
@@ -104,6 +154,14 @@ export const authService = {
    * se existir, recarrega o usuário correspondente.
    */
   async restoreSession(): Promise<AuthResult | null> {
+    if (isSupabaseConfigured) {
+      const { data, error } = await supabase!.auth.getSession();
+      if (error) throw new Error(error.message);
+      if (!data.session) return null;
+      const user = await getRemoteProfile(data.session.user.id, { name: data.session.user.user_metadata?.name, email: data.session.user.email });
+      return { user, session: remoteSession(data.session.access_token, data.session.user.id) };
+    }
+
     const session = await authRepository.getSession();
     if (!session) return null;
 
