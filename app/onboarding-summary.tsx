@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -74,15 +74,22 @@ export default function OnboardingSummaryScreen() {
   const setPluginActivation = useAppStore((s) => s.setPluginActivation);
 
   // Se a pessoa cair aqui sem ter passado pela celebração (ex: deep link,
-  // refresh), não há o que resumir — volta pro início do onboarding.
+  // refresh), não há o que resumir — volta pro início do onboarding. MAS
+  // enquanto finalizamos (ver `handleFinish` abaixo) o store zera
+  // `pendingOnboardingExtraction` e esse efeito dispararia de novo em
+  // direto ao `/onboarding`, competindo com o redirect pro chat — daí o
+  // flash da tela de onboarding antes do chat. O `finishingRef` bloqueia
+  // o redirect errático durante a finalização.
+  const finishingRef = useRef(false);
   useEffect(() => {
-    if (!extraction) {
+    if (!extraction && !finishingRef.current) {
       router.replace('/onboarding');
     }
   }, [extraction, router]);
 
   const handleFinish = useCallback(async () => {
     if (!extraction) return;
+    finishingRef.current = true;
     applyOnboardingExtraction(extraction);
 
     if (currentUser) {

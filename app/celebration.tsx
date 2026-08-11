@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -29,13 +30,16 @@ const THINKING_IMAGE = require('../assets/mascot-expressions/10_piscando.png');
 const FOCUSED_IMAGE = require('../assets/mascot-expressions/12_focado.png');
 const DONE_IMAGE = require('../assets/mascot-expressions/05_muito_feliz.png');
 const ERROR_IMAGE = require('../assets/mascot-expressions/04_confuso.png');
+// Sem chave configurada ainda não é "erro" — é parte natural do processo
+// de primeira configuração. Mostra o mascote neutro pra não soar falha.
+const MISSING_KEY_IMAGE = require('../assets/mascot-expressions/11_sorriso_leve.png');
 
 // Tempo mínimo (ms) que a animação de "pensando" fica visível antes de
 // poder revelar o botão — mesmo que a extração resolva quase
 // instantaneamente, isso evita um "pisca" na tela que pareceria bugado.
 const MIN_THINKING_MS = 2200;
 
-type Phase = 'thinking' | 'focused' | 'done' | 'error';
+type Phase = 'thinking' | 'focused' | 'done' | 'error' | 'missing-key';
 
 export default function CelebrationScreen() {
   const router = useRouter();
@@ -120,15 +124,14 @@ export default function CelebrationScreen() {
 
   /**
    * Executa a extração real (chamada direta ao Gemini com a chave do
-   * usuário). Se não houver chave cadastrada (ou o aparelho não suportar
-   * armazenamento seguro), NÃO interrompe o fluxo com tela de erro —
-   * passa direto pra simulação com aviso, porque IA é opcional e o
-   * usuário não deveria ser obrigado a configurar nada antes de
-   * concluir o onboarding. O banner de "Relatório simulado" na tela de
-   * resumo é que aponta para a tela de configurações.
+   * usuário). Se não houver chave cadastrada, INTERROMPE o fluxo no
+   * estado 'missing-key' e mostra como ação principal "Configurar minha
+   * chave" (com "Continuar com simulação" apenas como fallback opt-in,
+   * não como caminho default) — o relatório depende da IA, não se
+   * aceita simulação automática silenciosa como Done.
    *
-   * Em erros REAIS (chave inválida, 429, rede, formato) entra em 'error'
-   * com "Tentar novamente" / "Continuar com simulação".
+   * Em outros erros tratados (chave inválida, 429, rede, formato) entra
+   * em 'error' com "Tentar novamente" / "Continuar com simulação".
    */
   const runExtraction = useCallback(() => {
     startedRef.current = true;
@@ -146,19 +149,13 @@ export default function CelebrationScreen() {
       } catch (e) {
         clearTimeout(midway);
 
-        // Sem chave cadastrada (ou secure storage indisponível) → segue
-        // direto pra simulação, sem parar o usuário. O banner no resumo
-        // já oferece o caminho de configurar a chave.
+        // Sem chave cadastrada → PARA no estado 'missing-key'. A ação
+        // principal é configurar a chave; o usuário é quem decide se
+        // configura e volta, ou segue explicitamente com simulação.
         if (e instanceof MissingApiKeyError) {
-          useSimulationFallback();
-          return;
-        }
-
-        // Erro ao ler a chave do dispositivo (secure storage falhou fora
-        // do caso comum de "indisponível") também não trava o fluxo —
-        // deixa a simulação rodar, mas avisa.
-        if (e instanceof AIProviderError && e.kind === 'provider') {
-          useSimulationFallback();
+          setPhase('missing-key');
+          setError({ message: e.message, kind: 'missing-api-key' });
+          buttonOpacity.value = withTiming(1, { duration: 300 });
           return;
         }
 
@@ -175,17 +172,33 @@ export default function CelebrationScreen() {
     })();
 
     return () => clearTimeout(midway);
-  }, [onboardingContext, applyResult, useSimulationFallback, buttonOpacity]);
+  }, [onboardingContext, applyResult, buttonOpacity]);
 
   // Dispara a extração real assim que a tela monta — o fluxo antigo caía
   // no mock por depender de uma função que lançava erro; agora a IA é
   // chamada de verdade, e o mock só aparece como fallback explícito.
+  // O fluxo real é disparado no mount. Voltamos a disparar quando a tela
+  // volta a focar E estava pausada em 'missing-key' — só nesse caso o
+  // usuário pode ter vindo de configurar sua chave em /ai-settings e
+  // merece a IA re-tentar automaticamente sem precisar de botão.
   useEffect(() => {
     if (startedRef.current) return;
     const cleanup = runExtraction();
     return cleanup;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (phase === 'missing-key') {
+        // Re-tenta a extração — se a chave foi configurada nas settings
+        // agora resolve via IA; se ainda não foi, volta pra 'missing-key'.
+        startedRef.current = false;
+        runExtraction();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [phase]),
+  );
 
   const handleRetry = useCallback(() => {
     startedRef.current = false;
@@ -213,14 +226,19 @@ export default function CelebrationScreen() {
       ? THINKING_IMAGE
       : phase === 'focused'
         ? FOCUSED_IMAGE
-        : phase === 'error'
-          ? ERROR_IMAGE
-          : DONE_IMAGE;
+        : phase === 'missing-key'
+          ? MISSING_KEY_IMAGE
+          : phase === 'error'
+            ? ERROR_IMAGE
+            : DONE_IMAGE;
 
-  // Estado de erro: só oferece "Configurar minha chave" quando o erro for de
-  // chave (inválida/recusada). Sem chave configurada hoje passa direto pra
-  // simulação, então não há tela de erro para esse caso.
-  const showSettingsButton = error?.kind === 'unauthorized';
+  // No estado 'missing-key' a ação principal é configurar a chave (não
+  // há "Tentar novamente" — não adianta tentar antes de ter uma chave).
+  // No estado 'error' (chave inválida/429/rede) também oferecemos
+  // "Configurar" quando o erro for de chave recusada.
+  const showSettingsButton =
+    phase === 'missing-key' || error?.kind === 'unauthorized';
+  const showRetryButton = phase === 'error';
 
   return (
     <View style={styles.container}>
@@ -242,6 +260,18 @@ export default function CelebrationScreen() {
               e configurar sua chave grátis do Google AI Studio depois.
             </Text>
           </View>
+        ) : phase === 'missing-key' ? (
+          <View>
+            <Text style={styles.errorTitle}>Faltou sua chave de IA</Text>
+            <Text style={styles.errorText}>
+              Para gerar o relatório do seu negócio com IA, configure sua
+              chave grátis do Google AI Studio. Leva 1 minuto.
+            </Text>
+            <Text style={styles.errorHint}>
+              O Lumio nunca guarda nem paga pela sua chave — ela fica só
+              no seu aparelho e é usada direto com o Google.
+            </Text>
+          </View>
         ) : (
           <CelebrationText phase={phase} />
         )}
@@ -259,7 +289,7 @@ export default function CelebrationScreen() {
         </Animated.View>
       )}
 
-      {phase === 'error' && (
+      {(phase === 'error' || phase === 'missing-key') && (
         <Animated.View style={[styles.buttonWrapper, buttonAnimatedStyle]}>
           <View style={styles.errorActions}>
             {showSettingsButton && (
@@ -271,13 +301,15 @@ export default function CelebrationScreen() {
                 <Text style={styles.actionBtnPrimaryText}>Configurar minha chave</Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity
-              style={[styles.actionBtn, styles.actionBtnGhost]}
-              onPress={handleRetry}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.actionBtnGhostText}>Tentar novamente</Text>
-            </TouchableOpacity>
+            {showRetryButton && (
+              <TouchableOpacity
+                style={[styles.actionBtn, styles.actionBtnGhost]}
+                onPress={handleRetry}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.actionBtnGhostText}>Tentar novamente</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.actionBtn, styles.actionBtnSubtle]}
               onPress={useSimulationFallback}

@@ -166,17 +166,6 @@ export default function AiSettingsScreen() {
         </View>
 
         <Text style={[s.sectionTitle, { marginTop: Spacing.xxl }]}>SUA CHAVE DE API</Text>
-        {!loadingInfo && !supported && (
-          <View style={styles.unsupportedBanner}>
-            <Ionicons name="warning-outline" size={20} color={Colors.warning} />
-            <Text style={styles.unsupportedText}>
-              Este aparelho não oferece armazenamento seguro para a chave de
-              IA (comum em web e em alguns emuladores). O onboarding segue
-              funcionando com simulação. Para usar IA de verdade, abra o
-              Lumio instalado em um celular real.
-            </Text>
-          </View>
-        )}
         <View style={s.card}>
           {loadingInfo ? (
             <View style={styles.statusRow}>
