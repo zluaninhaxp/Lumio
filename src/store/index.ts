@@ -242,9 +242,19 @@ export interface AppStore {
    * aguardando confirmação do usuário na tela de resumo
    * (`app/onboarding-summary.tsx`). Só vira `onboardingExtraction`
    * definitivo (e só reflete nos 3 módulos) quando o usuário confirma.
+   *
+   * `pendingOnboardingExtractionIsSimulation` marca quando o resultado em
+   * `pendingOnboardingExtraction` veio da heurística mock local (sem IA)
+   * — usado pela tela de resumo para exibir um aviso explícito de que o
+   * relatório é uma simulação, com botão para configurar a chave e gerar
+   * a versão real (ver instruções da tarefa, item 3.2).
    */
   pendingOnboardingExtraction: OnboardingExtractionResult | null;
-  setPendingOnboardingExtraction: (result: OnboardingExtractionResult | null) => void;
+  pendingOnboardingExtractionIsSimulation: boolean;
+  setPendingOnboardingExtraction: (
+    result: OnboardingExtractionResult | null,
+    isSimulation?: boolean
+  ) => void;
 
   /** Categorias/tags aplicadas aos 3 módulos existentes, com origin preservado. */
   financialExpenseCategories: CategorySuggestion[];
@@ -493,7 +503,9 @@ export const useAppStore = create<AppStore>((set) => ({
 
   onboardingExtraction: null,
   pendingOnboardingExtraction: null,
-  setPendingOnboardingExtraction: (result) => set({ pendingOnboardingExtraction: result }),
+  pendingOnboardingExtractionIsSimulation: false,
+  setPendingOnboardingExtraction: (result, isSimulation = false) =>
+    set({ pendingOnboardingExtraction: result, pendingOnboardingExtractionIsSimulation: isSimulation }),
   financialExpenseCategories: [],
   financialIncomeCategories: [],
   taskTags: [],
@@ -883,6 +895,7 @@ updateEmployeeItem: (id, item) =>
     set((s) => ({
       onboardingExtraction: result,
       pendingOnboardingExtraction: null,
+      pendingOnboardingExtractionIsSimulation: false,
       businessName: result.businessName ?? s.businessName,
       financialExpenseCategories: result.coreCategories.financial.expense,
       financialIncomeCategories: result.coreCategories.financial.income,
@@ -898,6 +911,7 @@ updateEmployeeItem: (id, item) =>
       onboardingContext: context,
       onboardingExtraction: structuredProfile,
       pendingOnboardingExtraction: null,
+      pendingOnboardingExtractionIsSimulation: false,
       businessName: structuredProfile.businessName ?? s.businessName,
       businessType: structuredProfile.segment ?? s.businessType,
       financialExpenseCategories: structuredProfile.coreCategories.financial.expense,

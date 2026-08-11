@@ -11,7 +11,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
   const router = useRouter();
   const { currentUser, logout } = useAuth();
   const businessName = useAppStore((state) => state.businessName);
-  const navigate = (path: '/profile' | '/account' | '/preferences') => { onClose(); router.push(path); };
+  const navigate = (path: '/profile' | '/account' | '/preferences' | '/ai-settings') => { onClose(); router.push(path); };
 
   const confirmLogout = () => Alert.alert('Sair da conta', 'Deseja realmente sair?', [
     { text: 'Cancelar', style: 'cancel' },
@@ -22,6 +22,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
     { label: 'Meu Perfil', icon: 'person-outline' as const, path: '/profile' as const },
     { label: 'Minha Conta', icon: 'shield-checkmark-outline' as const, path: '/account' as const },
     { label: 'Preferências', icon: 'settings-outline' as const, path: '/preferences' as const },
+    { label: 'Inteligência Artificial', icon: 'sparkles-outline' as const, path: '/ai-settings' as const },
   ];
   return <BottomSheet visible={visible} onClose={onClose} height={520}>
     <View style={styles.identity}>

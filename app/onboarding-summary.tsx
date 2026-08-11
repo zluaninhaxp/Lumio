@@ -66,6 +66,7 @@ export default function OnboardingSummaryScreen() {
   const { currentUser, refreshUser } = useAuth();
 
   const extraction = useAppStore((s) => s.pendingOnboardingExtraction);
+  const isSimulation = useAppStore((s) => s.pendingOnboardingExtractionIsSimulation);
   const openAnswers = useAppStore((s) => s.openAnswers);
   const onboardingContext = useAppStore((s) => s.onboardingContext);
   const applyOnboardingExtraction = useAppStore((s) => s.applyOnboardingExtraction);
@@ -121,6 +122,27 @@ export default function OnboardingSummaryScreen() {
         <View style={styles.mascotWrap}>
           <Mascot image={MASCOT_IMAGES[INTERACTION_MASCOT.summary]} size={140} />
         </View>
+
+        {isSimulation && (
+          <View style={styles.simBanner}>
+            <Ionicons name="flash-outline" size={20} color={Colors.warning} />
+            <View style={styles.simBannerText}>
+              <Text style={styles.simBannerTitle}>Relatório simulado</Text>
+              <Text style={styles.simBannerDesc}>
+                Sem uma chave de IA configurada, este relatório veio de uma
+                estimativa local. Configure sua chave grátis do Google AI
+                Studio para gerar a versão completa com IA.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.simBannerBtn}
+              onPress={() => router.push('/ai-settings')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.simBannerBtnText}>Configurar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.thankYou}>
           <Ionicons name="heart-circle" size={32} color={Colors.accent} />
@@ -188,6 +210,41 @@ export default function OnboardingSummaryScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   mascotWrap: { alignItems: 'center', paddingTop: Spacing.lg },
+  simBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: '#FFF7E6',
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#F5C56B',
+  },
+  simBannerText: { flex: 1 },
+  simBannerTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.sm,
+    color: '#9A6B00',
+    marginBottom: 2,
+  },
+  simBannerDesc: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: '#7A5400',
+    lineHeight: 18,
+  },
+  simBannerBtn: {
+    backgroundColor: '#F59E0B',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  simBannerBtnText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.xs,
+    color: '#FFFFFF',
+  },
   thankYou: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.md },
   thankYouTitle: {
     fontFamily: 'PlusJakartaSans_700Bold',

@@ -44,6 +44,7 @@ export default function RootLayout() {
         <Stack.Screen name="profile" />
         <Stack.Screen name="account" />
         <Stack.Screen name="preferences" />
+        <Stack.Screen name="ai-settings" />
       </Stack>
     </AuthProvider>
   );
