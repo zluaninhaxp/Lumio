@@ -23,6 +23,8 @@ export type Intent =
   | 'TASK_ASSIGN'
   | 'COMMISSION_MONTH_QUERY'
   | 'COMMISSION_PAY'
+  | 'DELIVERY_STATUS_QUERY'
+  | 'DELIVERY_PENDING_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -41,6 +43,7 @@ export interface ParsedMessage {
     unitPrice?: number;
     quoteItemsText?: string;
     employeeName?: string;
+    orderId?: string;
   };
   raw: string;
 }
@@ -77,6 +80,8 @@ const EMPLOYEE_TASKS_QUERY_PATTERN = /quais\s+tarefas\s+(?:o|a)?\s*(.+?)\s+tem\s
 const TASK_ASSIGN_PATTERN = /atribui(?:r)?\s+(?:essa|esta|a)?\s*tarefa\s+(?:pro|para\s+o|para\s+a)\s+(.+?)\s*\??$/i;
 const COMMISSION_MONTH_QUERY_PATTERN = /quanto\s+(?:o|a)?\s*(.+?)\s+tem\s+de\s+comissão\s+esse\s+mês\??$/i;
 const COMMISSION_PAY_PATTERN = /fecha\s+a\s+comissão\s+(?:do|da)\s+(.+?)\s*\??$/i;
+const DELIVERY_STATUS_QUERY_PATTERN = /a\s+entrega\s+do\s+pedido\s+#?([\w-]+)\s+(?:já\s+)?saiu\??$/i;
+const DELIVERY_PENDING_QUERY_PATTERN = /quais\s+entregas\s+est[aã]o\s+pendentes\s+hoje\??$/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -93,6 +98,9 @@ const taskAssignMatch = text.match(TASK_ASSIGN_PATTERN);
   if (commissionMonthMatch) return { intent: 'COMMISSION_MONTH_QUERY', entities: { employeeName: commissionMonthMatch[1].trim() }, raw: text };
   const commissionPayMatch = text.match(COMMISSION_PAY_PATTERN);
   if (commissionPayMatch) return { intent: 'COMMISSION_PAY', entities: { employeeName: commissionPayMatch[1].trim() }, raw: text };
+  const deliveryStatusMatch = text.match(DELIVERY_STATUS_QUERY_PATTERN);
+  if (deliveryStatusMatch) return { intent: 'DELIVERY_STATUS_QUERY', entities: { orderId: deliveryStatusMatch[1] }, raw: text };
+  if (DELIVERY_PENDING_QUERY_PATTERN.test(text)) return { intent: 'DELIVERY_PENDING_QUERY', entities: {}, raw: text };
 
   const quoteCreateMatch = text.match(QUOTE_CREATE_PATTERN);
   if (quoteCreateMatch) return { intent: 'QUOTE_CREATE', entities: { clientName: quoteCreateMatch[1].trim(), quoteItemsText: quoteCreateMatch[2].trim() }, raw: text };
@@ -232,6 +240,8 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'QUOTE_EXPIRING_QUERY':
     case 'COMMISSION_MONTH_QUERY':
     case 'COMMISSION_PAY':
+    case 'DELIVERY_STATUS_QUERY':
+    case 'DELIVERY_PENDING_QUERY':
       return '';
     default:
       return '';

@@ -32,7 +32,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission } = useAppStore();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
@@ -121,6 +121,16 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           const items = parseQuoteItems(parsed.entities.quoteItemsText || ''); const validUntil = new Date(); validUntil.setDate(validUntil.getDate() + 7); const id = addOrcamento({ clientId: matches[0].id, items, total: 0, validUntil: validUntil.toISOString().split('T')[0], status: 'pendente', createdAt: new Date().toISOString() });
           botText = `✓ Orçamento ${id.slice(-6)} criado para ${matches[0].name}, válido por 7 dias.`;
         }
+      }
+    } else if (parsed.intent === 'DELIVERY_STATUS_QUERY' || parsed.intent === 'DELIVERY_PENDING_QUERY') {
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.intent === 'DELIVERY_PENDING_QUERY') {
+        const pending = entregas.filter((delivery) => delivery.status === 'a caminho' && delivery.estimatedDate === today);
+        botText = pending.length ? `Entregas pendentes hoje: ${pending.map((delivery) => `pedido ${delivery.orderId.slice(-6)}`).join(', ')}.` : 'Não há entregas pendentes para hoje.';
+      } else {
+        const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
+        const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
+        botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
       }
     } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
       if (parsed.intent === 'ORDER_OPEN_QUERY') {
@@ -237,7 +247,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem]);
+}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -300,6 +310,16 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           const items = parseQuoteItems(parsed.entities.quoteItemsText || ''); const validUntil = new Date(); validUntil.setDate(validUntil.getDate() + 7); const id = addOrcamento({ clientId: matches[0].id, items, total: 0, validUntil: validUntil.toISOString().split('T')[0], status: 'pendente', createdAt: new Date().toISOString() });
           botText = `✓ Orçamento ${id.slice(-6)} criado para ${matches[0].name}, válido por 7 dias.`;
         }
+      }
+    } else if (parsed.intent === 'DELIVERY_STATUS_QUERY' || parsed.intent === 'DELIVERY_PENDING_QUERY') {
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.intent === 'DELIVERY_PENDING_QUERY') {
+        const pending = entregas.filter((delivery) => delivery.status === 'a caminho' && delivery.estimatedDate === today);
+        botText = pending.length ? `Entregas pendentes hoje: ${pending.map((delivery) => `pedido ${delivery.orderId.slice(-6)}`).join(', ')}.` : 'Não há entregas pendentes para hoje.';
+      } else {
+        const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
+        const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
+        botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
       }
     } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
       if (parsed.intent === 'ORDER_OPEN_QUERY') {

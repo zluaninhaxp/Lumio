@@ -42,7 +42,16 @@ export default function VendasScreen() {
     if (!ok) { Alert.alert('Pedido não atualizado', 'A quantidade disponível no estoque não é suficiente para concluir este pedido.'); return; }
     setModalVisible(false);
   };
-  const conclude = (id: string) => { if (!completePedido(id)) Alert.alert('Não foi possível concluir', 'Verifique se há quantidade suficiente no Estoque para os itens cadastrados.'); };
+  const conclude = (id: string) => {
+    if (!completePedido(id)) {
+      Alert.alert('Não foi possível concluir', 'Verifique se há quantidade suficiente no Estoque para os itens cadastrados.');
+      return;
+    }
+    Alert.alert('Pedido concluído', 'Quer gerar uma entrega vinculada a este pedido?', [
+      { text: 'Agora', onPress: () => router.push(`/plugins/entregas?orderId=${id}` as any) },
+      { text: 'Depois', style: 'cancel' },
+    ]);
+  };
   const cancel = (id: string) => { if (!updatePedido(id, { status: 'cancelado' })) Alert.alert('Não foi possível cancelar o pedido.'); };
   const assignEmployee = (order: Pedido) => Alert.alert('Quem atendeu este pedido?', undefined, [
     { text: 'Não informado', onPress: () => updatePedido(order.id, { employeeId: undefined }) },

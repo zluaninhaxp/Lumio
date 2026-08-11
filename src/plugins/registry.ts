@@ -118,7 +118,7 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     icon: 'time',
     description: 'Organize horários marcados com clientes.',
     route: '/plugins/agenda',
-    implemented: false,
+    implemented: true,
     itemLabel: 'atendimento',
     itemLabelPlural: 'atendimentos',
     fields: [
@@ -178,18 +178,10 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     icon: 'bicycle',
     description: 'Logística de entrega dos seus pedidos.',
     route: '/plugins/entregas',
-    implemented: false,
+    implemented: true,
     itemLabel: 'entrega',
     itemLabelPlural: 'entregas',
-    fields: [
-      { key: 'order', label: 'Pedido', type: 'text', primary: true, placeholder: 'Ex: Pedido #45' },
-      { key: 'courier', label: 'Entregador', type: 'text', placeholder: 'Nome do entregador' },
-      { key: 'address', label: 'Endereço', type: 'text', placeholder: 'Endereço de entrega' },
-      {
-        key: 'status', label: 'Status', type: 'select',
-        options: ['Aguardando', 'Em rota', 'Entregue'],
-      },
-    ],
+    fields: [],
   },
   vendas: {
     id: 'vendas',
@@ -265,6 +257,7 @@ export function isValidPluginId(id: string): id is PluginId {
  */
 export const PLUGIN_DEPENDENCIES: Partial<Record<PluginId, PluginId[]>> = {
   comissoes: ['equipe', 'vendas'],
+  entregas: ['vendas'],
 };
 
 export function canActivatePlugin(

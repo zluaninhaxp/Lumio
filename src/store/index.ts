@@ -6,7 +6,7 @@ import {
 } from '../engine/openOnboardingEngine';
 import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardingContext';
 import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
-import { PluginId } from '../plugins/registry';
+import { canActivatePlugin, PluginId } from '../plugins/registry';
 import { generateId } from '../utils/id';
 
 export interface Transaction {
@@ -85,6 +85,21 @@ export interface OrderItem {
 }
 
 export type OrderStatus = 'aberto' | 'concluido' | 'cancelado';
+
+export type DeliveryStatus = 'a caminho' | 'entregue' | 'cancelada';
+
+export interface Entrega {
+  id: string;
+  orderId: string;
+  employeeId?: string;
+  address: string;
+  status: DeliveryStatus;
+  estimatedDate: string;
+  freightValue?: number;
+  financeTransactionId?: string;
+  calendarEventId?: string;
+  createdAt: string;
+}
 
 export interface Pedido {
   id: string;
@@ -235,6 +250,11 @@ export interface AppStore {
   updatePedido: (id: string, updates: Partial<Omit<Pedido, 'id'>>) => boolean;
   completePedido: (id: string) => boolean;
   removePedido: (id: string) => void;
+
+  entregas: Entrega[];
+  addEntrega: (entrega: Omit<Entrega, 'id' | 'financeTransactionId' | 'calendarEventId'>, createFreightExpense?: boolean) => string | null;
+  updateEntrega: (id: string, updates: Partial<Omit<Entrega, 'id'>>) => boolean;
+  removeEntrega: (id: string) => void;
 
   orcamentos: Orcamento[];
   addOrcamento: (orcamento: Omit<Orcamento, 'id' | 'orderId'>) => string;
@@ -411,11 +431,16 @@ export const useAppStore = create<AppStore>((set) => ({
   recommendedPlugins: [],
   activatedPlugins: [],
   setPluginActivation: (pluginId, activated) =>
-    set((s) => ({
+    set((s) => {
+      if (activated) {
+        if (!canActivatePlugin(pluginId as PluginId, s.activatedPlugins).ok) return s;
+      }
+      return {
       activatedPlugins: activated
         ? [...new Set([...s.activatedPlugins, pluginId])]
         : s.activatedPlugins.filter((id) => id !== pluginId),
-    })),
+      };
+    }),
 
   dismissedPluginSuggestions: [],
   dismissPluginSuggestion: (pluginId) =>
@@ -498,9 +523,49 @@ export const useAppStore = create<AppStore>((set) => ({
         const deduction = pedido.stockDeductions?.find((entry) => entry.stockItemId === item.id);
         return deduction ? { ...item, quantity: item.quantity + deduction.quantity } : item;
       });
-      return { pedidos: s.pedidos.filter((item) => item.id !== id), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId) : s.transactions, commissions: s.commissions.filter((c) => !(c.orderId === id && !c.paid)) };
+      const deliveries = s.entregas.filter((delivery) => delivery.orderId === id);
+      const deliveryEventIds = new Set(deliveries.map((delivery) => delivery.calendarEventId).filter(Boolean));
+      const deliveryTransactionIds = new Set(deliveries.map((delivery) => delivery.financeTransactionId).filter(Boolean));
+      return { pedidos: s.pedidos.filter((item) => item.id !== id), entregas: s.entregas.filter((delivery) => delivery.orderId !== id), events: s.events.filter((event) => !deliveryEventIds.has(event.id)), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId && !deliveryTransactionIds.has(item.id)) : s.transactions.filter((item) => !deliveryTransactionIds.has(item.id)), commissions: s.commissions.filter((c) => !(c.orderId === id && !c.paid)) };
     }
     return { pedidos: s.pedidos.filter((item) => item.id !== id) };
+  }),
+
+  entregas: [],
+  addEntrega: (entrega, createFreightExpense = false) => {
+    let deliveryId: string | null = null;
+    set((s) => {
+      if (!s.pedidos.some((pedido) => pedido.id === entrega.orderId && pedido.status === 'concluido') || s.entregas.some((item) => item.orderId === entrega.orderId && item.status !== 'cancelada')) return s;
+      deliveryId = generateId('del_');
+      const calendarEventId = generateId('cal_del_');
+      const financeTransactionId = createFreightExpense && (entrega.freightValue ?? 0) > 0 ? generateId('txn_') : undefined;
+      const order = s.pedidos.find((pedido) => pedido.id === entrega.orderId)!;
+      const delivery: Entrega = { ...entrega, id: deliveryId, calendarEventId, financeTransactionId, createdAt: entrega.createdAt || new Date().toISOString() };
+      const event: CalendarEvent = { id: calendarEventId, date: entrega.estimatedDate, time: null, description: `Entrega do pedido ${order.id.slice(-6)}`, done: false, type: 'event' };
+      const transaction: Transaction | undefined = financeTransactionId ? { id: financeTransactionId, date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), description: `Frete do pedido ${order.id.slice(-6)}`, amount: -(entrega.freightValue ?? 0), category: 'Frete', orderId: order.id } : undefined;
+      return { entregas: [delivery, ...s.entregas], events: [...s.events, event], transactions: transaction ? [transaction, ...s.transactions] : s.transactions };
+    });
+    return deliveryId;
+  },
+  updateEntrega: (id, updates) => {
+    let updated = false;
+    set((s) => {
+      const current = s.entregas.find((item) => item.id === id);
+      if (!current) return s;
+      updated = true;
+      const next = { ...current, ...updates, id };
+      return {
+        entregas: s.entregas.map((item) => item.id === id ? next : item),
+        events: next.calendarEventId ? s.events.map((event) => event.id === next.calendarEventId ? { ...event, date: next.estimatedDate, done: next.status !== 'a caminho' } : event) : s.events,
+        transactions: next.financeTransactionId && next.freightValue !== current.freightValue ? s.transactions.map((transaction) => transaction.id === next.financeTransactionId ? { ...transaction, amount: -(next.freightValue ?? 0) } : transaction) : s.transactions,
+      };
+    });
+    return updated;
+  },
+  removeEntrega: (id) => set((s) => {
+    const delivery = s.entregas.find((item) => item.id === id);
+    if (!delivery) return s;
+    return { entregas: s.entregas.filter((item) => item.id !== id), events: delivery.calendarEventId ? s.events.filter((event) => event.id !== delivery.calendarEventId) : s.events, transactions: delivery.financeTransactionId ? s.transactions.filter((transaction) => transaction.id !== delivery.financeTransactionId) : s.transactions };
   }),
 
   orcamentos: [],
@@ -580,6 +645,7 @@ updateEmployeeItem: (id, item) =>
       employeeItems: s.employeeItems.filter((employee) => employee.id !== id),
       tasks: s.tasks.map((task) => task.employeeId === id ? { ...task, employeeId: undefined } : task),
       pedidos: s.pedidos.map((pedido) => pedido.employeeId === id ? { ...pedido, employeeId: undefined } : pedido),
+      entregas: s.entregas.map((delivery) => delivery.employeeId === id ? { ...delivery, employeeId: undefined } : delivery),
       commissions: s.commissions.filter((c) => !(c.employeeId === id && !c.paid)),
     })),
 
