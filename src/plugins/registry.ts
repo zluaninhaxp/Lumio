@@ -161,15 +161,15 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     id: 'equipe',
     label: 'Equipe',
     icon: 'people-circle',
-    description: 'Funcionários, funções e escala de trabalho.',
+    description: 'Cadastre funcionários e atribua responsabilidades.',
     route: '/plugins/equipe',
-    implemented: false,
+    implemented: true,
     itemLabel: 'funcionário',
     itemLabelPlural: 'funcionários',
     fields: [
       { key: 'name', label: 'Nome', type: 'text', primary: true, placeholder: 'Nome do funcionário' },
       { key: 'role', label: 'Função', type: 'text', placeholder: 'Ex: Vendedor' },
-      { key: 'schedule', label: 'Jornada', type: 'text', placeholder: 'Ex: Seg a Sex, 8h-18h' },
+      { key: 'contact', label: 'Contato', type: 'text', placeholder: 'Telefone ou e-mail' },
     ],
   },
   entregas: {

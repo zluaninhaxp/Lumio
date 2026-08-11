@@ -35,6 +35,7 @@ export interface Task {
   subtasks: { id: string; text: string; done: boolean }[];
   tags: string[];
   createdAt: string;
+  employeeId?: string;
 }
 
 export interface CalendarEvent {
@@ -93,6 +94,7 @@ export interface Pedido {
   createdAt: string;
   financeTransactionId?: string;
   stockDeductions?: Array<{ stockItemId: string; quantity: number }>;
+  employeeId?: string;
 }
 
 export type QuoteStatus = 'pendente' | 'aprovado' | 'recusado' | 'expirado';
@@ -114,6 +116,14 @@ export interface FornecedorItem {
   contact: string;
   paymentTerm: string;
   notes: string;
+}
+
+export interface EmployeeItem {
+  id: string;
+  name: string;
+  role: string;
+  contact: string;
+  createdAt: string;
 }
 
 /**
@@ -219,6 +229,11 @@ export interface AppStore {
   removeFornecedorItem: (id: string) => void;
   linkTransactionToSupplier: (transactionId: string, supplierId: string | undefined, updates?: Pick<Transaction, 'supplierDueDate' | 'supplierPaid'>) => void;
   markSupplierTransactionPaid: (transactionId: string, paid: boolean) => void;
+
+  employeeItems: EmployeeItem[];
+  addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string;
+  updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => void;
+  removeEmployeeItem: (id: string) => void;
 
   /**
    * Dados dos 9 plugins com tela mínima genérica, indexados por
@@ -502,6 +517,21 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   markSupplierTransactionPaid: (transactionId, paid) =>
     set((s) => ({ transactions: s.transactions.map((t) => t.id === transactionId ? { ...t, supplierPaid: paid } : t) })),
+
+  employeeItems: [],
+  addEmployeeItem: (item) => {
+    const id = generateId('emp_');
+    set((s) => ({ employeeItems: [{ ...item, id }, ...s.employeeItems] }));
+    return id;
+  },
+  updateEmployeeItem: (id, item) =>
+    set((s) => ({ employeeItems: s.employeeItems.map((employee) => employee.id === id ? { ...item, id } : employee) })),
+  removeEmployeeItem: (id) =>
+    set((s) => ({
+      employeeItems: s.employeeItems.filter((employee) => employee.id !== id),
+      tasks: s.tasks.map((task) => task.employeeId === id ? { ...task, employeeId: undefined } : task),
+      pedidos: s.pedidos.map((pedido) => pedido.employeeId === id ? { ...pedido, employeeId: undefined } : pedido),
+    })),
 
   genericPluginItems: {},
   addGenericPluginItem: (pluginId, values) =>

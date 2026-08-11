@@ -158,7 +158,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, employeeItems } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -186,6 +186,7 @@ export default function TarefasScreen() {
   const [calendarViewMonth, setCalendarViewMonth] = useState(new Date().getMonth());
   const [showCalendar, setShowCalendar] = useState(false);
   const [tagManager, setTagManager] = useState<{ taskId: string; current: string[] } | null>(null);
+  const [employeePicker, setEmployeePicker] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState('');
   const [newSubtaskTexts, setNewSubtaskTexts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -738,6 +739,13 @@ export default function TarefasScreen() {
                     </TouchableOpacity>
                   );
                 })}
+
+                <TouchableOpacity style={styles.taskMetaTag} onPress={() => setEmployeePicker(item.id)}>
+                  <Ionicons name="person-outline" size={10} color={item.employeeId ? Colors.accent : Colors.textSecondary} />
+                  <Text style={[styles.taskMetaText, item.employeeId && { color: Colors.accent }]} numberOfLines={1}>
+                    {employeeItems.find((employee) => employee.id === item.employeeId)?.name ?? 'Atribuir'}
+                  </Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
                   style={styles.tagChipAdd}
@@ -1333,6 +1341,17 @@ export default function TarefasScreen() {
         {renderTagManager()}
         {renderPriorityPicker()}
         {renderDatePicker()}
+
+        <Modal visible={employeePicker !== null} transparent animationType="fade" onRequestClose={() => setEmployeePicker(null)}>
+          <Pressable style={styles.modalOverlay} onPress={() => setEmployeePicker(null)}>
+            <Pressable style={styles.pickerCard}>
+              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir funcionário</Text><TouchableOpacity onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.textMuted} /></TouchableOpacity></View>
+              <TouchableOpacity style={styles.pickerOption} onPress={() => { if (employeePicker) updateTask(employeePicker, { employeeId: undefined }); setEmployeePicker(null); }}><Text style={styles.pickerOptionLabel}>Sem funcionário</Text></TouchableOpacity>
+              {employeeItems.map((employee) => <TouchableOpacity key={employee.id} style={styles.pickerOption} onPress={() => { if (employeePicker) updateTask(employeePicker, { employeeId: employee.id }); setEmployeePicker(null); }}><Text style={styles.pickerOptionLabel}>{employee.name}</Text><Text style={styles.pickerOptionDesc}>{employee.role}</Text></TouchableOpacity>)}
+              {employeeItems.length === 0 && <Text style={styles.tagEmpty}>Cadastre funcionários no módulo Equipe.</Text>}
+            </Pressable>
+          </Pressable>
+        </Modal>
 
         {showTagFilter && (
           <Modal visible transparent animationType="fade">

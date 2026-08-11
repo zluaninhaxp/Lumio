@@ -32,7 +32,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem } = useAppStore();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
@@ -49,6 +49,10 @@ export default function ChatScreen() {
     const normalized = name.trim().toLowerCase();
     return estoqueItems.filter((item) => item.name.toLowerCase().includes(normalized) || normalized.includes(item.name.toLowerCase()));
   }, [estoqueItems]);
+  const resolveEmployee = useCallback((name: string) => {
+    const normalized = name.trim().toLowerCase();
+    return employeeItems.filter((employee) => employee.name.toLowerCase().includes(normalized) || normalized.includes(employee.name.toLowerCase()));
+  }, [employeeItems]);
   const parseQuoteItems = (text: string) => text.split(/\s+e\s+|,/i).map((part, index) => { const match = part.trim().match(/^(\d+(?:[.,]\d+)?)\s+(.+)$/); return { id: `${Date.now()}-${index}`, name: match?.[2]?.trim() || part.trim(), quantity: match ? Number(match[1].replace(',', '.')) : 1, unitPrice: 0 }; }).filter((item) => item.name);
 
   const scrollToBottom = useCallback(() => {
@@ -73,7 +77,21 @@ export default function ChatScreen() {
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
+    if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
+      const matches = resolveEmployee(parsed.entities.employeeName || '');
+      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
+      else if (parsed.intent === 'EMPLOYEE_TASKS_QUERY') {
+        const today = new Date().toISOString().split('T')[0];
+        const tasks = useAppStore.getState().tasks.filter((task) => task.employeeId === matches[0].id && !task.done && task.dueDate === today);
+        botText = tasks.length ? `${matches[0].name} tem hoje: ${tasks.map((task) => task.description).join('; ')}.` : `${matches[0].name} não tem tarefas pendentes para hoje.`;
+      } else {
+        const pending = useAppStore.getState().tasks.filter((task) => !task.done);
+        const task = pending[pending.length - 1];
+        if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
+        else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+      }
+    } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
       if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
         const now = new Date(); const start = new Date(now); const day = start.getDay() || 7; start.setDate(start.getDate() - day + 1); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 6);
         const expiring = orcamentos.filter((quote) => quote.status === 'pendente' && new Date(`${quote.validUntil}T00:00:00`) >= start && new Date(`${quote.validUntil}T00:00:00`) <= end);
@@ -205,7 +223,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
+  }, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, transactions, estoqueItems, moveEstoqueItem]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -224,7 +242,21 @@ export default function ChatScreen() {
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
 
-    if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
+    if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
+      const matches = resolveEmployee(parsed.entities.employeeName || '');
+      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
+      else if (parsed.intent === 'EMPLOYEE_TASKS_QUERY') {
+        const today = new Date().toISOString().split('T')[0];
+        const tasks = useAppStore.getState().tasks.filter((task) => task.employeeId === matches[0].id && !task.done && task.dueDate === today);
+        botText = tasks.length ? `${matches[0].name} tem hoje: ${tasks.map((task) => task.description).join('; ')}.` : `${matches[0].name} não tem tarefas pendentes para hoje.`;
+      } else {
+        const pending = useAppStore.getState().tasks.filter((task) => !task.done);
+        const task = pending[pending.length - 1];
+        if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
+        else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+      }
+    } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
       if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
         const now = new Date(); const start = new Date(now); const day = start.getDay() || 7; start.setDate(start.getDate() - day + 1); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 6);
         const expiring = orcamentos.filter((quote) => quote.status === 'pendente' && new Date(`${quote.validUntil}T00:00:00`) >= start && new Date(`${quote.validUntil}T00:00:00`) <= end);
@@ -354,7 +386,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, transactions, estoqueItems, moveEstoqueItem]);
+  }, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, transactions, estoqueItems, moveEstoqueItem]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

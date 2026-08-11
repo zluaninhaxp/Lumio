@@ -19,6 +19,8 @@ export type Intent =
   | 'QUOTE_CREATE'
   | 'QUOTE_STATUS_QUERY'
   | 'QUOTE_EXPIRING_QUERY'
+  | 'EMPLOYEE_TASKS_QUERY'
+  | 'TASK_ASSIGN'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -36,6 +38,7 @@ export interface ParsedMessage {
     orderQuantity?: number;
     unitPrice?: number;
     quoteItemsText?: string;
+    employeeName?: string;
   };
   raw: string;
 }
@@ -68,6 +71,8 @@ const SALES_WEEK_QUERY_PATTERN = /quanto\s+vendi\s+essa\s+semana/i;
 const QUOTE_CREATE_PATTERN = /(?:cria|criar|registra|registre)\s+(?:um|uma)?\s*orçamento\s+(?:pro|para\s+o|para\s+a)\s+cliente\s+(.+?)\s+com\s+(.+)/i;
 const QUOTE_STATUS_QUERY_PATTERN = /o\s+orçamento\s+(?:do|da)\s+(.+?)\s+foi\s+aprovado/i;
 const QUOTE_EXPIRING_QUERY_PATTERN = /quais\s+orçamentos\s+vencem\s+essa\s+semana/i;
+const EMPLOYEE_TASKS_QUERY_PATTERN = /quais\s+tarefas\s+(?:o|a)?\s*(.+?)\s+tem\s+hoje\??$/i;
+const TASK_ASSIGN_PATTERN = /atribui(?:r)?\s+(?:essa|esta|a)?\s*tarefa\s+(?:pro|para\s+o|para\s+a)\s+(.+?)\s*\??$/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -75,6 +80,11 @@ function parseValue(raw: string): number {
 
 export function parseMessage(input: string): ParsedMessage {
   const text = input.trim();
+
+  const employeeTasksMatch = text.match(EMPLOYEE_TASKS_QUERY_PATTERN);
+  if (employeeTasksMatch) return { intent: 'EMPLOYEE_TASKS_QUERY', entities: { employeeName: employeeTasksMatch[1].trim() }, raw: text };
+  const taskAssignMatch = text.match(TASK_ASSIGN_PATTERN);
+  if (taskAssignMatch) return { intent: 'TASK_ASSIGN', entities: { employeeName: taskAssignMatch[1].trim() }, raw: text };
 
   const quoteCreateMatch = text.match(QUOTE_CREATE_PATTERN);
   if (quoteCreateMatch) return { intent: 'QUOTE_CREATE', entities: { clientName: quoteCreateMatch[1].trim(), quoteItemsText: quoteCreateMatch[2].trim() }, raw: text };

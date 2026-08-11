@@ -13,13 +13,14 @@ const emptyItem = (): DraftItem => ({ id: `${Date.now()}-${Math.random()}`, name
 
 export default function VendasScreen() {
   const router = useRouter();
-  const { pedidos, clienteItems, estoqueItems, addPedido, updatePedido, completePedido, removePedido, setPluginActivation } = useAppStore();
+  const { pedidos, clienteItems, estoqueItems, employeeItems, addPedido, updatePedido, completePedido, removePedido, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | undefined>();
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [status, setStatus] = useState<OrderStatus>('aberto');
+  const [employeeId, setEmployeeId] = useState<string | undefined>();
 
   const visibleOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -27,21 +28,26 @@ export default function VendasScreen() {
   }, [pedidos, query, clienteItems]);
 
   const total = items.reduce((sum, item) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
-  const openAdd = () => { setEditingId(null); setClientId(undefined); setItems([emptyItem()]); setStatus('aberto'); setModalVisible(true); };
-  const openEdit = (order: Pedido) => { setEditingId(order.id); setClientId(order.clientId); setItems(order.items.map((item) => ({ ...item }))); setStatus(order.status); setModalVisible(true); };
+  const openAdd = () => { setEditingId(null); setClientId(undefined); setEmployeeId(undefined); setItems([emptyItem()]); setStatus('aberto'); setModalVisible(true); };
+  const openEdit = (order: Pedido) => { setEditingId(order.id); setClientId(order.clientId); setEmployeeId(order.employeeId); setItems(order.items.map((item) => ({ ...item }))); setStatus(order.status); setModalVisible(true); assignEmployee(order); };
   const updateItem = (id: string, updates: Partial<DraftItem>) => setItems((current) => current.map((item) => item.id === id ? { ...item, ...updates } : item));
   const saveOrder = () => {
     const validItems = items.filter((item) => item.name.trim() && Number(item.quantity) > 0 && Number(item.unitPrice) >= 0).map((item) => ({ ...item, name: item.name.trim(), quantity: Number(item.quantity), unitPrice: Number(item.unitPrice) }));
     if (validItems.length === 0) return;
     const orderTotal = validItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     const current = editingId ? pedidos.find((order) => order.id === editingId) : undefined;
-    const payload = { clientId, items: validItems, total: orderTotal, status, date: current?.date ?? todayLabel(), createdAt: current?.createdAt ?? new Date().toISOString() };
+    const payload = { clientId, employeeId, items: validItems, total: orderTotal, status, date: current?.date ?? todayLabel(), createdAt: current?.createdAt ?? new Date().toISOString() };
     const ok = editingId ? updatePedido(editingId, payload) : (addPedido(payload), true);
     if (!ok) { Alert.alert('Pedido não atualizado', 'A quantidade disponível no estoque não é suficiente para concluir este pedido.'); return; }
     setModalVisible(false);
   };
   const conclude = (id: string) => { if (!completePedido(id)) Alert.alert('Não foi possível concluir', 'Verifique se há quantidade suficiente no Estoque para os itens cadastrados.'); };
   const cancel = (id: string) => { if (!updatePedido(id, { status: 'cancelado' })) Alert.alert('Não foi possível cancelar o pedido.'); };
+  const assignEmployee = (order: Pedido) => Alert.alert('Quem atendeu este pedido?', undefined, [
+    { text: 'Não informado', onPress: () => updatePedido(order.id, { employeeId: undefined }) },
+    ...employeeItems.map((employee) => ({ text: employee.name, onPress: () => updatePedido(order.id, { employeeId: employee.id }) })),
+    { text: 'Cancelar', style: 'cancel' as const },
+  ]);
   const clientName = (id?: string) => id ? clienteItems.find((client) => client.id === id)?.name : undefined;
   const statusLabel: Record<OrderStatus, string> = { aberto: 'Aberto', concluido: 'Concluído', cancelado: 'Cancelado' };
 
