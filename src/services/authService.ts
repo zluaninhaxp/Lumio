@@ -39,7 +39,7 @@ async function createSessionForUser(userId: string): Promise<Session> {
 async function getRemoteProfile(userId: string, fallback?: { name?: string; email?: string }): Promise<PublicUser> {
   let { data, error } = await supabase!.from('profiles').select('id, name, email, photo, role, phone, onboarding_completed').eq('id', userId).maybeSingle();
   // Permite abrir versões cujo banco ainda não recebeu a migration de perfil.
-  if (error && /column .* does not exist/i.test(error.message)) {
+  if (error && /column .* does not exist|could not find the .* column .* schema cache/i.test(error.message)) {
     const fallbackResult = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed').eq('id', userId).maybeSingle();
     data = fallbackResult.data as typeof data;
     error = fallbackResult.error;

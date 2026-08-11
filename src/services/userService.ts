@@ -22,7 +22,7 @@ export const userService = {
   async getById(userId: string): Promise<PublicUser | null> {
     if (isSupabaseConfigured) {
       let { data, error } = await supabase!.from('profiles').select('id, name, email, photo, role, phone, onboarding_completed, created_at').eq('id', userId).maybeSingle();
-      if (error && /column .* does not exist/i.test(error.message)) {
+      if (error && /column .* does not exist|could not find the .* column .* schema cache/i.test(error.message)) {
         const fallbackResult = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed, created_at').eq('id', userId).maybeSingle();
         data = fallbackResult.data as typeof data;
         error = fallbackResult.error;
@@ -67,7 +67,7 @@ export const userService = {
         updated_at: new Date().toISOString(),
       };
       let { data, error } = await supabase!.from('profiles').update(profileUpdates).eq('id', userId).select('id, name, email, photo, role, phone, onboarding_completed, created_at').single();
-      if (error && /column .* does not exist/i.test(error.message)) {
+      if (error && /column .* does not exist|could not find the .* column .* schema cache/i.test(error.message)) {
         const fallbackUpdates = {
           ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
           ...(updates.email !== undefined ? { email: updates.email } : {}),

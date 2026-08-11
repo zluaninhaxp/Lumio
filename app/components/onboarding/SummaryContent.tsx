@@ -61,6 +61,7 @@ export default function SummaryContent({ answers, onEdit, onConfirm }: SummaryCo
 
       <SpeechBubble
         text={`Obrigado, ${businessName}! 🎉\n\nSeu negócio se parece com ${businessType}. Confira abaixo as informações que você compartilhou. Se quiser ajustar algo, é só tocar em "Editar".`}
+        animationKey="summary"
       />
 
       <View style={styles.answersSection}>
