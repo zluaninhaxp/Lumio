@@ -11,6 +11,8 @@ export interface User {
   password: string;
   createdAt: string;
   photo?: string | null;
+  role?: string;
+  phone?: string;
   onboardingCompleted: boolean;
 }
 

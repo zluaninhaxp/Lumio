@@ -9,6 +9,8 @@ export interface UpdateUserInput {
   name?: string;
   email?: string;
   photo?: string | null;
+  role?: string;
+  phone?: string;
 }
 
 /**
@@ -19,9 +21,14 @@ export interface UpdateUserInput {
 export const userService = {
   async getById(userId: string): Promise<PublicUser | null> {
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed, created_at').eq('id', userId).maybeSingle();
+      let { data, error } = await supabase!.from('profiles').select('id, name, email, photo, role, phone, onboarding_completed, created_at').eq('id', userId).maybeSingle();
+      if (error && /column .* does not exist/i.test(error.message)) {
+        const fallbackResult = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed, created_at').eq('id', userId).maybeSingle();
+        data = fallbackResult.data as typeof data;
+        error = fallbackResult.error;
+      }
       if (error) throw new Error(error.message);
-      return data ? { id: data.id, name: data.name, email: data.email, photo: data.photo, onboardingCompleted: data.onboarding_completed, createdAt: data.created_at } : null;
+      return data ? { id: data.id, name: data.name, email: data.email, photo: data.photo, role: data.role ?? '', phone: data.phone ?? '', onboardingCompleted: data.onboarding_completed, createdAt: data.created_at } : null;
     }
     const user = await userRepository.findById(userId);
     return user ? toPublicUser(user) : null;
@@ -51,20 +58,37 @@ export const userService = {
         ? await supabase!.auth.updateUser({ email: updates.email })
         : { error: null };
       if (authError) throw new Error(authError.message);
-      const { data, error } = await supabase!.from('profiles').update({
+      const profileUpdates = {
         ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
         ...(updates.email !== undefined ? { email: updates.email } : {}),
         ...(updates.photo !== undefined ? { photo: updates.photo } : {}),
+        ...(updates.role !== undefined ? { role: updates.role.trim() } : {}),
+        ...(updates.phone !== undefined ? { phone: updates.phone.trim() } : {}),
         updated_at: new Date().toISOString(),
-      }).eq('id', userId).select('id, name, email, photo, onboarding_completed, created_at').single();
+      };
+      let { data, error } = await supabase!.from('profiles').update(profileUpdates).eq('id', userId).select('id, name, email, photo, role, phone, onboarding_completed, created_at').single();
+      if (error && /column .* does not exist/i.test(error.message)) {
+        const fallbackUpdates = {
+          ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
+          ...(updates.email !== undefined ? { email: updates.email } : {}),
+          ...(updates.photo !== undefined ? { photo: updates.photo } : {}),
+          updated_at: new Date().toISOString(),
+        };
+        const fallbackResult = await supabase!.from('profiles').update(fallbackUpdates).eq('id', userId).select('id, name, email, photo, onboarding_completed, created_at').single();
+        data = fallbackResult.data as typeof data;
+        error = fallbackResult.error;
+      }
       if (error) throw new Error(error.message);
-      return { id: data.id, name: data.name, email: data.email, photo: data.photo, onboardingCompleted: data.onboarding_completed, createdAt: data.created_at };
+      if (!data) throw new AuthError('USER_NOT_FOUND');
+      return { id: data.id, name: data.name, email: data.email, photo: data.photo, role: data.role ?? '', phone: data.phone ?? '', onboardingCompleted: data.onboarding_completed, createdAt: data.created_at };
     }
 
     const updated = await userRepository.update(userId, {
       ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
       ...(updates.email !== undefined ? { email: updates.email } : {}),
       ...(updates.photo !== undefined ? { photo: updates.photo } : {}),
+      ...(updates.role !== undefined ? { role: updates.role.trim() } : {}),
+      ...(updates.phone !== undefined ? { phone: updates.phone.trim() } : {}),
     });
 
     if (!updated) {

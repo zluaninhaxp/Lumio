@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -5,9 +6,14 @@ import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
+import { useAuth } from '../../src/hooks/useAuth';
+import { UserAvatar } from '../components/account/UserAvatar';
+import { AccountSheet } from '../components/account/AccountSheet';
 
 export default function AppsScreen() {
   const router = useRouter();
+  const { currentUser } = useAuth();
+  const [accountVisible, setAccountVisible] = useState(false);
   const {
     activatedPlugins,
     recommendedPlugins,
@@ -43,9 +49,7 @@ export default function AppsScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Apps</Text>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>OJ</Text>
-          </View>
+           <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
 
         {suggestions.length > 0 && (
@@ -116,7 +120,8 @@ export default function AppsScreen() {
           <Ionicons name="add-circle-outline" size={20} color={Colors.accent} />
           <Text style={styles.addMoreText}>Adicionar mais módulos</Text>
         </TouchableOpacity>
-      </ScrollView>
+       </ScrollView>
+       <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>
   );
 }

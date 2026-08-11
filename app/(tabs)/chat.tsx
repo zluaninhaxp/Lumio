@@ -10,6 +10,9 @@ import { useAppStore } from '../../src/store';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
 import { suggestedDueDate } from '../../src/utils/supplier';
+import { useAuth } from '../../src/hooks/useAuth';
+import { UserAvatar } from '../components/account/UserAvatar';
+import { AccountSheet } from '../components/account/AccountSheet';
 
 interface Message {
   id: string;
@@ -31,7 +34,9 @@ const INITIAL_MESSAGES: Message[] = [
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
+  const [accountVisible, setAccountVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const { currentUser } = useAuth();
   const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
@@ -587,9 +592,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         <View style={styles.headerLeft}>
           <Image source={require('../../assets/lumio.png')} style={styles.headerLogo} resizeMode="contain" />
         </View>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>OJ</Text>
-        </View>
+         <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
       </View>
 
       {/* Messages */}
@@ -644,6 +647,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+      <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>
   );
 }

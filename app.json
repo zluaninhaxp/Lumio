@@ -28,6 +28,14 @@
       "expo-router",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Lumio precisa acessar suas fotos para usar uma imagem de perfil.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-speech-recognition",
         {
           "microphonePermission": "O Lumio usa o microfone para você poder responder ao onboarding por voz.",
