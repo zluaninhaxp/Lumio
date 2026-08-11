@@ -146,9 +146,9 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     id: 'comissoes',
     label: 'Comissões',
     icon: 'cash',
-    description: 'Quem ganha por venda ou serviço prestado.',
+    description: 'Comissões por funcionário sobre vendas concluídas.',
     route: '/plugins/comissoes',
-    implemented: false,
+    implemented: true,
     itemLabel: 'comissão',
     itemLabelPlural: 'comissões',
     fields: [
@@ -255,4 +255,23 @@ export function getPluginDefinition(id: string): PluginDefinition | undefined {
 
 export function isValidPluginId(id: string): id is PluginId {
   return id in PLUGIN_REGISTRY;
+}
+
+/**
+ * Dependências de ativação entre plugins. Um plugin só pode ser ativado
+ * se todos os plugins listados aqui já estiverem ativos. Hoje apenas
+ * Comissões depende de Equipe e Vendas (precisa de funcionários e de
+ * pedidos concluídos para calcular o valor devido).
+ */
+export const PLUGIN_DEPENDENCIES: Partial<Record<PluginId, PluginId[]>> = {
+  comissoes: ['equipe', 'vendas'],
+};
+
+export function canActivatePlugin(
+  pluginId: PluginId,
+  activatedPlugins: string[],
+): { ok: boolean; missing: PluginId[] } {
+  const deps = PLUGIN_DEPENDENCIES[pluginId] ?? [];
+  const missing = deps.filter((dep) => !activatedPlugins.includes(dep));
+  return { ok: missing.length === 0, missing };
 }

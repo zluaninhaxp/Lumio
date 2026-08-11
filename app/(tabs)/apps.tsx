@@ -1,10 +1,10 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
-import { getPluginDefinition } from '../../src/plugins/registry';
+import { canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
 
 export default function AppsScreen() {
   const router = useRouter();
@@ -15,6 +15,20 @@ export default function AppsScreen() {
     setPluginActivation,
     dismissPluginSuggestion,
   } = useAppStore();
+
+  const tryActivate = (pluginId: PluginId) => {
+    const check = canActivatePlugin(pluginId, activatedPlugins);
+    if (!check.ok) {
+      const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
+      Alert.alert(
+        'Dependência necessária',
+        `Para ativar Comissões você precisa ter ${labels.join(' e ')} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
+        [{ text: 'Entendi' }],
+      );
+      return;
+    }
+    setPluginActivation(pluginId, true);
+  };
 
   const activeDefs = activatedPlugins
     .map((id) => getPluginDefinition(id))
@@ -51,7 +65,7 @@ export default function AppsScreen() {
                     <View style={styles.suggestionActions}>
                       <TouchableOpacity
                         style={styles.suggestionActivateBtn}
-                        onPress={() => setPluginActivation(def.id, true)}
+                        onPress={() => tryActivate(def.id)}
                         activeOpacity={0.8}
                       >
                         <Text style={styles.suggestionActivateText}>Ativar</Text>

@@ -1,14 +1,28 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
-import { PLUGIN_LIST } from '../../src/plugins/registry';
+import { PLUGIN_LIST, canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
 
 export default function PluginStoreScreen() {
   const router = useRouter();
   const { activatedPlugins, setPluginActivation } = useAppStore();
+
+  const tryActivate = (pluginId: PluginId) => {
+    const check = canActivatePlugin(pluginId, activatedPlugins);
+    if (!check.ok) {
+      const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
+      Alert.alert(
+        'Dependência necessária',
+        `Para ativar Comissões você precisa ter ${labels.join(' e ')} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
+        [{ text: 'Entendi' }],
+      );
+      return;
+    }
+    setPluginActivation(pluginId, true);
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -28,6 +42,8 @@ export default function PluginStoreScreen() {
 
         {PLUGIN_LIST.map((def) => {
           const isActive = activatedPlugins.includes(def.id);
+          const check = canActivatePlugin(def.id, activatedPlugins);
+          const blocked = !isActive && !check.ok;
           return (
             <View key={def.id} style={styles.card}>
               <View style={styles.cardIcon}>
@@ -36,6 +52,11 @@ export default function PluginStoreScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardName}>{def.label}</Text>
                 <Text style={styles.cardDescription}>{def.description}</Text>
+                {blocked && (
+                  <Text style={styles.dependencyNote}>
+                    Requer {check.missing.map((id) => getPluginDefinition(id)?.label ?? id).join(' e ')} ativados.
+                  </Text>
+                )}
               </View>
               {isActive ? (
                 <TouchableOpacity
@@ -48,8 +69,8 @@ export default function PluginStoreScreen() {
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={styles.activateBtn}
-                  onPress={() => setPluginActivation(def.id, true)}
+                  style={[styles.activateBtn, blocked && styles.activateBtnDisabled]}
+                  onPress={() => tryActivate(def.id)}
                   activeOpacity={0.8}
                 >
                   <Text style={styles.activateBtnText}>Ativar</Text>
@@ -113,12 +134,19 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm, color: Colors.textSecondary,
     marginTop: 2,
   },
+  dependencyNote: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.xs,
+    color: Colors.warning,
+    marginTop: 4,
+  },
   activateBtn: {
     backgroundColor: Colors.accent,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 8,
   },
+  activateBtnDisabled: { backgroundColor: Colors.textMuted },
   activateBtnText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm, color: '#FFFFFF',

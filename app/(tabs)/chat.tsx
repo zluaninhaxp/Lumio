@@ -32,7 +32,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask } = useAppStore();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
@@ -89,7 +89,21 @@ export default function ChatScreen() {
         const pending = useAppStore.getState().tasks.filter((task) => !task.done);
         const task = pending[pending.length - 1];
         if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
-        else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+      }
+    } else if (parsed.intent === 'COMMISSION_MONTH_QUERY' || parsed.intent === 'COMMISSION_PAY') {
+      const matches = resolveEmployee(parsed.entities.employeeName || '');
+      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
+      else if (parsed.intent === 'COMMISSION_MONTH_QUERY') {
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const total = commissions.filter((c) => c.employeeId === matches[0].id && !c.paid && c.month === month).reduce((sum, c) => sum + c.amount, 0);
+        botText = `${matches[0].name} tem ${formatMoney(total)} de comissão pendente este mês.`;
+      } else {
+        const pending = useAppStore.getState().commissions.filter((c) => c.employeeId === matches[0].id && !c.paid);
+        if (pending.length === 0) botText = `${matches[0].name} não tem comissão pendente para fechar.`;
+        else { const total = pending.reduce((sum, c) => sum + c.amount, 0); closeEmployeeCommission(matches[0].id); botText = `✓ Comissão de ${formatMoney(total)} de ${matches[0].name} concluída. O saldo foi fechado sem alterar o Financeiro.`; }
       }
     } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
       if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
@@ -223,7 +237,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, transactions, estoqueItems, moveEstoqueItem]);
+}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -254,7 +268,21 @@ export default function ChatScreen() {
         const pending = useAppStore.getState().tasks.filter((task) => !task.done);
         const task = pending[pending.length - 1];
         if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
-        else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+      }
+    } else if (parsed.intent === 'COMMISSION_MONTH_QUERY' || parsed.intent === 'COMMISSION_PAY') {
+      const matches = resolveEmployee(parsed.entities.employeeName || '');
+      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
+      else if (parsed.intent === 'COMMISSION_MONTH_QUERY') {
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const total = commissions.filter((c) => c.employeeId === matches[0].id && !c.paid && c.month === month).reduce((sum, c) => sum + c.amount, 0);
+        botText = `${matches[0].name} tem ${formatMoney(total)} de comissão pendente este mês.`;
+      } else {
+        const pending = useAppStore.getState().commissions.filter((c) => c.employeeId === matches[0].id && !c.paid);
+        if (pending.length === 0) botText = `${matches[0].name} não tem comissão pendente para fechar.`;
+        else { const total = pending.reduce((sum, c) => sum + c.amount, 0); closeEmployeeCommission(matches[0].id); botText = `✓ Comissão de ${formatMoney(total)} de ${matches[0].name} concluída. O saldo foi fechado sem alterar o Financeiro.`; }
       }
     } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
       if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
@@ -386,7 +414,7 @@ export default function ChatScreen() {
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-  }, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, transactions, estoqueItems, moveEstoqueItem]);
+}, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

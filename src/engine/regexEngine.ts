@@ -18,9 +18,11 @@ export type Intent =
   | 'SALES_WEEK_QUERY'
   | 'QUOTE_CREATE'
   | 'QUOTE_STATUS_QUERY'
-  | 'QUOTE_EXPIRING_QUERY'
+| 'QUOTE_EXPIRING_QUERY'
   | 'EMPLOYEE_TASKS_QUERY'
   | 'TASK_ASSIGN'
+  | 'COMMISSION_MONTH_QUERY'
+  | 'COMMISSION_PAY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -73,6 +75,8 @@ const QUOTE_STATUS_QUERY_PATTERN = /o\s+orçamento\s+(?:do|da)\s+(.+?)\s+foi\s+a
 const QUOTE_EXPIRING_QUERY_PATTERN = /quais\s+orçamentos\s+vencem\s+essa\s+semana/i;
 const EMPLOYEE_TASKS_QUERY_PATTERN = /quais\s+tarefas\s+(?:o|a)?\s*(.+?)\s+tem\s+hoje\??$/i;
 const TASK_ASSIGN_PATTERN = /atribui(?:r)?\s+(?:essa|esta|a)?\s*tarefa\s+(?:pro|para\s+o|para\s+a)\s+(.+?)\s*\??$/i;
+const COMMISSION_MONTH_QUERY_PATTERN = /quanto\s+(?:o|a)?\s*(.+?)\s+tem\s+de\s+comissão\s+esse\s+mês\??$/i;
+const COMMISSION_PAY_PATTERN = /fecha\s+a\s+comissão\s+(?:do|da)\s+(.+?)\s*\??$/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -83,8 +87,12 @@ export function parseMessage(input: string): ParsedMessage {
 
   const employeeTasksMatch = text.match(EMPLOYEE_TASKS_QUERY_PATTERN);
   if (employeeTasksMatch) return { intent: 'EMPLOYEE_TASKS_QUERY', entities: { employeeName: employeeTasksMatch[1].trim() }, raw: text };
-  const taskAssignMatch = text.match(TASK_ASSIGN_PATTERN);
+const taskAssignMatch = text.match(TASK_ASSIGN_PATTERN);
   if (taskAssignMatch) return { intent: 'TASK_ASSIGN', entities: { employeeName: taskAssignMatch[1].trim() }, raw: text };
+  const commissionMonthMatch = text.match(COMMISSION_MONTH_QUERY_PATTERN);
+  if (commissionMonthMatch) return { intent: 'COMMISSION_MONTH_QUERY', entities: { employeeName: commissionMonthMatch[1].trim() }, raw: text };
+  const commissionPayMatch = text.match(COMMISSION_PAY_PATTERN);
+  if (commissionPayMatch) return { intent: 'COMMISSION_PAY', entities: { employeeName: commissionPayMatch[1].trim() }, raw: text };
 
   const quoteCreateMatch = text.match(QUOTE_CREATE_PATTERN);
   if (quoteCreateMatch) return { intent: 'QUOTE_CREATE', entities: { clientName: quoteCreateMatch[1].trim(), quoteItemsText: quoteCreateMatch[2].trim() }, raw: text };
@@ -222,6 +230,8 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'QUOTE_CREATE':
     case 'QUOTE_STATUS_QUERY':
     case 'QUOTE_EXPIRING_QUERY':
+    case 'COMMISSION_MONTH_QUERY':
+    case 'COMMISSION_PAY':
       return '';
     default:
       return '';

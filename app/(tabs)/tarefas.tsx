@@ -158,7 +158,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, employeeItems } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, employeeItems, commissions, activatedPlugins } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -232,6 +232,18 @@ export default function TarefasScreen() {
     const client = clienteItems.find((item) => item.id === quote.clientId);
     addTask({ description: `Fazer follow-up do orçamento ${quote.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
   }, [addTask, clienteItems]);
+
+  const showCommissionSuggestion = useMemo(() => {
+    if (!activatedPlugins.includes('comissoes')) return false;
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const hasPending = commissions.some((c) => !c.paid && c.month !== currentMonth);
+    if (!hasPending) return false;
+    return !tasks.some((task) => /fechar\s+comiss/i.test(task.description) && !task.done);
+  }, [activatedPlugins, commissions, tasks]);
+  const confirmCommissionSuggestion = useCallback(() => {
+    addTask({ description: 'Fechar comissões do mês anterior', done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Financeiro'], createdAt: new Date().toISOString() });
+  }, [addTask]);
 
   useEffect(() => {
     refreshOrcamentos();
@@ -1178,6 +1190,7 @@ export default function TarefasScreen() {
           {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
 
           <View style={styles.searchContainer}>
             <Ionicons name="search-outline" size={17} color={Colors.textMuted} style={styles.searchIcon} />

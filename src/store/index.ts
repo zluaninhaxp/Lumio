@@ -24,6 +24,8 @@ export interface Transaction {
   stockQuantity?: number;
   stockReceived?: boolean;
   orderId?: string;
+  /** Funcionário vinculado (ex: comissão paga). */
+  employeeId?: string;
 }
 export interface Task {
   id: string;
@@ -123,6 +125,29 @@ export interface EmployeeItem {
   name: string;
   role: string;
   contact: string;
+  /** Percentual fixo de comissão sobre pedidos concluídos (0 = sem comissão). */
+  commissionRate?: number;
+  createdAt: string;
+}
+
+/**
+ * Comissão devida a um funcionário por um pedido concluído. É calculada e
+ * registrada automaticamente na conclusão do pedido (ver `applyOrderUpdate`),
+ * e pode ser apenas fechada operacionalmente pelo usuário
+ * (`closeEmployeeCommission`). O fechamento não lança nada no Financeiro.
+ */
+export interface CommissionEntry {
+  id: string;
+  employeeId: string;
+  orderId: string;
+  amount: number;
+  /** Percentual aplicado no momento do cálculo, guardado para referência. */
+  rate: number;
+  /** Mês de competência no formato AAAA-MM, extraído da conclusão do pedido. */
+  month: string;
+  paid: boolean;
+  paidAt?: string;
+  financeTransactionId?: string;
   createdAt: string;
 }
 
@@ -230,10 +255,17 @@ export interface AppStore {
   linkTransactionToSupplier: (transactionId: string, supplierId: string | undefined, updates?: Pick<Transaction, 'supplierDueDate' | 'supplierPaid'>) => void;
   markSupplierTransactionPaid: (transactionId: string, paid: boolean) => void;
 
-  employeeItems: EmployeeItem[];
+employeeItems: EmployeeItem[];
   addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string;
   updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => void;
   removeEmployeeItem: (id: string) => void;
+
+  commissions: CommissionEntry[];
+  /**
+   * Fecha TODAS as comissões pendentes de um funcionário sem criar ou alterar
+   * transações no Financeiro. Requer ação manual do usuário.
+   */
+  closeEmployeeCommission: (employeeId: string) => void;
 
   /**
    * Dados dos 9 plugins com tela mínima genérica, indexados por
@@ -330,7 +362,24 @@ function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Ped
     transactions = transactions.filter((item) => item.id !== transactionId);
     transactionId = undefined;
   }
-  return { pedidos: state.pedidos.map((pedido) => pedido.id === id ? { ...next, financeTransactionId: transactionId, stockDeductions: newDeductions } : pedido), estoqueItems: nextItems, stockMovements: nextMovements, transactions };
+  let commissions = state.commissions;
+  if (willBeCompleted && !wasCompleted && next.employeeId) {
+    const employee = state.employeeItems.find((e) => e.id === next.employeeId);
+    const rate = employee?.commissionRate ?? 0;
+    if (rate > 0) {
+      const now = new Date();
+      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const entry: CommissionEntry = {
+        id: generateId('com_'), employeeId: next.employeeId, orderId: id,
+        amount: next.total * rate / 100, rate, month, paid: false,
+        createdAt: now.toISOString(),
+      };
+      commissions = [entry, ...commissions];
+    }
+  } else if (!willBeCompleted && wasCompleted) {
+    commissions = commissions.filter((c) => !(c.orderId === id && !c.paid));
+  }
+  return { pedidos: state.pedidos.map((pedido) => pedido.id === id ? { ...next, financeTransactionId: transactionId, stockDeductions: newDeductions } : pedido), estoqueItems: nextItems, stockMovements: nextMovements, transactions, commissions };
 }
 
 export const useAppStore = create<AppStore>((set) => ({
@@ -449,7 +498,7 @@ export const useAppStore = create<AppStore>((set) => ({
         const deduction = pedido.stockDeductions?.find((entry) => entry.stockItemId === item.id);
         return deduction ? { ...item, quantity: item.quantity + deduction.quantity } : item;
       });
-      return { pedidos: s.pedidos.filter((item) => item.id !== id), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId) : s.transactions };
+      return { pedidos: s.pedidos.filter((item) => item.id !== id), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId) : s.transactions, commissions: s.commissions.filter((c) => !(c.orderId === id && !c.paid)) };
     }
     return { pedidos: s.pedidos.filter((item) => item.id !== id) };
   }),
@@ -524,14 +573,28 @@ export const useAppStore = create<AppStore>((set) => ({
     set((s) => ({ employeeItems: [{ ...item, id }, ...s.employeeItems] }));
     return id;
   },
-  updateEmployeeItem: (id, item) =>
+updateEmployeeItem: (id, item) =>
     set((s) => ({ employeeItems: s.employeeItems.map((employee) => employee.id === id ? { ...item, id } : employee) })),
   removeEmployeeItem: (id) =>
     set((s) => ({
       employeeItems: s.employeeItems.filter((employee) => employee.id !== id),
       tasks: s.tasks.map((task) => task.employeeId === id ? { ...task, employeeId: undefined } : task),
       pedidos: s.pedidos.map((pedido) => pedido.employeeId === id ? { ...pedido, employeeId: undefined } : pedido),
+      commissions: s.commissions.filter((c) => !(c.employeeId === id && !c.paid)),
     })),
+
+  commissions: [],
+  closeEmployeeCommission: (employeeId) =>
+    set((s) => {
+      const pending = s.commissions.filter((c) => c.employeeId === employeeId && !c.paid);
+      if (pending.length === 0) return s;
+      const now = new Date().toISOString();
+      return {
+        commissions: s.commissions.map((c) => c.employeeId === employeeId && !c.paid
+          ? { ...c, paid: true, paidAt: now }
+          : c),
+      };
+    }),
 
   genericPluginItems: {},
   addGenericPluginItem: (pluginId, values) =>
