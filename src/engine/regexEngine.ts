@@ -25,6 +25,8 @@ export type Intent =
   | 'COMMISSION_PAY'
   | 'DELIVERY_STATUS_QUERY'
   | 'DELIVERY_PENDING_QUERY'
+  | 'CONTRACT_DUE_QUERY'
+  | 'CONTRACT_STATUS_QUERY'
   | 'UNKNOWN';
 
 export interface ParsedMessage {
@@ -82,6 +84,8 @@ const COMMISSION_MONTH_QUERY_PATTERN = /quanto\s+(?:o|a)?\s*(.+?)\s+tem\s+de\s+c
 const COMMISSION_PAY_PATTERN = /fecha\s+a\s+comissão\s+(?:do|da)\s+(.+?)\s*\??$/i;
 const DELIVERY_STATUS_QUERY_PATTERN = /a\s+entrega\s+do\s+pedido\s+#?([\w-]+)\s+(?:já\s+)?saiu\??$/i;
 const DELIVERY_PENDING_QUERY_PATTERN = /quais\s+entregas\s+est[aã]o\s+pendentes\s+hoje\??$/i;
+const CONTRACT_DUE_QUERY_PATTERN = /quais\s+contratos\s+vencem\s+esse\s+m[eê]s\??$/i;
+const CONTRACT_STATUS_QUERY_PATTERN = /o\s+contrato\s+do\s+(.+?)\s+est[aá]\s+em\s+dia\??$/i;
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -101,6 +105,9 @@ const taskAssignMatch = text.match(TASK_ASSIGN_PATTERN);
   const deliveryStatusMatch = text.match(DELIVERY_STATUS_QUERY_PATTERN);
   if (deliveryStatusMatch) return { intent: 'DELIVERY_STATUS_QUERY', entities: { orderId: deliveryStatusMatch[1] }, raw: text };
   if (DELIVERY_PENDING_QUERY_PATTERN.test(text)) return { intent: 'DELIVERY_PENDING_QUERY', entities: {}, raw: text };
+  if (CONTRACT_DUE_QUERY_PATTERN.test(text)) return { intent: 'CONTRACT_DUE_QUERY', entities: {}, raw: text };
+  const contractStatusMatch = text.match(CONTRACT_STATUS_QUERY_PATTERN);
+  if (contractStatusMatch) return { intent: 'CONTRACT_STATUS_QUERY', entities: { clientName: contractStatusMatch[1].trim() }, raw: text };
 
   const quoteCreateMatch = text.match(QUOTE_CREATE_PATTERN);
   if (quoteCreateMatch) return { intent: 'QUOTE_CREATE', entities: { clientName: quoteCreateMatch[1].trim(), quoteItemsText: quoteCreateMatch[2].trim() }, raw: text };
@@ -242,6 +249,8 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'COMMISSION_PAY':
     case 'DELIVERY_STATUS_QUERY':
     case 'DELIVERY_PENDING_QUERY':
+    case 'CONTRACT_DUE_QUERY':
+    case 'CONTRACT_STATUS_QUERY':
       return '';
     default:
       return '';

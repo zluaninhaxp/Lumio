@@ -2,6 +2,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider } from '@/src/contexts/AuthContext';
+import { useEffect } from 'react';
+import { useAppStore } from '@/src/store';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -11,6 +13,11 @@ export default function RootLayout() {
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
   });
+  const refreshContratos = useAppStore((state) => state.refreshContratos);
+
+  useEffect(() => {
+    refreshContratos();
+  }, [refreshContratos]);
 
   if (!loaded) return null;
 
@@ -31,6 +38,8 @@ export default function RootLayout() {
         <Stack.Screen name="plugins/fornecedores" />
         <Stack.Screen name="plugins/vendas" />
         <Stack.Screen name="plugins/orcamentos" />
+        <Stack.Screen name="plugins/contratos" />
+        <Stack.Screen name="plugins/entregas" />
         <Stack.Screen name="plugins/[id]" />
       </Stack>
     </AuthProvider>

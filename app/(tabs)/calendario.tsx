@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView, PanResponder,
 } from 'react-native';
@@ -37,11 +37,13 @@ export default function CalendarioScreen() {
     formatSelectedDate,
   } = useCalendarState();
 
-  const { events, toggleEvent, removeEvent, addEvent } = useAppStore();
+  const { events, toggleEvent, removeEvent, addEvent, refreshContratos, markTransactionReceived } = useAppStore();
   const { transactions, fornecedorItems, markSupplierTransactionPaid } = useAppStore();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
+
+  useEffect(() => { refreshContratos(); }, [refreshContratos]);
 
   const supplierDueEvents = useMemo(() => transactions.flatMap((transaction) => {
     if (!transaction.supplierId || !transaction.supplierDueDate || transaction.supplierPaid) return [];
@@ -83,8 +85,14 @@ export default function CalendarioScreen() {
       markSupplierTransactionPaid(id.replace('supplier-due:', ''), true);
       return;
     }
+    if (id.startsWith('contract-due:')) {
+      const [, contractId, expectedDate] = id.split(':');
+      const transaction = useAppStore.getState().transactions.find((item) => item.contractId === contractId && item.expectedDate === expectedDate);
+      if (transaction) markTransactionReceived(transaction.id, true);
+      return;
+    }
     toggleEvent(id);
-  }, [markSupplierTransactionPaid, toggleEvent]);
+  }, [markSupplierTransactionPaid, markTransactionReceived, toggleEvent]);
 
   const handleMonthChange = useCallback(
     (direction: -1 | 1) => {

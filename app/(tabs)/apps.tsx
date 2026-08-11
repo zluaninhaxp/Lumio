@@ -22,7 +22,7 @@ export default function AppsScreen() {
       const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
       Alert.alert(
         'Dependência necessária',
-        `Para ativar Comissões você precisa ter ${labels.join(' e ')} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
+        `Para ativar ${getPluginDefinition(pluginId)?.label ?? pluginId}, você precisa ter ${labels.join(' e ')} ativados primeiro.`,
         [{ text: 'Entendi' }],
       );
       return;

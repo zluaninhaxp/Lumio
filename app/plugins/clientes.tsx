@@ -61,9 +61,10 @@ export default function ClientesScreen() {
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {filteredClients.length === 0 && <View style={styles.empty}><Ionicons name="people-outline" size={48} color={Colors.textMuted} /><Text style={styles.emptyText}>{query ? 'Nenhum cliente encontrado.' : 'Nenhum cliente cadastrado ainda.'}</Text></View>}
         {filteredClients.map((client) => {
-          const history = transactions.filter((transaction) => transaction.clientId === client.id && transaction.amount > 0);
-          const total = history.reduce((sum, transaction) => sum + transaction.amount, 0);
-          const hasPendingNote = /pend[eê]ncia|aberto|deve/i.test(client.notes);
+           const history = transactions.filter((transaction) => transaction.clientId === client.id && transaction.amount > 0 && transaction.confirmed !== false);
+           const total = history.reduce((sum, transaction) => sum + transaction.amount, 0);
+           const hasPendingNote = /pend[eê]ncia|aberto|deve/i.test(client.notes);
+           const hasOverdueContract = transactions.some((transaction) => transaction.clientId === client.id && transaction.contractId && transaction.amount > 0 && transaction.confirmed === false && !!transaction.expectedDate && transaction.expectedDate < new Date().toISOString().split('T')[0]);
           const expanded = expandedId === client.id;
           return (
             <View key={client.id} style={styles.card}>
@@ -73,7 +74,8 @@ export default function ClientesScreen() {
                 <Ionicons name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.textMuted} />
               </TouchableOpacity>
               <View style={styles.summaryRow}><Text style={styles.summaryLabel}>{history.length} receita(s) vinculada(s)</Text><Text style={styles.total}>{money(total)}</Text></View>
-              {hasPendingNote && <Text style={styles.pendingText}>Pendência mencionada nas observações</Text>}
+               {hasPendingNote && <Text style={styles.pendingText}>Pendência mencionada nas observações</Text>}
+               {hasOverdueContract && <Text style={styles.pendingText}>Pendência de assinatura vencida</Text>}
               {expanded && <View style={styles.details}>
                 {!!client.notes && <Text style={styles.notes}>Observações: {client.notes}</Text>}
                 <Text style={styles.historyTitle}>Histórico de receitas</Text>

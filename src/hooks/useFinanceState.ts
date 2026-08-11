@@ -188,7 +188,7 @@ export function useFinanceState() {
 
   const summary = useMemo(() => {
     const entradas = periodTransactions
-      .filter((t) => t.amount > 0)
+      .filter((t) => t.amount > 0 && t.confirmed !== false)
       .reduce((s, t) => s + t.amount, 0);
     const saidas = periodTransactions
       .filter((t) => t.amount < 0)

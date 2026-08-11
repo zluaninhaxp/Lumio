@@ -15,7 +15,7 @@ import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
-import type { Transaction } from '../../src/store';
+import { useAppStore, type Transaction } from '../../src/store';
 import { CollapsingHeader } from '../components/Finance/CollapsingHeader';
 import { TransactionItem } from '../components/Finance/TransactionItem';
 import { QuickAddForm } from '../components/Finance/QuickAddForm';
@@ -33,6 +33,8 @@ const HEADER_MIN_HEIGHT = 90;
 export default function FinanceiroScreen() {
   const router = useRouter();
   const { logout } = useAuth();
+  const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
+  const refreshContratos = useAppStore((state) => state.refreshContratos);
 
   const {
     sections,
@@ -78,9 +80,10 @@ export default function FinanceiroScreen() {
   }, []);
 
   useEffect(() => {
+    refreshContratos();
     const timer = setTimeout(() => setLoading(false), 600);
     return () => clearTimeout(timer);
-  }, []);
+  }, [refreshContratos]);
 
   const handleLogout = useCallback(() => {
     logout();
@@ -173,6 +176,7 @@ export default function FinanceiroScreen() {
         onLongPress={enterSelectionMode}
         onDelete={handleSwipeDelete}
         onEdit={handleEdit}
+        onMarkReceived={(id) => markTransactionReceived(id, true)}
         onSwipeOpen={handleSwipeOpen}
       />
     ),
@@ -184,6 +188,7 @@ export default function FinanceiroScreen() {
       enterSelectionMode,
       handleSwipeDelete,
       handleEdit,
+      markTransactionReceived,
       handleSwipeOpen,
     ]
   );

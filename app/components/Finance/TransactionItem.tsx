@@ -15,6 +15,7 @@ interface TransactionItemProps {
   onLongPress: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (item: Transaction) => void;
+  onMarkReceived?: (id: string) => void;
   onSwipeOpen: (ref: Swipeable | null) => void;
 }
 
@@ -27,6 +28,7 @@ export function TransactionItem({
   onLongPress,
   onDelete,
   onEdit,
+  onMarkReceived,
   onSwipeOpen,
 }: TransactionItemProps) {
   const swipeableRef = useRef<Swipeable>(null);
@@ -113,8 +115,9 @@ export function TransactionItem({
             {item.description}
           </Text>
           <Text style={styles.category} numberOfLines={1}>
-            {item.category}
+            {item.category}{item.confirmed === false ? ' · Prevista' : ''}
           </Text>
+          {item.confirmed === false && onMarkReceived && <TouchableOpacity onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>Marcar recebida</Text></TouchableOpacity>}
         </View>
 
         <Text
@@ -183,6 +186,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 1,
   },
+  receiveText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, marginTop: 2 },
   amount: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.sm,

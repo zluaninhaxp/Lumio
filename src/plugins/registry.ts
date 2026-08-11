@@ -218,18 +218,10 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
     icon: 'document-lock',
     description: 'Cobrança recorrente de clientes.',
     route: '/plugins/contratos',
-    implemented: false,
+    implemented: true,
     itemLabel: 'contrato',
     itemLabelPlural: 'contratos',
-    fields: [
-      { key: 'client', label: 'Cliente', type: 'text', primary: true, placeholder: 'Nome do cliente' },
-      { key: 'value', label: 'Valor', type: 'number', placeholder: '0' },
-      { key: 'dueDate', label: 'Vencimento', type: 'text', placeholder: 'Ex: dia 10' },
-      {
-        key: 'cycle', label: 'Ciclo', type: 'select',
-        options: ['Mensal', 'Trimestral', 'Anual'],
-      },
-    ],
+    fields: [],
   },
 };
 
@@ -258,6 +250,7 @@ export function isValidPluginId(id: string): id is PluginId {
 export const PLUGIN_DEPENDENCIES: Partial<Record<PluginId, PluginId[]>> = {
   comissoes: ['equipe', 'vendas'],
   entregas: ['vendas'],
+  contratos: ['clientes'],
 };
 
 export function canActivatePlugin(

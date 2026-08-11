@@ -32,7 +32,7 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas } = useAppStore();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:do|da|de)\s+/i, '');
@@ -63,6 +63,7 @@ export default function ChatScreen() {
     const text = input.trim();
     if (!text) return;
     refreshOrcamentos();
+    refreshContratos();
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -132,6 +133,21 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
         botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
       }
+    } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
+      const now = new Date();
+      if (parsed.intent === 'CONTRACT_DUE_QUERY') {
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const due = contratos.filter((contract) => contract.status === 'ativo' && contract.nextBillingDate.startsWith(month));
+        botText = due.length ? `Vencem este mês: ${due.map((contract) => `${clienteItems.find((client) => client.id === contract.clientId)?.name ?? 'cliente'} em ${formatDate(contract.nextBillingDate)}`).join(', ')}.` : 'Nenhum contrato ativo vence este mês.';
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}".`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else {
+          const pending = transactions.some((transaction) => transaction.clientId === matches[0].id && transaction.contractId && transaction.confirmed === false && !!transaction.expectedDate && transaction.expectedDate <= new Date().toISOString().split('T')[0]);
+          botText = pending ? `${matches[0].name} tem uma cobrança de contrato pendente.` : `${matches[0].name} está em dia com os contratos.`;
+        }
+      }
     } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
       if (parsed.intent === 'ORDER_OPEN_QUERY') {
         const openOrders = pedidos.filter((order) => order.status === 'aberto');
@@ -184,7 +200,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
       else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
       else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
-        const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0).reduce((sum, transaction) => sum + transaction.amount, 0);
+         const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0 && transaction.confirmed !== false).reduce((sum, transaction) => sum + transaction.amount, 0);
         botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
       } else {
         botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;
@@ -247,11 +263,12 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas]);
+}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
     refreshOrcamentos();
+    refreshContratos();
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -321,6 +338,21 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
         botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
       }
+    } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
+      const now = new Date();
+      if (parsed.intent === 'CONTRACT_DUE_QUERY') {
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const due = contratos.filter((contract) => contract.status === 'ativo' && contract.nextBillingDate.startsWith(month));
+        botText = due.length ? `Vencem este mês: ${due.map((contract) => `${clienteItems.find((client) => client.id === contract.clientId)?.name ?? 'cliente'} em ${formatDate(contract.nextBillingDate)}`).join(', ')}.` : 'Nenhum contrato ativo vence este mês.';
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}".`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else {
+          const pending = transactions.some((transaction) => transaction.clientId === matches[0].id && transaction.contractId && transaction.confirmed === false && !!transaction.expectedDate && transaction.expectedDate <= new Date().toISOString().split('T')[0]);
+          botText = pending ? `${matches[0].name} tem uma cobrança de contrato pendente.` : `${matches[0].name} está em dia com os contratos.`;
+        }
+      }
     } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
       if (parsed.intent === 'ORDER_OPEN_QUERY') {
         const openOrders = pedidos.filter((order) => order.status === 'aberto');
@@ -373,7 +405,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
       else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
       else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
-        const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0).reduce((sum, transaction) => sum + transaction.amount, 0);
+         const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0 && transaction.confirmed !== false).reduce((sum, transaction) => sum + transaction.amount, 0);
         botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
       } else {
         botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;

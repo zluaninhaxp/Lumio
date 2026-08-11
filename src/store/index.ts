@@ -24,6 +24,9 @@ export interface Transaction {
   stockQuantity?: number;
   stockReceived?: boolean;
   orderId?: string;
+  contractId?: string;
+  expectedDate?: string;
+  confirmed?: boolean;
   /** Funcionário vinculado (ex: comissão paga). */
   employeeId?: string;
 }
@@ -98,6 +101,20 @@ export interface Entrega {
   freightValue?: number;
   financeTransactionId?: string;
   calendarEventId?: string;
+  createdAt: string;
+}
+
+export type ContractPeriod = 'mensal' | 'trimestral' | 'semestral' | 'anual';
+export type ContractStatus = 'ativo' | 'cancelado';
+
+export interface Contrato {
+  id: string;
+  clientId: string;
+  value: number;
+  period: ContractPeriod;
+  startDate: string;
+  status: ContractStatus;
+  nextBillingDate: string;
   createdAt: string;
 }
 
@@ -268,6 +285,13 @@ export interface AppStore {
   removeClienteItem: (id: string) => void;
   linkTransactionToClient: (transactionId: string, clientId: string | undefined) => void;
 
+  contratos: Contrato[];
+  addContrato: (contrato: Omit<Contrato, 'id' | 'nextBillingDate'>) => string | null;
+  updateContrato: (id: string, updates: Partial<Omit<Contrato, 'id'>>) => boolean;
+  removeContrato: (id: string) => void;
+  refreshContratos: () => void;
+  markTransactionReceived: (transactionId: string, received: boolean) => void;
+
   fornecedorItems: FornecedorItem[];
   addFornecedorItem: (item: Omit<FornecedorItem, 'id'>) => string;
   updateFornecedorItem: (id: string, item: Omit<FornecedorItem, 'id'>) => void;
@@ -346,6 +370,26 @@ function isQuoteExpired(validUntil: string): boolean {
   today.setHours(0, 0, 0, 0);
   const validity = new Date(`${validUntil}T00:00:00`);
   return validity.getTime() < today.getTime();
+}
+
+function toLocalIsoDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatTransactionDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-');
+  return `${day}/${month}`;
+}
+
+function advanceContractDate(isoDate: string, period: ContractPeriod): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  const months = period === 'mensal' ? 1 : period === 'trimestral' ? 3 : period === 'semestral' ? 6 : 12;
+  date.setMonth(date.getMonth() + months);
+  return toLocalIsoDate(date);
 }
 
 function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Pedido, 'id'>>): Partial<AppStore> | null {
@@ -601,16 +645,82 @@ export const useAppStore = create<AppStore>((set) => ({
       clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)),
     })),
   removeClienteItem: (id) =>
-    set((s) => ({
-      clienteItems: s.clienteItems.filter((i) => i.id !== id),
-      transactions: s.transactions.map((t) => t.clientId === id ? { ...t, clientId: undefined } : t),
-    })),
+    set((s) => {
+      const contractIds = new Set(s.contratos.filter((contrato) => contrato.clientId === id).map((contrato) => contrato.id));
+      return {
+        clienteItems: s.clienteItems.filter((i) => i.id !== id),
+        transactions: s.transactions.filter((transaction) => !contractIds.has(transaction.contractId ?? '')).map((transaction) => transaction.clientId === id ? { ...transaction, clientId: undefined } : transaction),
+        events: s.events.filter((event) => ![...contractIds].some((contractId) => event.id.startsWith(`contract-due:${contractId}:`))),
+        contratos: s.contratos.filter((contrato) => !contractIds.has(contrato.id)),
+      };
+    }),
   linkTransactionToClient: (transactionId, clientId) =>
     set((s) => ({
       transactions: s.transactions.map((t) =>
         t.id === transactionId ? { ...t, clientId } : t
       ),
     })),
+
+  contratos: [],
+  addContrato: (contrato) => {
+    let id: string | null = null;
+    set((s) => {
+      if (!s.clienteItems.some((client) => client.id === contrato.clientId) || contrato.value <= 0) return s;
+      id = generateId('ctr_');
+      return { contratos: [{ ...contrato, id, nextBillingDate: contrato.startDate }, ...s.contratos] };
+    });
+    return id;
+  },
+  updateContrato: (id, updates) => {
+    let updated = false;
+    set((s) => {
+      const current = s.contratos.find((contrato) => contrato.id === id);
+      if (!current || (updates.clientId && !s.clienteItems.some((client) => client.id === updates.clientId))) return s;
+      updated = true;
+      const next = { ...current, ...updates, id };
+      return { contratos: s.contratos.map((contrato) => contrato.id === id ? next : contrato), events: next.status === 'cancelado' ? s.events.filter((event) => !event.id.startsWith(`contract-due:${id}:`)) : s.events };
+    });
+    return updated;
+  },
+  removeContrato: (id) => set((s) => ({ contratos: s.contratos.filter((contrato) => contrato.id !== id), transactions: s.transactions.filter((transaction) => transaction.contractId !== id), events: s.events.filter((event) => !event.id.startsWith(`contract-due:${id}:`)) })),
+  refreshContratos: () => set((s) => {
+    const today = toLocalIsoDate(new Date());
+    let changed = false;
+    const transactions = [...s.transactions];
+    const events = [...s.events];
+    const contratos = s.contratos.map((contrato) => {
+      if (contrato.status !== 'ativo') return contrato;
+      let nextBillingDate = contrato.nextBillingDate;
+      while (nextBillingDate <= today) {
+        const expectedDate = nextBillingDate;
+        const exists = transactions.some((transaction) => transaction.contractId === contrato.id && transaction.expectedDate === expectedDate);
+        if (!exists) {
+          const transactionId = generateId('txn_');
+          transactions.unshift({ id: transactionId, date: formatTransactionDate(expectedDate), description: `Assinatura ${contrato.id.slice(-6)}`, amount: contrato.value, category: 'Receita', clientId: contrato.clientId, contractId: contrato.id, expectedDate, confirmed: false });
+          events.push({ id: `contract-due:${contrato.id}:${expectedDate}`, date: expectedDate, time: null, description: `Cobrança da assinatura ${contrato.id.slice(-6)}`, done: false, type: 'event' });
+          changed = true;
+        }
+        nextBillingDate = advanceContractDate(nextBillingDate, contrato.period);
+        changed = true;
+      }
+      const nextEventId = `contract-due:${contrato.id}:${nextBillingDate}`;
+      if (!events.some((event) => event.id === nextEventId)) {
+        events.push({ id: nextEventId, date: nextBillingDate, time: null, description: `Cobrança da assinatura ${contrato.id.slice(-6)}`, done: false, type: 'event' });
+        changed = true;
+      }
+      return nextBillingDate === contrato.nextBillingDate ? contrato : { ...contrato, nextBillingDate };
+    });
+    return changed ? { contratos, transactions, events } : s;
+  }),
+  markTransactionReceived: (transactionId, received) => set((s) => {
+    const transaction = s.transactions.find((item) => item.id === transactionId);
+    if (!transaction) return s;
+    const eventId = transaction.contractId && transaction.expectedDate ? `contract-due:${transaction.contractId}:${transaction.expectedDate}` : undefined;
+    return {
+      transactions: s.transactions.map((item) => item.id === transactionId ? { ...item, confirmed: received } : item),
+      events: eventId ? s.events.map((event) => event.id === eventId ? { ...event, done: received } : event) : s.events,
+    };
+  }),
 
   fornecedorItems: [],
   addFornecedorItem: (item) => {

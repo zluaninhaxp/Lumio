@@ -158,7 +158,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, employeeItems, commissions, activatedPlugins, entregas } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -245,6 +245,17 @@ export default function TarefasScreen() {
     addTask({ description: 'Fechar comissões do mês anterior', done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Financeiro'], createdAt: new Date().toISOString() });
   }, [addTask]);
 
+  const contractSuggestions = useMemo(() => transactions.flatMap((transaction) => {
+    if (!transaction.contractId || transaction.amount <= 0 || transaction.confirmed !== false || !transaction.expectedDate) return [];
+    const days = daysUntil(transaction.expectedDate);
+    if (days > 0 || tasks.some((task) => task.description.includes(transaction.id) && !task.done)) return [];
+    const client = clienteItems.find((item) => item.id === transaction.clientId);
+    return [{ transaction, client, days }];
+  }), [transactions, clienteItems, tasks]);
+  const confirmContractSuggestion = useCallback((suggestion: (typeof contractSuggestions)[number]) => {
+    addTask({ description: `Cobrar assinatura ${suggestion.client?.name ?? 'do cliente'} (${suggestion.transaction.id})`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: suggestion.days < 0 ? 'Em atraso' : 'Hoje', priority: 'alta', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
+  }, [addTask]);
+
   const deliverySuggestions = useMemo(() => entregas.flatMap((delivery) => {
     if (delivery.status !== 'a caminho') return [];
     const days = daysUntil(delivery.estimatedDate);
@@ -257,9 +268,10 @@ export default function TarefasScreen() {
 
   useEffect(() => {
     refreshOrcamentos();
+    refreshContratos();
     const timer = setTimeout(() => setIsLoading(false), 600);
     return () => clearTimeout(timer);
-  }, [refreshOrcamentos]);
+  }, [refreshOrcamentos, refreshContratos]);
 
   useEffect(() => {
     if (datePicker) {
@@ -1196,6 +1208,7 @@ export default function TarefasScreen() {
             </View>
           </View>
 
+          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
           {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
