@@ -7,7 +7,11 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "O Lumio converte sua fala em texto para preencher as respostas do onboarding.",
+        "NSMicrophoneUsageDescription": "O Lumio usa o microfone para você poder responder ao onboarding por voz."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -16,7 +20,11 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.zluhcastro.lumio"
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -28,15 +36,30 @@
       "expo-router",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "O Lumio precisa acessar suas fotos para usar uma imagem de perfil.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
+      [
         "expo-speech-recognition",
         {
           "microphonePermission": "O Lumio usa o microfone para você poder responder ao onboarding por voz.",
           "speechRecognitionPermission": "O Lumio converte sua fala em texto para preencher as respostas do onboarding."
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "283de31d-2012-4e22-b258-dd25f8842fd8"
+      }
     }
   }
 }

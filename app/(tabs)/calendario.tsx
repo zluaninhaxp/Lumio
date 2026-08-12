@@ -15,8 +15,13 @@ import { SkeletonLoader } from '../components/Calendar/SkeletonLoader';
 import { EmptyState } from '../components/Calendar/EmptyState';
 import { FAB } from '../components/Calendar/FAB';
 import { AppointmentForm } from '../components/Calendar/AppointmentForm';
+import { useAuth } from '../../src/hooks/useAuth';
+import { UserAvatar } from '../components/account/UserAvatar';
+import { AccountSheet } from '../components/account/AccountSheet';
 
 export default function CalendarioScreen() {
+  const { currentUser } = useAuth();
+  const [accountVisible, setAccountVisible] = useState(false);
   const {
     visibleYear,
     visibleMonth,
@@ -179,9 +184,7 @@ export default function CalendarioScreen() {
         <Text style={styles.headerTitle}>Calendário</Text>
         <View style={styles.headerActions}>
           {activatedPlugins.includes('agenda') && <TouchableOpacity style={styles.newAppointment} onPress={() => setAppointmentSheetVisible(true)}><Ionicons name="time-outline" size={18} color={Colors.accent} /><Text style={styles.newAppointmentText}>Atendimento</Text></TouchableOpacity>}
-          <View style={styles.avatar}>
-          <Text style={styles.avatarText}>OJ</Text>
-          </View>
+          <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
       </View>
 
@@ -253,6 +256,7 @@ export default function CalendarioScreen() {
       <BottomSheet visible={appointmentSheetVisible} onClose={() => setAppointmentSheetVisible(false)}>
         <AppointmentForm initialDate={selectedDate} clients={clienteItems} quotes={activatedPlugins.includes('orcamentos') ? orcamentos : []} onSave={handleSaveAppointment} onCancel={() => setAppointmentSheetVisible(false)} />
       </BottomSheet>
+      <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>
   );
 }

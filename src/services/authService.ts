@@ -37,13 +37,21 @@ async function createSessionForUser(userId: string): Promise<Session> {
 }
 
 async function getRemoteProfile(userId: string, fallback?: { name?: string; email?: string }): Promise<PublicUser> {
-  const { data, error } = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed').eq('id', userId).maybeSingle();
+  let { data, error } = await supabase!.from('profiles').select('id, name, email, photo, role, phone, onboarding_completed').eq('id', userId).maybeSingle();
+  // Permite abrir versões cujo banco ainda não recebeu a migration de perfil.
+  if (error && /column .* does not exist|could not find the .* column .* schema cache/i.test(error.message)) {
+    const fallbackResult = await supabase!.from('profiles').select('id, name, email, photo, onboarding_completed').eq('id', userId).maybeSingle();
+    data = fallbackResult.data as typeof data;
+    error = fallbackResult.error;
+  }
   if (error) throw new Error(error.message);
   return {
     id: userId,
     name: data?.name ?? fallback?.name ?? '',
     email: data?.email ?? fallback?.email ?? '',
     photo: data?.photo ?? null,
+    role: data?.role ?? '',
+    phone: data?.phone ?? '',
     onboardingCompleted: data?.onboarding_completed ?? false,
     createdAt: new Date().toISOString(),
   };
@@ -77,6 +85,30 @@ export interface LoginInput {
  * o `AuthContext`, o `useAuth` e as telas continuam iguais.
  */
 export const authService = {
+  async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
+    assertValidPassword(newPassword);
+    if (isSupabaseConfigured) {
+      const { error } = await supabase!.auth.updateUser({ password: newPassword });
+      if (error) throw new Error(error.message);
+      return;
+    }
+    const user = await userRepository.findById(userId);
+    if (!user || user.password !== currentPassword) throw new AuthError('INVALID_PASSWORD');
+    await userRepository.update(userId, { password: newPassword });
+  },
+
+  async deleteAccount(userId: string): Promise<void> {
+    if (isSupabaseConfigured) {
+      const { error } = await supabase!.from('profiles').delete().eq('id', userId);
+      if (error) throw new Error(error.message);
+      const { error: signOutError } = await supabase!.auth.signOut();
+      if (signOutError) throw new Error(signOutError.message);
+      return;
+    }
+    await userRepository.remove(userId);
+    await authRepository.clearSession();
+  },
+
   async register({ name, email, password }: RegisterInput): Promise<AuthResult> {
     assertValidName(name);
     assertValidEmail(email);

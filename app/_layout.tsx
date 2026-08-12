@@ -41,6 +41,10 @@ export default function RootLayout() {
         <Stack.Screen name="plugins/contratos" />
         <Stack.Screen name="plugins/entregas" />
         <Stack.Screen name="plugins/[id]" />
+        <Stack.Screen name="profile" />
+        <Stack.Screen name="account" />
+        <Stack.Screen name="preferences" />
+        <Stack.Screen name="ai-settings" />
       </Stack>
     </AuthProvider>
   );

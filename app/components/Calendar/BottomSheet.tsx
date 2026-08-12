@@ -18,10 +18,11 @@ interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  height?: number;
 }
 
-export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
-  const translateY = useRef(new Animated.Value(SHEET_HEIGHT)).current;
+export function BottomSheet({ visible, onClose, children, height = SHEET_HEIGHT }: BottomSheetProps) {
+  const translateY = useRef(new Animated.Value(height)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
   const open = useCallback(() => {
@@ -44,7 +45,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
     (cb?: () => void) => {
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: SHEET_HEIGHT,
+          toValue: height,
           duration: 220,
           useNativeDriver: true,
         }),
@@ -58,17 +59,17 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
         else onClose();
       });
     },
-    [translateY, backdropOpacity, onClose]
+    [translateY, backdropOpacity, onClose, height]
   );
 
   useEffect(() => {
     if (visible) {
       open();
     } else {
-      translateY.setValue(SHEET_HEIGHT);
+      translateY.setValue(height);
       backdropOpacity.setValue(0);
     }
-  }, [visible, open, translateY, backdropOpacity]);
+  }, [visible, open, translateY, backdropOpacity, height]);
 
   return (
     <Modal
@@ -91,7 +92,7 @@ export function BottomSheet({ visible, onClose, children }: BottomSheetProps) {
               { transform: [{ translateY }] },
             ]}
           >
-            <View style={styles.handle} />
+             <View style={styles.handle} />
             {children}
           </Animated.View>
         </KeyboardAvoidingView>

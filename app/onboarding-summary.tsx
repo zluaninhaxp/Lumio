@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -66,6 +66,7 @@ export default function OnboardingSummaryScreen() {
   const { currentUser, refreshUser } = useAuth();
 
   const extraction = useAppStore((s) => s.pendingOnboardingExtraction);
+  const isSimulation = useAppStore((s) => s.pendingOnboardingExtractionIsSimulation);
   const openAnswers = useAppStore((s) => s.openAnswers);
   const onboardingContext = useAppStore((s) => s.onboardingContext);
   const applyOnboardingExtraction = useAppStore((s) => s.applyOnboardingExtraction);
@@ -73,15 +74,22 @@ export default function OnboardingSummaryScreen() {
   const setPluginActivation = useAppStore((s) => s.setPluginActivation);
 
   // Se a pessoa cair aqui sem ter passado pela celebração (ex: deep link,
-  // refresh), não há o que resumir — volta pro início do onboarding.
+  // refresh), não há o que resumir — volta pro início do onboarding. MAS
+  // enquanto finalizamos (ver `handleFinish` abaixo) o store zera
+  // `pendingOnboardingExtraction` e esse efeito dispararia de novo em
+  // direto ao `/onboarding`, competindo com o redirect pro chat — daí o
+  // flash da tela de onboarding antes do chat. O `finishingRef` bloqueia
+  // o redirect errático durante a finalização.
+  const finishingRef = useRef(false);
   useEffect(() => {
-    if (!extraction) {
+    if (!extraction && !finishingRef.current) {
       router.replace('/onboarding');
     }
   }, [extraction, router]);
 
   const handleFinish = useCallback(async () => {
     if (!extraction) return;
+    finishingRef.current = true;
     applyOnboardingExtraction(extraction);
 
     if (currentUser) {
@@ -121,6 +129,27 @@ export default function OnboardingSummaryScreen() {
         <View style={styles.mascotWrap}>
           <Mascot image={MASCOT_IMAGES[INTERACTION_MASCOT.summary]} size={140} />
         </View>
+
+        {isSimulation && (
+          <View style={styles.simBanner}>
+            <Ionicons name="flash-outline" size={20} color={Colors.warning} />
+            <View style={styles.simBannerText}>
+              <Text style={styles.simBannerTitle}>Relatório simulado</Text>
+              <Text style={styles.simBannerDesc}>
+                Sem uma chave de IA configurada, este relatório veio de uma
+                estimativa local. Configure sua chave grátis do Google AI
+                Studio para gerar a versão completa com IA.
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.simBannerBtn}
+              onPress={() => router.push('/ai-settings')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.simBannerBtnText}>Configurar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.thankYou}>
           <Ionicons name="heart-circle" size={32} color={Colors.accent} />
@@ -188,6 +217,41 @@ export default function OnboardingSummaryScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
   mascotWrap: { alignItems: 'center', paddingTop: Spacing.lg },
+  simBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    backgroundColor: '#FFF7E6',
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#F5C56B',
+  },
+  simBannerText: { flex: 1 },
+  simBannerTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.sm,
+    color: '#9A6B00',
+    marginBottom: 2,
+  },
+  simBannerDesc: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: '#7A5400',
+    lineHeight: 18,
+  },
+  simBannerBtn: {
+    backgroundColor: '#F59E0B',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  simBannerBtnText: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.xs,
+    color: '#FFFFFF',
+  },
   thankYou: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.md },
   thankYouTitle: {
     fontFamily: 'PlusJakartaSans_700Bold',
