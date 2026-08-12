@@ -35,6 +35,7 @@ export default function FinanceiroScreen() {
   const { logout } = useAuth();
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
+  const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
 
   const {
     sections,
@@ -161,8 +162,11 @@ export default function FinanceiroScreen() {
   );
 
   const quickAddCategories = useMemo(
-    () => ['Combustível', 'Materiais', 'Fornecedores', 'Alimentação', 'Outros'],
-    []
+    () => {
+      const fromOnboarding = financialExpenseCategories.map((c) => c.label);
+      return fromOnboarding.length > 0 ? fromOnboarding : ['Outros'];
+    },
+    [financialExpenseCategories]
   );
 
   const renderItem = useCallback(

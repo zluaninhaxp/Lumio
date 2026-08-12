@@ -30,7 +30,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const hydrateOnboarding = useCallback(async (user: PublicUser) => {
     try {
       const record = await onboardingService.getResponses(user.id);
-      if (!record) return;
+      if (!record) {
+        // Sem record persistido para este usuário: zera campos derivados
+        // do onboarding no store para evitar herdar configurações de um
+        // usuário anteriormente logado (o store é module-level e mantém
+        // state entre logins). Não afeta dadosStrictmente demo (transações
+        // /tarefas), mas elimina o bleed de categorias/tags/tipos gerados
+        // pelo onboarding.
+        useAppStore.getState().resetOnboardingState();
+        return;
+      }
       useAppStore.getState().hydrateOnboarding({
         responses: (record.responses ?? {}) as Record<string, string>,
         context: (record.context ?? null) as OnboardingContextDTO | null,

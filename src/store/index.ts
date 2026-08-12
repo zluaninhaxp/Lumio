@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { mockTransactions, mockTasks, mockCalendarEvents } from '../data/mock';
 import {
   guessBusinessTypeFallback,
   guessBusinessNameFallback,
@@ -50,6 +49,15 @@ export interface CalendarEvent {
   description: string;
   done: boolean;
   type: 'event' | 'task';
+  /**
+   * Rótulo semântico opcional para eventos (ex.: "Atendimento agendado",
+   * "Entrega de fornecedor"). Vem do `coreCategories.calendarEventTypes`
+   * gerado no onboarding (ver `applyOnboardingExtraction`) e só é
+   * preenchido na criação manual via `EventForm`. Eventos antigos /
+   * sintéticos (contratos, entregas, atendimentos) continuam funcionando
+   * sem ele. Não confundir com `type` (distinção estrutural event/task).
+   */
+  eventType?: string;
 }
 
 export interface EstoqueItem {
@@ -362,6 +370,14 @@ employeeItems: EmployeeItem[];
     structuredProfile: OnboardingExtractionResult | null;
     activatedPlugins: string[];
   }) => void;
+  /**
+   * Zera todos os dados derivados do onboarding no store. Usado pela
+   * `AuthContext` quando um usuário loga sem nenhum record persistido
+   * (nunca fez onboarding) — evita herdar categorias/tags de outro
+   * usuário que estivesse logado na sessão anterior, sem precisar de
+   * nova persistência local.
+   */
+  resetOnboardingState: () => void;
 
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id'>) => string;
@@ -903,6 +919,7 @@ updateEmployeeItem: (id, item) =>
       calendarEventTypes: result.coreCategories.calendarEventTypes,
       keywordMap: result.keywordMap,
       recommendedPlugins: result.recommendedPlugins,
+      customTaskTags: result.coreCategories.taskTags.map((c) => c.label),
       onboardingCompleted: true,
     })),
   hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins }) =>
@@ -920,6 +937,7 @@ updateEmployeeItem: (id, item) =>
       calendarEventTypes: structuredProfile.coreCategories.calendarEventTypes,
       keywordMap: structuredProfile.keywordMap,
       recommendedPlugins: structuredProfile.recommendedPlugins,
+      customTaskTags: structuredProfile.coreCategories.taskTags.map((c) => c.label),
       activatedPlugins,
       onboardingCompleted: true,
     } : {
@@ -927,9 +945,40 @@ updateEmployeeItem: (id, item) =>
       onboardingContext: context,
       activatedPlugins,
       onboardingCompleted: true,
+      onboardingExtraction: null,
+      pendingOnboardingExtraction: null,
+      pendingOnboardingExtractionIsSimulation: false,
+      financialExpenseCategories: [],
+      financialIncomeCategories: [],
+      taskTags: [],
+      calendarEventTypes: [],
+      keywordMap: {},
+      recommendedPlugins: [],
+      customTaskTags: [],
     }),
 
-  transactions: mockTransactions,
+  resetOnboardingState: () =>
+    set({
+      onboardingCompleted: false,
+      businessName: '',
+      businessType: '',
+      openAnswers: {},
+      onboardingContext: null,
+      onboardingExtraction: null,
+      pendingOnboardingExtraction: null,
+      pendingOnboardingExtractionIsSimulation: false,
+      financialExpenseCategories: [],
+      financialIncomeCategories: [],
+      taskTags: [],
+      calendarEventTypes: [],
+      keywordMap: {},
+      recommendedPlugins: [],
+      customTaskTags: [],
+      activatedPlugins: [],
+      dismissedPluginSuggestions: [],
+    }),
+
+  transactions: [],
   addTransaction: (t) => {
     const id = generateId('txn_');
     set((s) => ({ transactions: [{ ...t, id }, ...s.transactions] }));
@@ -948,7 +997,7 @@ updateEmployeeItem: (id, item) =>
       transactions: s.transactions.filter((t) => !ids.includes(t.id)),
     })),
 
-  tasks: mockTasks as Task[],
+  tasks: [] as Task[],
   addTask: (t) =>
     set((s) => ({
       tasks: [{ ...t, id: Date.now().toString() } as Task, ...s.tasks],
@@ -964,7 +1013,7 @@ updateEmployeeItem: (id, item) =>
   removeTask: (id) =>
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
 
-  customTaskTags: ['Peças', 'Clientes', 'Financeiro', 'Estoque', 'Fornecedor'],
+  customTaskTags: [],
   addCustomTaskTag: (tag) =>
     set((s) => {
       if (s.customTaskTags.includes(tag)) return s;
@@ -979,7 +1028,7 @@ updateEmployeeItem: (id, item) =>
       })) as Task[],
     })),
 
-  events: mockCalendarEvents,
+  events: [],
   addEvent: (e) =>
     set((s) => ({
       events: [...s.events, { ...e, done: e.done ?? false, id: Date.now().toString() }],
