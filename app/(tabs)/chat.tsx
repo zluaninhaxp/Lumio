@@ -6,6 +6,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
+import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
+import type { TaskParserContext, TaskParseResult } from '../../src/engine/taskEngine/types';
 import { useAppStore } from '../../src/store';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
@@ -36,8 +38,8 @@ export default function ChatScreen() {
   const [input, setInput] = useState('');
   const [accountVisible, setAccountVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  const { currentUser } = useAuth();
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins } = useAppStore();
+const { currentUser } = useAuth();
+  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:o|a|do|da|de)\s+/i, '');
@@ -71,8 +73,82 @@ export default function ChatScreen() {
         date.setDate(date.getDate() + delta);
       }
     }
-    return date.toISOString().split('T')[0];
+return date.toISOString().split('T')[0];
   };
+
+  // ─────── Motor de interpretação de TAREFAS (determinístico) ───────
+  // Camada avançada que reconhece tarefas em linguagem natural livre e
+  // extrai entidades (ação/objeto/data/responsável/tag) validando contra o
+  // contexto REAL do usuário. Ver `src/engine/taskEngine/taskParser.ts`.
+  const buildTaskContext = useCallback((): TaskParserContext => {
+    const s = useAppStore.getState();
+    const tags = Array.from(new Set([...(s.taskTags || []).map((t) => t.label), ...(s.customTaskTags || [])]));
+    return {
+      now: new Date(),
+      people: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),
+      taskTags: tags,
+      keywordMap: s.keywordMap || {},
+    };
+  }, []);
+
+  const runTaskEngine = useCallback((text: string): TaskParseResult => {
+    return parseTaskMessage(text, buildTaskContext());
+  }, [buildTaskContext]);
+
+  type TaskOutcome = {
+    handled: boolean;
+    botText?: string;
+    actions?: string[];
+    botType?: 'bot' | 'fallback';
+  };
+
+  /**
+   * Cria as tarefas devolvidas pelo motor e monta a resposta do bot.
+   * Devolve { handled: false } quando o motor NÃO deve tomar a frente
+   * (ex.: intenção não-tarefa sob confiança baixa), deixando o fluxo
+   * original rodar.
+   */
+  const applyTaskEngineResult = useCallback((	returnText: string, parsedIntent: string): TaskOutcome => {
+    const result = runTaskEngine(returnText);
+    if (result.intent !== 'create_task' || result.tasks.length === 0) {
+      // Motor decidiu que NÃO é tarefa. Se o regex classificou como
+      // TASK_ADD/TASK_WITH_DATE, honramos o motor (negação/passado/pergunta)
+      // em vez de criar uma tarefa errada.
+      if (parsedIntent === 'TASK_ADD' || parsedIntent === 'TASK_WITH_DATE') {
+        return { handled: true, botText: result.reason ? `Não registrei tarefa: ${result.reason}` : 'Não identifiquei uma tarefa nessa mensagem.', botType: 'bot' };
+      }
+      // Caso UNKNOWN: deixa o fluxo original decidir (fallback).
+      return { handled: false };
+    }
+    // Confiança baixa não cria automaticamente — cai para fallback/IA.
+    const minconf = 0.5;
+    if (result.tasks.every((t) => t.confidence < minconf)) {
+      return { handled: false };
+    }
+
+    const created: string[] = [];
+    for (const t of result.tasks) {
+      if (t.confidence < minconf) continue;
+      addTask({
+        description: t.title,
+        done: false,
+        dueDate: t.dueDate,
+        dueDateLabel: t.dueDateLabel,
+        priority: 'media',
+        subtasks: [],
+        tags: t.tags,
+        createdAt: new Date().toISOString(),
+        employeeId: t.assigneeId || undefined,
+      });
+      const parts: string[] = [`✓ Tarefa registrada: ${t.title}`];
+      if (t.dueDate) parts.push(`Prazo: ${t.dueDateLabel || t.dueDate}${t.dueTime ? ` às ${t.dueTime}` : ''}`);
+      if (t.assigneeId) parts.push(`Responsável: ${t.assigneeName}`);
+      if (t.tags.length > 0) parts.push(`Tags: ${t.tags.join(', ')}`);
+      created.push(parts.join(' · '));
+    }
+    if (created.length === 0) return { handled: false };
+    return { handled: true, botText: created.join('\n'), actions: ['Concluir'], botType: 'bot' };
+  }, [runTaskEngine, addTask]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -96,6 +172,46 @@ export default function ChatScreen() {
 
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
+
+    // Motor de TAREFAS — toma a frente quando o domínio é tarefa (regex
+    // classificou TASK_ADD/TASK_WITH_DATE) ou quando o regex não reconheceu
+    // (UNKNOWN) mas o motor consegue extrair uma tarefa com confiança.
+    if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE' || parsed.intent === 'UNKNOWN') {
+      const outcome = applyTaskEngineResult(text, parsed.intent);
+      if (outcome.handled) {
+        botText = outcome.botText ?? botText;
+        actions = outcome.actions ?? actions;
+        botType = outcome.botType ?? botType;
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          type: botType,
+          text: botText,
+          actions,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMsg, botMsg]);
+        setInput('');
+        scrollToBottom();
+        return;
+      }
+      // não handled: se era TASK_ADD/TASK_WITH_DATE e motor não criou, evita
+      // o fluxo antigo (que criaria tarefa sem entidades). Vai para fallback.
+      if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE') {
+        botType = 'fallback';
+        botText = 'Não consegui identificar uma tarefa nessa mensagem. O que você quer fazer?';
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          type: botType,
+          text: botText,
+          actions,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMsg, botMsg]);
+        setInput('');
+        scrollToBottom();
+        return;
+      }
+    }
 
     if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
       const matches = resolveEmployee(parsed.entities.employeeName || '');
@@ -276,18 +392,6 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         });
         }
       }
-    } else if (parsed.intent === 'TASK_ADD') {
-      actions = ['Concluir'];
-      addTask({ description: parsed.entities.description || '', done: false, dueDate: null, priority: 'media', subtasks: [], tags: [], createdAt: new Date().toISOString() });
-    } else if (parsed.intent === 'TASK_WITH_DATE') {
-      actions = ['Concluir'];
-      addEvent({
-        date: new Date().toISOString().split('T')[0],
-        time: null,
-        description: parsed.entities.description || '',
-        done: false,
-        type: 'task',
-      });
     }
 
     const botMsg: Message = {
@@ -301,7 +405,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins]);
+}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins, applyTaskEngineResult, scrollToBottom]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -320,6 +424,39 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
+
+    if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE' || parsed.intent === 'UNKNOWN') {
+      const outcome = applyTaskEngineResult(transcript.trim(), parsed.intent);
+      if (outcome.handled) {
+        botText = outcome.botText ?? botText;
+        actions = outcome.actions ?? actions;
+        botType = outcome.botType ?? botType;
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          type: botType,
+          text: botText,
+          actions,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMsg, botMsg]);
+        scrollToBottom();
+        return;
+      }
+      if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE') {
+        botType = 'fallback';
+        botText = 'Não consegui identificar uma tarefa nessa mensagem. O que você quer fazer?';
+        const botMsg: Message = {
+          id: (Date.now() + 1).toString(),
+          type: botType,
+          text: botText,
+          actions,
+          timestamp: new Date(),
+        };
+        setMessages((prev) => [...prev, userMsg, botMsg]);
+        scrollToBottom();
+        return;
+      }
+    }
 
     if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
       const matches = resolveEmployee(parsed.entities.employeeName || '');
@@ -498,18 +635,6 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         });
         }
       }
-    } else if (parsed.intent === 'TASK_ADD') {
-      actions = ['Concluir'];
-      addTask({ description: parsed.entities.description || '', done: false, dueDate: null, priority: 'media', subtasks: [], tags: [], createdAt: new Date().toISOString() });
-    } else if (parsed.intent === 'TASK_WITH_DATE') {
-      actions = ['Concluir'];
-      addEvent({
-        date: new Date().toISOString().split('T')[0],
-        time: null,
-        description: parsed.entities.description || '',
-        done: false,
-        type: 'task',
-      });
     }
 
     const botMsg: Message = {
@@ -523,7 +648,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setMessages((prev) => [...prev, userMsg, botMsg]);
     setInput('');
     scrollToBottom();
-}, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins]);
+}, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins, applyTaskEngineResult]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
