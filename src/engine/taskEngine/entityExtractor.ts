@@ -40,33 +40,48 @@ export interface ExtractedFragment {
  * Quebra a mensagem em múltiplos fragmentos quando há delimitadores de
  * múltiplas tarefas E cada lado contém um verbo de ação próprio. Sem isso,
  * não forçamos múltiplas tarefas (regra de não-ambiguidade da seção 7).
+ *
+ * IMPORTANTE: opera sobre o texto **bruto** (`n.original`), porque o
+ * `normalizeMessage` remove pontuação (vírgulas/pontos-e-vírgulas) que
+ * são os delimitadores naturais de múltiplas tarefas. Sem isso, split
+ * por vírgula nunca casa depois da normalização.
  */
 export function splitTaskFragments(n: NormalizedText): string[] {
   if (!n.text) return [];
 
-  // Primeiro tenta separar por delimitador. Mantém os delimitadores
-  // descobertos para evitar splits burros ("comprar cimento, areia e brita"
-  // NÃO são 3 tarefas — é UM objeto com lista).
-  // Heurística: só separa quando cada lado possui verbo de ação próprio.
-  const roughParts = roughSplit(n.text);
-  if (roughParts.length <= 1) return [n.text];
+  // Split sobre o texto bruto para preservar vírgulas/pontos-e-vírgulas.
+  const rawParts = roughSplitRaw(n.original);
+  if (rawParts.length <= 1) return [n.text];
 
-  const valid = roughParts.filter((p) => hasOwnAction(p));
-  // Se só um lado tem ação, é objeto composto, NÃO múltiplas tarefas.
+  // Filtra fragmentos que possuem verbo de ação próprio — regra da
+  // seção 7 (lista de objetos NÃO vira múltiplas tarefas).
+  const valid = rawParts.filter((p) => hasOwnAction(normalizeForSplit(p)));
   if (valid.length <= 1) return [n.text];
-  return valid;
+  // Devolve cada fragmento já NORMALIZADO (lowercase, sem pontuação) para
+  // manter compatibilidade com o resto do pipeline que espera texto
+  // normalizado.
+  return valid.map((p) => normalizeForSplit(p));
 }
 
-function roughSplit(text: string): string[] {
-  // Divide em " e " e "," mas mantém listas que vêm após mesmo verbo.
-  // Estratégia: split por " e " / "," e depois reúne pedaços que não têm verbo
-  // próprio no pedaço anterior (lista de objetos).
-  const raw = text.split(/,|;\s*|\s+e\s+|\s+depois\s+/i).map((p) => p.trim()).filter(Boolean);
+/** Normaliza só o necessário para checagem de ação (lowercase + acentos). */
+function normalizeForSplit(raw: string): string {
+  return raw.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/** Split bruto por vírgula, ponto-e-vírgula, " e ", " depois ". */
+function roughSplitRaw(text: string): string[] {
+  // Marca delimitadores preservando-os como sentinela antes do split,
+  // para não destruir listas internas ("comprar cimento, areia e brita").
+  // Aqui dividimos por delimitadores de CLÁUSULA — vírgula + " e " + ";".
+  const raw = text
+    .split(/,|;|\s+e\s+|\s+depois\s+/i)
+    .map((p) => p.trim())
+    .filter(Boolean);
   if (raw.length <= 1) return raw;
   // Reúne pedaços sem ação no pedaço anterior (lista de objetos).
   const merged: string[] = [];
   for (const part of raw) {
-    if (hasOwnAction(part) || merged.length === 0) {
+    if (hasOwnAction(normalizeForSplit(part)) || merged.length === 0) {
       merged.push(part);
     } else {
       // anexa como lista de objetos ao último fragmento

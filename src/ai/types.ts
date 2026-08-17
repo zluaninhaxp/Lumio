@@ -47,7 +47,18 @@ export interface OnboardingExtractionResult {
 export interface RecommendedPlugin {
   /** Id do plugin — ver lista fechada a ser definida no Prompt 2. */
   plugin: string;
-  /** Frase curta e humana, ex: "Você mencionou que revende produtos". */
+  /**
+   * Justificativa humana de POR QUE este plugin faz sentido para ESTE
+   * usuário (ex: "Você mencionou que revende produtos com giro rápido").
+   *
+   * NÃO é a descrição oficial do plugin — a descrição de cada plugin já
+   * existe previamente no catálogo em `src/plugins/registry.ts` e é
+   * sempre exibida de forma idêntica pelo app (a partir de
+   * `PluginDefinition.description`), independentemente das respostas do
+   * usuário. A IA não deve gerar, resumir ou adaptar essa descrição em
+   * hipótese alguma; `reason` serve apenas para explicar a recomendação
+   * para aquele usuário, separada da descrição oficial.
+   */
   reason: string;
   confidence: 'alta' | 'media' | 'baixa';
 }

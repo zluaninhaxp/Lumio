@@ -171,10 +171,16 @@ export default function OnboardingSummaryScreen() {
             <Text style={styles.pluginSectionTitle}>Sugestões pra você</Text>
             {extraction.recommendedPlugins.map((p) => {
               const isActivated = activatedPlugins.includes(p.plugin);
+              const def = getPluginDefinition(p.plugin);
               return (
                 <View key={p.plugin} style={styles.pluginCard}>
                   <Text style={styles.pluginName}>{friendlyPluginName(p.plugin)}</Text>
-                  <Text style={styles.pluginReason}>{p.reason}</Text>
+                  {def ? (
+                    <Text style={styles.pluginDescription}>{def.description}</Text>
+                  ) : null}
+                  {p.reason ? (
+                    <Text style={styles.pluginReason}>Por que pra você: {p.reason}</Text>
+                  ) : null}
                   <View style={styles.pluginActions}>
                     <TouchableOpacity
                       style={[styles.pluginBtn, isActivated && styles.pluginBtnActive]}
@@ -356,10 +362,17 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     marginBottom: 4,
   },
-  pluginReason: {
+  pluginDescription: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  pluginReason: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+    fontStyle: 'italic',
     marginBottom: Spacing.md,
   },
   pluginActions: { flexDirection: 'row', gap: Spacing.sm },

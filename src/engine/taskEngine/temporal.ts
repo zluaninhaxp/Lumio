@@ -187,7 +187,8 @@ export function resolveTemporal(tokens: string[], now: Date): { resolution: Temp
     }
   }
 
-  // 6) "dia 20", "20/08", "20/08/2026", "dia 20 de agosto"
+  // 6) "dia 20", "20/08", "20/08/2026", "dia 20 de agosto" — com lookahead
+  // opcional para "às HH:MM" imediatamente depois (ex.: "dia 20 às 15h").
   for (let i = 0; i < n; i++) {
     const t = tokens[i];
     if (t === 'dia' && /^\d{1,2}$/.test(tokens[i + 1] ?? '')) {
@@ -199,18 +200,26 @@ export function resolveTemporal(tokens: string[], now: Date): { resolution: Temp
         const mc = MONTHS.find((m) => m.aliases.includes(stripAccents(tokens[i + 3] ?? '').toLowerCase()) || m.aliases.includes(tokens[i + 3] ?? ''));
         if (mc) { month = mc.month; consumed = 4; if (tokens[i + 4] === 'de' && /^\d{4}$/.test(tokens[i + 5] ?? '')) { year = Number(tokens[i + 5]); consumed = 6; } }
       }
+      // Lookahead de horário logo após o bloco de data.
+      const time = parseTimeAt(tokens, i + consumed);
       if (month !== null) {
+        if (time) return { resolution: { dueDate: toISO(buildDate(day, month, year)), dueTime: time.time, expression: `${tokens.slice(i, i + consumed).join(' ')} às ${time.time}`, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + consumed + time.consumed] };
         return { resolution: { dueDate: toISO(buildDate(day, month, year)), dueTime: null, expression: tokens.slice(i, i + consumed).join(' '), isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + consumed] };
       }
       // só "dia N" — mês corrente; se já passou, próximo mês
       const candidate = buildDate(day, now.getMonth() + 1, now.getFullYear());
       const final = stripTime(candidate) < stripTime(now) ? rolloverNextMonth(now, day) : candidate;
-      return { resolution: { dueDate: toISO(final), dueTime: null, expression: `dia ${day}`, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + 2] };
+      if (time) return { resolution: { dueDate: toISO(final), dueTime: time.time, expression: `dia ${day} às ${time.time}`, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + consumed + time.consumed] };
+      return { resolution: { dueDate: toISO(final), dueTime: null, expression: `dia ${day}`, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + consumed] };
     }
     if (/^\d{1,2}\/\d{1,2}(\/\d{4})?$/.test(t)) {
       const [dd, mm, yyyy] = t.split('/');
       const d = Number(dd), m = Number(mm);
-      if (validDM(d, m)) return { resolution: { dueDate: toISO(buildDate(d, m, yyyy ? Number(yyyy) : now.getFullYear())), dueTime: null, expression: t, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + 1] };
+      if (validDM(d, m)) {
+        const time = parseTimeAt(tokens, i + 1);
+        if (time) return { resolution: { dueDate: toISO(buildDate(d, m, yyyy ? Number(yyyy) : now.getFullYear())), dueTime: time.time, expression: `${t} às ${time.time}`, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + 1 + time.consumed] };
+        return { resolution: { dueDate: toISO(buildDate(d, m, yyyy ? Number(yyyy) : now.getFullYear())), dueTime: null, expression: t, isDeadline: isDeadlineLead(tokens[i - 1]) }, span: [i, i + 1] };
+      }
     }
   }
 

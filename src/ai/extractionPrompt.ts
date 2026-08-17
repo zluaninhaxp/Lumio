@@ -86,6 +86,17 @@ ${sections}
    "fornecedores", "agenda", "orcamentos", "comissoes", "equipe",
    "entregas", "vendas", "contratos". Nunca invente um id fora
    desta lista. Cada recomendação vem com "reason" humano e "confidence".
+   IMPORTANTE: o campo "reason" é APENAS a justificativa de por que este
+   plugin faz sentido para ESTE usuário específico (ex: "Você mencionou
+   que revende produtos com giro rápido"). NÃO gere, NÃO resuma, NÃO
+   adapte e NÃO repita a descrição oficial do plugin — a descrição de
+   cada plugin já existe previamente na página de Apps/Módulos e será
+   exibida pelo app a partir do catálogo em src/plugins/registry.ts,
+   de forma idêntica para todos os usuários. O "reason" nunca deve
+   descrever o que o plugin faz; deve apenas explicar por que ele foi
+   recomendado para o negócio deste usuário. Não altere, resuma ou
+   tente adaptar a funcionalidade do plugin para encaixar nas
+   necessidades identificadas no onboarding.
 6. NUNCA invente "businessName" ou "segment" caso não sejam identificáveis
    com segurança — use null nesses casos e registre o campo em
    "missingInformation".

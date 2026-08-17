@@ -8,6 +8,8 @@ import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
 import type { TaskParserContext, TaskParseResult } from '../../src/engine/taskEngine/types';
+import { parseCalendarMessage, decideHybrid } from '../../src/engine/calendarEngine/calendarParser';
+import type { CalendarParserContext } from '../../src/engine/calendarEngine/types';
 import { useAppStore } from '../../src/store';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
@@ -15,12 +17,15 @@ import { suggestedDueDate } from '../../src/utils/supplier';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
+import { BotMessageCard, type BotCard } from '../components/chat/BotMessageCard';
 
 interface Message {
   id: string;
   type: 'user' | 'bot' | 'fallback';
   text: string;
   actions?: string[];
+  /** Cards visuais (substituem `text` quando presentes). */
+  cards?: BotCard[];
   timestamp: Date;
 }
 
@@ -39,7 +44,7 @@ export default function ChatScreen() {
   const [accountVisible, setAccountVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 const { currentUser } = useAuth();
-  const { addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap } = useAppStore();
+  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes } = useAppStore();
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:o|a|do|da|de)\s+/i, '');
@@ -95,11 +100,32 @@ return date.toISOString().split('T')[0];
     return parseTaskMessage(text, buildTaskContext());
   }, [buildTaskContext]);
 
+  // ─────── Motor de interpretação de CALENDÁRIO (híbrido, seção 2/3) ───────
+  // Roda em paralelo ao de tarefas. Decide:
+  //  - criar evento independente ("compromisso/reunião/aniversário" + data);
+  //  - calendarizar tarefa com data (representação derivada source='task');
+  //  - ambas as intenções (ver seção 25 — "reunião + levar o orçamento").
+  // Reaproveita normalization/temporal/personResolver do taskEngine.
+  const buildCalendarContext = useCallback((): CalendarParserContext => {
+    const s = useAppStore.getState();
+    return {
+      now: new Date(),
+      calendarEventTypes: (s.calendarEventTypes || []).map((c) => c.label),
+      keywordMap: s.keywordMap || {},
+      people: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),
+    };
+  }, []);
+
+  const runCalendarEngine = useCallback((text: string) => {
+    return parseCalendarMessage(text, buildCalendarContext());
+  }, [buildCalendarContext]);
+
   type TaskOutcome = {
     handled: boolean;
     botText?: string;
     actions?: string[];
     botType?: 'bot' | 'fallback';
+    cards?: BotCard[];
   };
 
   /**
@@ -107,29 +133,95 @@ return date.toISOString().split('T')[0];
    * Devolve { handled: false } quando o motor NÃO deve tomar a frente
    * (ex.: intenção não-tarefa sob confiança baixa), deixando o fluxo
    * original rodar.
+   *
+   * ORQUESTRAÇÃO HÍBRIDA (especificação seções 25/36):
+   *  - Se calendar diz `create_event` puro (confiança alta) → cria SÓ
+   *    eventos independentes, NÃO persiste tarefas do taskEngine (evita
+   *    duplicação "visitar obra" = tarefa + evento).
+   *  - Se calendar diz `create_task_with_calendar` → cria SÓ tarefas com
+   *    calendário derivado (source='task').
+   *  - Se calendar diz `create_task_and_event` → cria eventos independentes
+   *    + tarefas com calendário derivado (cada um no seu domínio).
+   *  - Se calendar diz `none` mas taskEngine tem tarefa com data → cria
+   *    tarefa + calendário derivado.
    */
   const applyTaskEngineResult = useCallback((	returnText: string, parsedIntent: string): TaskOutcome => {
     const result = runTaskEngine(returnText);
+    const cal = runCalendarEngine(returnText);
+    const minconf = 0.5;
+
+    // ─── CASO 1: calendar diz create_event PURO (compromissos/eventos) ───
+    // A intenção dominante é compromisso. NÃO criar tarefas (evita
+    // duplicação "visitar a obra sexta" = tarefa + evento).
+    if (cal.intent === 'create_event' && cal.confidence >= 0.45 && cal.events.length > 0) {
+      const cards: BotCard[] = [];
+      for (const ev of cal.events) {
+        addEvent({
+          date: ev.date,
+          time: ev.time,
+          description: ev.title + (ev.context ? ` — ${ev.context}` : ''),
+          type: 'event',
+          eventType: ev.eventType ?? undefined,
+          source: 'chat',
+        });
+        cards.push({
+          kind: 'event',
+          title: ev.title,
+          date: ev.date,
+          time: ev.time ?? undefined,
+          assignee: ev.personName ?? undefined,
+          eventType: ev.eventType ?? undefined,
+          context: ev.context ?? undefined,
+        });
+      }
+      return { handled: true, botText: '', cards, botType: 'bot' };
+    }
+
+    // ─── CASO 2: taskEngine não reconheceu tarefa ───
     if (result.intent !== 'create_task' || result.tasks.length === 0) {
-      // Motor decidiu que NÃO é tarefa. Se o regex classificou como
-      // TASK_ADD/TASK_WITH_DATE, honramos o motor (negação/passado/pergunta)
-      // em vez de criar uma tarefa errada.
       if (parsedIntent === 'TASK_ADD' || parsedIntent === 'TASK_WITH_DATE') {
         return { handled: true, botText: result.reason ? `Não registrei tarefa: ${result.reason}` : 'Não identifiquei uma tarefa nessa mensagem.', botType: 'bot' };
       }
       // Caso UNKNOWN: deixa o fluxo original decidir (fallback).
       return { handled: false };
     }
+
     // Confiança baixa não cria automaticamente — cai para fallback/IA.
-    const minconf = 0.5;
     if (result.tasks.every((t) => t.confidence < minconf)) {
       return { handled: false };
     }
 
-    const created: string[] = [];
+    // ─── CASO 3: calendar diz create_task_and_event ───
+    // Eventos independentes + tarefas com calendário derivado.
+    const decision = decideHybrid(cal, result.tasks.length > 0, result.tasks.some((t) => !!t.dueDate));
+    const eventCards: BotCard[] = [];
+    if (decision.shouldCreateInCalendar && decision.events.length > 0) {
+      for (const ev of decision.events) {
+        addEvent({
+          date: ev.date,
+          time: ev.time,
+          description: ev.title + (ev.context ? ` — ${ev.context}` : ''),
+          type: 'event',
+          eventType: ev.eventType ?? undefined,
+          source: 'chat',
+        });
+        eventCards.push({
+          kind: 'event',
+          title: ev.title,
+          date: ev.date,
+          time: ev.time ?? undefined,
+          assignee: ev.personName ?? undefined,
+          eventType: ev.eventType ?? undefined,
+          context: ev.context ?? undefined,
+        });
+      }
+    }
+
+    // ─── CASO 4: criar tarefas (com calendário derivado quando tem data) ───
+    const taskCards: BotCard[] = [];
     for (const t of result.tasks) {
       if (t.confidence < minconf) continue;
-      addTask({
+      const taskId = addTask({
         description: t.title,
         done: false,
         dueDate: t.dueDate,
@@ -140,15 +232,35 @@ return date.toISOString().split('T')[0];
         createdAt: new Date().toISOString(),
         employeeId: t.assigneeId || undefined,
       });
-      const parts: string[] = [`✓ Tarefa registrada: ${t.title}`];
-      if (t.dueDate) parts.push(`Prazo: ${t.dueDateLabel || t.dueDate}${t.dueTime ? ` às ${t.dueTime}` : ''}`);
-      if (t.assigneeId) parts.push(`Responsável: ${t.assigneeName}`);
-      if (t.tags.length > 0) parts.push(`Tags: ${t.tags.join(', ')}`);
-      created.push(parts.join(' · '));
+      // Calendariozação: se a tarefa tem data relevante (execução OU prazo)
+      // criamos um evento derivado (source='task') com deadline marcado
+      // quando aplicável (especificação seções 4/6/14/22).
+      let isDeadline = false;
+      if (t.dueDate) {
+        const evType = decision.taskCalendar?.eventType ?? undefined;
+        isDeadline = t.entities.isDeadline || (decision.taskCalendar?.deadline ?? false);
+        calendarizeTask(taskId, {
+          date: t.dueDate,
+          time: t.dueTime ?? null,
+          deadline: isDeadline,
+          eventType: evType ?? undefined,
+        });
+      }
+      taskCards.push({
+        kind: isDeadline ? 'deadline' : 'task',
+        title: t.title,
+        date: t.dueDate ?? undefined,
+        dateLabel: t.dueDateLabel ?? undefined,
+        time: t.dueTime ?? undefined,
+        assignee: t.assigneeName ?? undefined,
+        tags: t.tags.length > 0 ? t.tags : undefined,
+        context: t.description ?? undefined,
+      });
     }
-    if (created.length === 0) return { handled: false };
-    return { handled: true, botText: created.join('\n'), actions: ['Concluir'], botType: 'bot' };
-  }, [runTaskEngine, addTask]);
+    if (taskCards.length === 0 && eventCards.length === 0) return { handled: false };
+    const allCards = [...taskCards, ...eventCards];
+    return { handled: true, botText: '', cards: allCards, actions: ['Concluir'], botType: 'bot' };
+  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -187,6 +299,7 @@ return date.toISOString().split('T')[0];
           type: botType,
           text: botText,
           actions,
+          cards: outcome.cards,
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, userMsg, botMsg]);
@@ -436,6 +549,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           type: botType,
           text: botText,
           actions,
+          cards: outcome.cards,
           timestamp: new Date(),
         };
         setMessages((prev) => [...prev, userMsg, botMsg]);
@@ -689,13 +803,23 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       );
     }
 
+    const hasCards = item.cards && item.cards.length > 0;
+
     return (
       <View style={styles.botRow}>
-        {renderBotAvatar(isTransactionReport ? 'piscando' : 'neutro')}
+        {renderBotAvatar(hasCards ? 'piscando' : isTransactionReport ? 'piscando' : 'neutro')}
         <View style={styles.botContent}>
-          <View style={styles.botBubble}>
-            <Text style={styles.botText}>{item.text}</Text>
-          </View>
+          {hasCards ? (
+            <View style={styles.cardsContainer}>
+              {item.cards!.map((card, idx) => (
+                <BotMessageCard key={idx} card={card} />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.botBubble}>
+              <Text style={styles.botText}>{item.text}</Text>
+            </View>
+          )}
           {item.actions && item.actions.length > 0 && (
             <View style={styles.actionsRow}>
               {item.actions.map((action) => (
@@ -849,6 +973,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   botContent: { flex: 1, gap: Spacing.xs },
+  cardsContainer: {
+    gap: Spacing.xs,
+    alignSelf: 'flex-start',
+    maxWidth: '92%',
+  },
   botBubble: {
     backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,

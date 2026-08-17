@@ -68,17 +68,25 @@ export function EventListItem({
   }, [item.id, onDelete, opacity]);
 
   const isTask = item.type === 'task';
+  // Deadline (prazo) é uma tarefa com `deadline: true` — representação
+  // visual distinta de compromisso pontual (seção 21). Eventos antigos
+  // sem `deadline` continuam com checkbox normal.
+  const isDeadline = isTask && item.deadline === true;
+  // Evento derivado de tarefa (source='task') — checkbox sincroniza com a
+  // tarefa vinculada; não é editável/deletável como evento independente.
+  const isTaskDerived = isTask && item.source === 'task';
 
   return (
     <Animated.View style={[styles.card, { opacity }]}>
       <View style={styles.row}>
         {isTask || item.id.startsWith('appointment:') ? (
           <TouchableOpacity
-            style={[styles.checkbox, item.done && styles.checkboxDone]}
+            style={[styles.checkbox, item.done && styles.checkboxDone, isDeadline && styles.checkboxDeadline]}
             onPress={handleToggle}
             activeOpacity={0.7}
           >
             {item.done && <Ionicons name="checkmark" size={14} color="#FFF" />}
+            {!item.done && isDeadline && <Ionicons name="time-outline" size={12} color={Colors.warning} />}
           </TouchableOpacity>
         ) : (
           <View style={[styles.eventBar, { backgroundColor: Colors.accent }]} />
@@ -91,6 +99,17 @@ export function EventListItem({
               {item.type === 'event' && (
                 <Text style={styles.typeBadge}> · Evento</Text>
               )}
+              {isDeadline && (
+                <Text style={styles.deadlineBadge}> · Prazo</Text>
+              )}
+              {isTaskDerived && !isDeadline && (
+                <Text style={styles.typeBadge}> · Tarefa</Text>
+              )}
+            </Text>
+          )}
+          {!item.time && isDeadline && (
+            <Text style={styles.time}>
+              <Text style={styles.deadlineBadge}>Prazo</Text>
             </Text>
           )}
           <Text
@@ -141,6 +160,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkboxDone: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  checkboxDeadline: { borderColor: Colors.warning },
+  deadlineBadge: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.warning,
+  },
   eventBar: {
     width: 4,
     height: 36,

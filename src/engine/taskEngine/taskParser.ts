@@ -83,8 +83,14 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
   // fora do contexto, que o motor não inventa (seção 20).
   const person = resolvePerson(fragment, context.people);
 
+  // Limpa o objeto: remove o nome da pessoa E verbos-gap ("precisa", "vai",
+  // "tem", "que") que aparecem entre o sujeito-pessoa e a ação.
+  // Ex.: "o joão precisa verificar o orçamento" -> objeto "o orçamento"
+  //      em vez de "joão precisa o orçamento".
+  const cleanedEntity = cleanObjectFromPerson(entity, person.name);
+
   // Resolve tags contra o contexto do usuário.
-  const tagSource = entity.object ? `${entity.action ?? ''} ${entity.object} ${person.name ?? ''}` : `${entity.action ?? ''} ${person.name ?? ''}`;
+  const tagSource = cleanedEntity.object ? `${cleanedEntity.action ?? ''} ${cleanedEntity.object} ${person.name ?? ''}` : `${cleanedEntity.action ?? ''} ${person.name ?? ''}`;
   const tags = resolveTags(tagSource, { taskTags: context.taskTags, keywordMap: context.keywordMap });
 
   // Data: usa a resolução já calculada no extractor; herda data compartilhada
@@ -94,14 +100,14 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
   const dueDateLabel = humanizeDueDate(dueDateISO, context.now);
 
   // Monta o título.
-  const title = buildTitle(entity, person.name);
+  const title = buildTitle(cleanedEntity, person.name);
   if (!title) return null;
 
   // Descrição: contexto narrativo extra que não coube no título.
-  const description = buildDescription(fragment, title, entity, person.name);
+  const description = buildDescription(fragment, title, cleanedEntity, person.name);
 
   // Confiança individual do fragmento: combina baseConf + presença de objeto/data/pessoa.
-  const fragConf = fragmentConfidence(baseConfidence, entity, !!person.id, dueDateISO);
+  const fragConf = fragmentConfidence(baseConfidence, cleanedEntity, !!person.id, dueDateISO);
 
   return {
     title,
@@ -112,11 +118,69 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
     assigneeId: person.id,
     assigneeName: person.name,
     tags,
-    entities: { ...entity, personName: person.name },
+    entities: { ...cleanedEntity, personName: person.name },
     confidence: fragConf.score,
     confidenceLevel: fragConf.level,
     originalText,
   };
+}
+
+/**
+ * Remove do `entity.object` o nome da pessoa resolvida + verbos-gap que
+ * aparecem entre o sujeito-pessoa e a ação, produzindo um título limpo.
+ *
+ * Ex.: "amanhã o João precisa verificar o orçamento"
+ *      entity.action = "verificar", entity.object = "joão precisa o orçamento"
+ *      person.name = "João Silva"
+ *      -> object limpo: "o orçamento" -> título "Verificar O orçamento"
+ *
+ * Ex.: "o João pediu pra eu verificar o orçamento amanhã"
+ *      entity.object = "joão pediu pra eu o orçamento"
+ *      -> object limpo: "o orçamento" (remove "joão", "pediu", "pra", "eu")
+ */
+function cleanObjectFromPerson(entity: TaskEntity, personName: string | null): TaskEntity {
+  if (!entity.object || !personName) return entity;
+  const personFirst = personName.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  if (!personFirst || personFirst.length < 3) return entity;
+
+  // Tokens do objeto.
+  const tokens = entity.object.split(' ');
+  // Remove o primeiro nome da pessoa (e variações com artigo "o/a").
+  const GAP_WORDS = new Set([
+    'precisa', 'precisamos', 'precisava', 'tem', 'temos', 'tinha',
+    'vai', 'vao', 'vão', 'foi', 'foram', 'ia', 'indo',
+    'que', 'de', 'da', 'do', 'pra', 'pro', 'para',
+    'pediu', 'pediu pra', 'pediu para', 'falou', 'falou pra', 'falou para',
+    'disse', 'disse que', 'quer', 'queria', 'quer que',
+    'eu', 'nós', 'nos', 'mim', 'ele', 'ela', 'eles', 'elas',
+    'me', 'te', 'se', 'lhe',
+  ]);
+
+  const cleaned: string[] = [];
+  let skipPerson = false;
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    // Se for o artigo "o/a" seguido do nome da pessoa, pula ambos.
+    if ((tok === 'o' || tok === 'a') && tokens[i + 1] === personFirst) {
+      i++; // pula o nome
+      skipPerson = true;
+      continue;
+    }
+    // Se for o próprio nome da pessoa.
+    if (tok === personFirst) {
+      skipPerson = true;
+      continue;
+    }
+    // Se acabamos de pular a pessoa, remove verbos-gap seguintes.
+    if (skipPerson && GAP_WORDS.has(tok)) {
+      continue;
+    }
+    skipPerson = false;
+    cleaned.push(tok);
+  }
+
+  const newObj = cleaned.join(' ').replace(/\s+/g, ' ').trim() || null;
+  return { ...entity, object: newObj };
 }
 
 /** Herança de data entre múltiplas tarefas (seção 7): se a mensagem tem uma
@@ -174,7 +238,7 @@ function buildDescription(fragment: string, title: string, entity: TaskEntity, p
   // Se o fragmento original contém muito mais informação que o título,
   // preservamos o contexto extra na descrição.
   const minFragment = fragment.replace(/\s+/g, ' ').trim();
-  // Remove do fragmento as marcas já representadas no título (ação + objeto + data).
+  // Remove do fragmento as marcas já representadas no título (ação + objeto + data + pessoa).
   let leftover = minFragment;
   if (entity.action) {
     const re = new RegExp(escapeReg(entity.action) + '\\b', 'gi');
@@ -182,6 +246,20 @@ function buildDescription(fragment: string, title: string, entity: TaskEntity, p
   }
   if (entity.object) leftover = leftover.replace(new RegExp(escapeReg(entity.object), 'gi'), '');
   if (entity.dateExpression) leftover = leftover.replace(new RegExp(escapeReg(entity.dateExpression), 'gi'), '');
+  // Remove também o nome da pessoa (primeiro nome e nome completo) — evita
+  // descrição residual tipo "O joão precisa" quando a pessoa já está no
+  // assigneeName.
+  if (personName) {
+    const firstName = personName.trim().split(/\s+/)[0] ?? '';
+    if (firstName.length >= 3) {
+      leftover = leftover.replace(new RegExp(escapeReg(firstName), 'gi'), '');
+    }
+    leftover = leftover.replace(new RegExp(escapeReg(personName), 'gi'), '');
+  }
+  // Remove verbos-gap comuns que ficam como resíduo ("precisa", "vai", "tem",
+  // "pediu", "falou", "que", "pra", "eu", etc.) — só quando estão isolados.
+  const GAP_RE = /\b(?:precisa|precisamos|precisava|tem|temos|tinha|vai|vao|vão|foi|foram|pediu|falou|disse|quer|queria|que|pra|pro|para|de|da|do|eu|nós|nos|mim|ele|ela|eles|elas|me|te|se|lhe)\b/gi;
+  leftover = leftover.replace(GAP_RE, ' ');
   leftover = leftover.replace(/\s+/g, ' ').replace(/^[,;: ]+|[,;: ]+$/g, '').trim();
 
   // Só vale como descrição se sobrou contexto significativo (> 12 chars, palavras reais).

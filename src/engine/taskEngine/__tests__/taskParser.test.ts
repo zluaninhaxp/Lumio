@@ -298,3 +298,45 @@ test('João falou que amanhã precisamos verificar o orçamento da obra do clien
   assert.match(r.tasks[0].title, /Verificar/i);
   assert.ok(r.tasks[0].title.toLowerCase().includes('orçamento'));
 });
+
+// ─── LIMPEZA DE TÍTULO (remover menção de pessoa do objeto) ──────────
+test('título NÃO inclui nome da pessoa quando ela é sujeito ("o João precisa verificar o orçamento")', () => {
+  const r = parse('amanhã o João precisa verificar o orçamento');
+  assert.equal(r.tasks[0].assigneeName, 'João Silva');
+  // Título deve ser "Verificar O orçamento" ou similar — NÃO "Verificar João precisa o orçamento"
+  assert.ok(!r.tasks[0].title.toLowerCase().includes('joão'),
+    `título não deve conter "joão": "${r.tasks[0].title}"`);
+  assert.match(r.tasks[0].title, /orçamento/i);
+});
+
+test('título NÃO inclui "precisa" / "vai" / "tem" do sujeito-pessoa', () => {
+  const r = parse('sexta o João vai verificar o orçamento');
+  assert.equal(r.tasks[0].assigneeName, 'João Silva');
+  assert.ok(!/\b(precisa|vai|tem|pediu|falou)\b/i.test(r.tasks[0].title),
+    `título não deve conter verbos-gap: "${r.tasks[0].title}"`);
+  assert.match(r.tasks[0].title, /verificar/i);
+});
+
+test('título preserva objeto mesmo sem pessoa ("preciso comprar cimento")', () => {
+  const r = parse('preciso comprar cimento amanhã');
+  assert.match(r.tasks[0].title, /Comprar cimento/i);
+  assert.equal(r.tasks[0].assigneeName, null);
+});
+
+test('título com pessoa após preposição ("ligar pro João") mantém atribuição', () => {
+  const r = parse('liga pro João');
+  assert.equal(r.tasks[0].assigneeName, 'João Silva');
+  // "Ligar com João" ou "Ligar" — o importante é a atribuição
+  assert.match(r.tasks[0].title, /ligar/i);
+});
+
+test('descrição NÃO contém nome da pessoa nem verbos-gap ("o joão precisa")', () => {
+  const r = parse('amanhã o João precisa verificar o orçamento');
+  assert.equal(r.tasks[0].assigneeName, 'João Silva');
+  // Descrição deve ser null ou não conter "joão" nem "precisa"
+  const desc = r.tasks[0].description;
+  if (desc) {
+    assert.ok(!desc.toLowerCase().includes('joão'), `descrição não deve ter "joão": "${desc}"`);
+    assert.ok(!desc.toLowerCase().includes('precisa'), `descrição não deve ter "precisa": "${desc}"`);
+  }
+});
