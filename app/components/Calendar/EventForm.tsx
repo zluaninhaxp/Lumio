@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
+  ScrollView,
 } from 'react-native';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
+import { useAppStore } from '../../../src/store';
 
 interface EventFormProps {
   initialDate: string;
@@ -18,8 +20,15 @@ interface EventFormProps {
 export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
   const [description, setDescription] = useState('');
   const [type, setType] = useState<'event' | 'task'>('task');
+  const [eventType, setEventType] = useState<string>('');
   const [time, setTime] = useState('');
   const [date, setDate] = useState(initialDate);
+
+  const calendarEventTypes = useAppStore((s) => s.calendarEventTypes);
+  const eventTypeLabels = useMemo(
+    () => calendarEventTypes.map((c) => c.label),
+    [calendarEventTypes]
+  );
 
   const formatDisplayDate = (dateStr: string) => {
     const d = new Date(dateStr + 'T12:00:00');
@@ -33,7 +42,15 @@ export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
       time: type === 'event' ? (time || '00:00') : null,
       description: description.trim(),
       type,
+      eventType: type === 'event' && eventType ? eventType : undefined,
     });
+  };
+
+  const handleSelectType = (next: 'event' | 'task') => {
+    setType(next);
+    if (next === 'event' && !eventType && eventTypeLabels.length > 0) {
+      setEventType(eventTypeLabels[0]);
+    }
   };
 
   const quickDate = (offset: number) => {
@@ -60,7 +77,7 @@ export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
       <View style={styles.typeRow}>
         <TouchableOpacity
           style={[styles.typeBtn, type === 'task' && styles.typeBtnActive]}
-          onPress={() => setType('task')}
+          onPress={() => handleSelectType('task')}
         >
           <Text style={[styles.typeBtnText, type === 'task' && styles.typeBtnTextActive]}>
             Tarefa
@@ -68,13 +85,39 @@ export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.typeBtn, type === 'event' && styles.typeBtnActive]}
-          onPress={() => setType('event')}
+          onPress={() => handleSelectType('event')}
         >
           <Text style={[styles.typeBtnText, type === 'event' && styles.typeBtnTextActive]}>
             Evento
           </Text>
         </TouchableOpacity>
       </View>
+
+      {type === 'event' && eventTypeLabels.length > 0 && (
+        <>
+          <Text style={styles.label}>Tipo de evento</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.eventTypeRow}
+          >
+            {eventTypeLabels.map((label) => {
+              const active = eventType === label;
+              return (
+                <TouchableOpacity
+                  key={label}
+                  style={[styles.eventTypeChip, active && styles.eventTypeChipActive]}
+                  onPress={() => setEventType(label)}
+                >
+                  <Text style={[styles.eventTypeChipText, active && styles.eventTypeChipTextActive]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </>
+      )}
 
       <Text style={styles.label}>Data</Text>
       <View style={styles.dateRow}>
@@ -161,6 +204,28 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   typeBtnTextActive: { color: '#FFF' },
+  eventTypeRow: {
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  eventTypeChip: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bgCard,
+  },
+  eventTypeChipActive: {
+    backgroundColor: Colors.accent,
+    borderColor: Colors.accent,
+  },
+  eventTypeChipText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  eventTypeChipTextActive: { color: '#FFF' },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',

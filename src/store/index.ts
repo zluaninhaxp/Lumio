@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { mockTransactions, mockTasks, mockCalendarEvents } from '../data/mock';
 import {
   guessBusinessTypeFallback,
   guessBusinessNameFallback,
@@ -29,6 +28,15 @@ export interface Transaction {
   confirmed?: boolean;
   /** Funcionário vinculado (ex: comissão paga). */
   employeeId?: string;
+  /**
+   * Id da `Task` que originou/está vinculada a esta movimentação, quando o
+   * lançamento veio de uma obrigação financeira criada via chat ("tenho
+   * que pagar o fornecedor até sexta"). Relação bidirecional: a `Task`
+   * correspondente possui `financeTransactionId` apontando de volta.
+   * Concluir a tarefa NÃO apaga o lançamento (o registro financeiro é
+   * permanente; ver integração Chat→Financeiro, seção 46).
+   */
+  taskId?: string;
 }
 export interface Task {
   id: string;
@@ -41,6 +49,24 @@ export interface Task {
   tags: string[];
   createdAt: string;
   employeeId?: string;
+  /**
+   * Id do `CalendarEvent` que representa esta tarefa no calendário, quando
+   * a tarefa foi originada com uma referência temporal (prazo ou data de
+   * execução). A relação é bidirecional: o evento correspondente contém
+   * `taskId` apontando de volta. Eventos criados a partir de tarefas
+   * possuem `source === 'task'` (ver `CalendarEvent.source`).
+   *
+   * Quando a tarefa NÃO possui representação no calendário (sem data), o
+   * campo fica `undefined`. Ver seção 5/6 da especificação de Calendário.
+   */
+  calendarEventId?: string;
+  /**
+   * Id da `Transaction` vinculada a esta tarefa quando ela representa uma
+   * obrigação financeira criada via chat ("preciso pagar o funcionário até
+   * dia 20"). Relação bidirecional: a `Transaction` possui `taskId`.
+   * Concluir/excluir a tarefa NÃO apaga o lançamento financeiro.
+   */
+  financeTransactionId?: string;
 }
 
 export interface CalendarEvent {
@@ -50,6 +76,45 @@ export interface CalendarEvent {
   description: string;
   done: boolean;
   type: 'event' | 'task';
+  /**
+   * Rótulo semântico opcional para eventos (ex.: "Atendimento agendado",
+   * "Entrega de fornecedor"). Vem do `coreCategories.calendarEventTypes`
+   * gerado no onboarding (ver `applyOnboardingExtraction`) e só é
+   * preenchido na criação manual via `EventForm`. Eventos antigos /
+   * sintéticos (contratos, entregas, atendimentos) continuam funcionando
+   * sem ele. Não confundir com `type` (distinção estrutural event/task).
+   */
+  eventType?: string;
+  /**
+   * Id da `Task` que originou este evento, quando `source === 'task'`.
+   * Permite a sincronização bidirecional (conclusão/edição/exclusão) entre
+   * a tarefa e sua representação no calendário. Ver seções 5-11 da
+   * especificação de Calendário.
+   */
+  taskId?: string;
+  /**
+   * Origem do evento para diferenciar tratamento na sincronização:
+   *  - `manual`: criado pelo usuário na tela do Calendário (`EventForm`).
+   *  - `chat`: criado a partir de uma mensagem do chat como compromisso
+   *    independente (reunião, aniversário, viagem...).
+   *  - `task`: criado automaticamente como representação temporal de uma
+   *    tarefa com `dueDate`. Está vinculado via `taskId` e segue a
+   *    tarefa em edições de data/título/conclusão/exclusão.
+   *
+   * Eventos antigos/sintéticos (já no store antes desta evolução) e os
+   * derivados de plugins (`appointment:`, `contract-due:`, `supplier-due:`,
+   * `cal_del_`) continuam sem `source` e NÃO participam da sincronização
+   * com `Task` — preservando o comportamento anterior.
+   */
+  source?: 'manual' | 'chat' | 'task';
+  /**
+   * `true` quando este evento representa um PRAZO (deadline), não uma
+   * execução pontual. Ex.: tarefa "pagar funcionário até dia 20" gera
+   * evento no calendário com `deadline: true` para diferenciar visualmente
+   * de um compromisso. Eventos manuais/independentes não usam este campo.
+   * Ver seção 21 da especificação de Calendário.
+   */
+  deadline?: boolean;
 }
 
 export interface EstoqueItem {
@@ -362,6 +427,14 @@ employeeItems: EmployeeItem[];
     structuredProfile: OnboardingExtractionResult | null;
     activatedPlugins: string[];
   }) => void;
+  /**
+   * Zera todos os dados derivados do onboarding no store. Usado pela
+   * `AuthContext` quando um usuário loga sem nenhum record persistido
+   * (nunca fez onboarding) — evita herdar categorias/tags de outro
+   * usuário que estivesse logado na sessão anterior, sem precisar de
+   * nova persistência local.
+   */
+  resetOnboardingState: () => void;
 
   transactions: Transaction[];
   addTransaction: (t: Omit<Transaction, 'id'>) => string;
@@ -370,10 +443,31 @@ employeeItems: EmployeeItem[];
   removeTransactions: (ids: string[]) => void;
 
   tasks: Task[];
-  addTask: (t: Omit<Task, 'id'>) => void;
+  addTask: (t: Omit<Task, 'id'>) => string;
   updateTask: (id: string, updates: Partial<Omit<Task, 'id'>>) => void;
   toggleTask: (id: string) => void;
   removeTask: (id: string) => void;
+  /**
+   * Cria (ou recria) a representação temporal de uma tarefa no calendário.
+   * Idempotente: retorna `false` se a tarefa já possuir um `calendarEventId`.
+   * Cria um `CalendarEvent` com `type:'task'`, `source:'task'`, `taskId` e
+   * `deadline` conforme necessário, e escreve o `calendarEventId` de volta
+   * na tarefa — atomicamente. Não chama IA; somente normalização/datas.
+   * Ver seções 5/6/15 da especificação de Calendário.
+   */
+  calendarizeTask: (taskId: string, opts: {
+    date: string;
+    time?: string | null;
+    deadline?: boolean;
+    eventType?: string;
+  }) => boolean;
+  /**
+   * Vincula bidirecionalmente uma tarefa a uma transação financeira
+   * (obrigações criadas via chat: "tenho que pagar o fornecedor até
+   * sexta"). Idempotente. Concluir/remover a tarefa NÃO remove a
+   * transação — o registro financeiro permanece (seção 46).
+   */
+  linkTaskToTransaction: (taskId: string, transactionId: string) => void;
 
   customTaskTags: string[];
   addCustomTaskTag: (tag: string) => void;
@@ -903,6 +997,7 @@ updateEmployeeItem: (id, item) =>
       calendarEventTypes: result.coreCategories.calendarEventTypes,
       keywordMap: result.keywordMap,
       recommendedPlugins: result.recommendedPlugins,
+      customTaskTags: result.coreCategories.taskTags.map((c) => c.label),
       onboardingCompleted: true,
     })),
   hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins }) =>
@@ -920,6 +1015,7 @@ updateEmployeeItem: (id, item) =>
       calendarEventTypes: structuredProfile.coreCategories.calendarEventTypes,
       keywordMap: structuredProfile.keywordMap,
       recommendedPlugins: structuredProfile.recommendedPlugins,
+      customTaskTags: structuredProfile.coreCategories.taskTags.map((c) => c.label),
       activatedPlugins,
       onboardingCompleted: true,
     } : {
@@ -927,9 +1023,40 @@ updateEmployeeItem: (id, item) =>
       onboardingContext: context,
       activatedPlugins,
       onboardingCompleted: true,
+      onboardingExtraction: null,
+      pendingOnboardingExtraction: null,
+      pendingOnboardingExtractionIsSimulation: false,
+      financialExpenseCategories: [],
+      financialIncomeCategories: [],
+      taskTags: [],
+      calendarEventTypes: [],
+      keywordMap: {},
+      recommendedPlugins: [],
+      customTaskTags: [],
     }),
 
-  transactions: mockTransactions,
+  resetOnboardingState: () =>
+    set({
+      onboardingCompleted: false,
+      businessName: '',
+      businessType: '',
+      openAnswers: {},
+      onboardingContext: null,
+      onboardingExtraction: null,
+      pendingOnboardingExtraction: null,
+      pendingOnboardingExtractionIsSimulation: false,
+      financialExpenseCategories: [],
+      financialIncomeCategories: [],
+      taskTags: [],
+      calendarEventTypes: [],
+      keywordMap: {},
+      recommendedPlugins: [],
+      customTaskTags: [],
+      activatedPlugins: [],
+      dismissedPluginSuggestions: [],
+    }),
+
+  transactions: [],
   addTransaction: (t) => {
     const id = generateId('txn_');
     set((s) => ({ transactions: [{ ...t, id }, ...s.transactions] }));
@@ -948,23 +1075,124 @@ updateEmployeeItem: (id, item) =>
       transactions: s.transactions.filter((t) => !ids.includes(t.id)),
     })),
 
-  tasks: mockTasks as Task[],
-  addTask: (t) =>
+  tasks: [] as Task[],
+  addTask: (t) => {
+    const id = generateId('task_');
     set((s) => ({
-      tasks: [{ ...t, id: Date.now().toString() } as Task, ...s.tasks],
-    })),
-  updateTask: (id, updates) =>
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...updates } as Task : t)),
-    })),
+      tasks: [{ ...t, id } as Task, ...s.tasks],
+    }));
+    return id;
+  },
+  updateTask: (id, updates) => {
+    set((s) => {
+      const task = s.tasks.find((tt) => tt.id === id);
+      if (!task) return s;
+      const next = { ...task, ...updates, id } as Task;
+      // Sincronização tarefa → calendário (seção 9/10): quando `dueDate` ou
+      // `description` mudem, o evento derivado (source='task') acompanha,
+      // para evitar dessincronia (Task 22/08 / Calendar 20/08). Eventos
+      // independentes (source='manual'|'chat') NÃO são sobrescritos.
+      let events = s.events;
+      if (next.calendarEventId) {
+        events = s.events.map((e) => {
+          if (e.id !== next.calendarEventId) return e;
+          if (e.source !== 'task') return e; // só derivados acompanhval
+          const patches: Partial<CalendarEvent> = {};
+          if (updates.dueDate !== undefined) {
+            patches.date = updates.dueDate ?? e.date;
+          }
+          if (updates.description !== undefined) {
+            patches.description = updates.description;
+          }
+          if (updates.done !== undefined) {
+            patches.done = updates.done;
+          }
+          if (Object.keys(patches).length === 0) return e;
+          return { ...e, ...patches } as CalendarEvent;
+        });
+      }
+      // Sincronização `done` TAMBÉM é tratada em `toggleTask`; aqui cobre o
+      // caso raro de vir via `updateTask({ done })`.
+      return { tasks: s.tasks.map((tt) => (tt.id === id ? next : tt)), events };
+    });
+  },
   toggleTask: (id) =>
-    set((s) => ({
-      tasks: s.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } as Task : t)),
-    })),
+    set((s) => {
+      const task = s.tasks.find((t) => t.id === id);
+      if (!task) return s;
+      const newDone = !task.done;
+      const tasks = s.tasks.map((t) => (t.id === id ? { ...t, done: newDone } as Task : t));
+      // Sincronização conclusão (seções 7/8): evento derivado vai junto -
+      // permanece visível, marcado concluído (NÃO apagado).
+      let events = s.events;
+      if (task.calendarEventId) {
+        events = s.events.map((e) => (e.id === task.calendarEventId ? { ...e, done: newDone } : e));
+      }
+      return { tasks, events };
+    }),
   removeTask: (id) =>
-    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+    set((s) => {
+      const task = s.tasks.find((t) => t.id === id);
+      if (!task) return s;
+      // Sincronização exclusão (seção 11): se há evento derivado
+      // (source='task') exclusivamente como representação, removê-lo para
+      // não deixar órfão. Eventos independentes são preservados.
+      let events = s.events;
+      if (task.calendarEventId) {
+        const linked = s.events.find((e) => e.id === task.calendarEventId);
+        if (linked && linked.source === 'task') {
+          events = s.events.filter((e) => e.id !== task.calendarEventId);
+        }
+      }
+      return {
+        tasks: s.tasks.filter((t) => t.id !== id),
+        events,
+        // Tarefa removida NÃO apaga o lançamento financeiro vinculado —
+        // apenas desvincula (o registro financeiro é permanente).
+        transactions: s.transactions.map((t) => (t.taskId === id ? { ...t, taskId: undefined } : t)),
+      };
+    }),
+  calendarizeTask: (taskId, opts) => {
+    let ok = false;
+    set((s) => {
+      const task = s.tasks.find((t) => t.id === taskId);
+      if (!task) return s;
+      // Idempotência (seção 15): se já está vinculado ou já existe um
+      // evento derivado desta tarefa, NÃO cria duplicata.
+      if (task.calendarEventId) return s;
+      if (s.events.some((e) => e.taskId === taskId)) return s;
+      ok = true;
+      const calendarEventId = generateId('cal_task_');
+      const event: CalendarEvent = {
+        id: calendarEventId,
+        date: opts.date,
+        time: opts.time ?? null,
+        description: task.description,
+        done: task.done,
+        type: 'task',
+        eventType: opts.eventType,
+        taskId,
+        source: 'task',
+        deadline: opts.deadline ? true : undefined,
+      };
+      return {
+        events: [...s.events, event],
+        tasks: s.tasks.map((t) => (t.id === taskId ? { ...t, calendarEventId } : t)),
+      };
+    });
+    return ok;
+  },
 
-  customTaskTags: ['Peças', 'Clientes', 'Financeiro', 'Estoque', 'Fornecedor'],
+  linkTaskToTransaction: (taskId, transactionId) =>
+    set((s) => {
+      if (!s.tasks.some((t) => t.id === taskId) || !s.transactions.some((t) => t.id === transactionId)) return s;
+      return {
+        tasks: s.tasks.map((t) => (t.id === taskId && t.financeTransactionId !== transactionId ? { ...t, financeTransactionId: transactionId } : t)),
+        transactions: s.transactions.map((t) => (t.id === transactionId && t.taskId !== taskId ? { ...t, taskId } : t)),
+      };
+    }),
+
+  customTaskTags: [],
   addCustomTaskTag: (tag) =>
     set((s) => {
       if (s.customTaskTags.includes(tag)) return s;
@@ -979,21 +1207,69 @@ updateEmployeeItem: (id, item) =>
       })) as Task[],
     })),
 
-  events: mockCalendarEvents,
+  events: [],
   addEvent: (e) =>
     set((s) => ({
-      events: [...s.events, { ...e, done: e.done ?? false, id: Date.now().toString() }],
+      events: [...s.events, { ...e, done: e.done ?? false, id: generateId('cal_') }],
     })),
   toggleEvent: (id) =>
-    set((s) => ({
-      events: s.events.map((e) => (e.id === id ? { ...e, done: !e.done } : e)),
-    })),
+    set((s) => {
+      const event = s.events.find((e) => e.id === id);
+      if (!event) return s;
+      const newDone = !event.done;
+      const events = s.events.map((e) => (e.id === id ? { ...e, done: newDone } : e));
+      // Sincronização reversa conclusão (seções 7/8): concluir o evento
+      // derivado conclui a tarefa vinculada (snapshot, evita órfão visual).
+      let tasks = s.tasks;
+      if (event.source === 'task' && event.taskId) {
+        const task = s.tasks.find((t) => t.id === event.taskId);
+        if (task && task.done !== newDone) {
+          tasks = s.tasks.map((t) => (t.id === event.taskId ? { ...t, done: newDone } as Task : t));
+        }
+      }
+      return { events, tasks };
+    }),
   removeEvent: (id) =>
-    set((s) => ({ events: s.events.filter((e) => e.id !== id) })),
+    set((s) => {
+      const event = s.events.find((e) => e.id === id);
+      if (!event) return s;
+      // Sincronização exclusão (seção 11): remover um evento derivado
+      // (source='task') desvincula a tarefa (limpa `calendarEventId`),
+      // preservando a tarefa — o usuário explicitamente apagou só a
+      // aparência de calendário. Eventos independentes apenas somem.
+      let tasks = s.tasks;
+      if (event.source === 'task' && event.taskId) {
+        tasks = s.tasks.map((t) => (t.id === event.taskId ? { ...t, calendarEventId: undefined } as Task : t));
+      }
+      return {
+        events: s.events.filter((e) => e.id !== id),
+        tasks,
+      };
+    }),
   updateEvent: (id, updates) =>
-    set((s) => ({
-      events: s.events.map((e) => (e.id === id ? { ...e, ...updates } : e)),
-    })),
+    set((s) => {
+      const event = s.events.find((e) => e.id === id);
+      if (!event) return s;
+      const next = { ...event, ...updates, id } as CalendarEvent;
+      // Sincronização reversa (seções 8/9): propagar `done` e `date`
+      // Ao tarefa vinculada, evitando dessincronia.
+      let tasks = s.tasks;
+      if (event.source === 'task' && event.taskId) {
+        const task = s.tasks.find((t) => t.id === event.taskId);
+        if (task) {
+          const patches: Partial<Task> = {};
+          if (updates.done !== undefined) patches.done = updates.done;
+          if (updates.date !== undefined) patches.dueDate = updates.date;
+          if (Object.keys(patches).length > 0) {
+            tasks = s.tasks.map((t) => (t.id === event.taskId ? { ...t, ...patches } as Task : t));
+          }
+        }
+      }
+      return {
+        events: s.events.map((e) => (e.id === id ? next : e)),
+        tasks,
+      };
+    }),
 
   messages: [],
   addMessage: (m) =>
