@@ -127,6 +127,14 @@ export function parseCalendarMessage(
   const { resolution } = resolveTemporal(normalized.tokens, context.now);
   const hasDate = !!resolution.dueDate;
 
+  // --- 2b) Guarda de data PASSADA (integração Financeiro): o temporal
+  // agora resolve "ontem"/"há N dias"/"semana passada" para o motor
+  // financeiro registrar retroativos. O calendário é orientado a futuro —
+  // nunca cria evento/representação em data que já passou.
+  if (hasDate && isPastISO(resolution.dueDate!, context.now)) {
+    return noneResult('Referência temporal no passado — sem representação de calendário.');
+  }
+
   // --- 3) Detecção de markers de compromisso ---
   const compromissoHits = COMPROMISSO_MARKERS.filter((m) => text.includes(m));
   const hasCompromisso = compromissoHits.length > 0;
@@ -519,6 +527,14 @@ function extractContext(fragment: string, title: string): string | null {
 function capitalizeFirst(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** True quando o ISO YYYY-MM-DD é estritamente anterior a `now`. */
+function isPastISO(iso: string, now: Date): boolean {
+  const target = new Date(`${iso}T00:00:00`);
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0);
+  return target.getTime() < today.getTime();
 }
 function round(x: number): number {
   return Math.round(x * 100) / 100;

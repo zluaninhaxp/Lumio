@@ -19,7 +19,7 @@ import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme'
  * Radius.lg, sombra suave, fontes PlusJakartaSans, paleta Colors.
  */
 
-export type BotCardKind = 'task' | 'event' | 'deadline';
+export type BotCardKind = 'task' | 'event' | 'deadline' | 'finance';
 
 export interface BotCard {
   kind: BotCardKind;
@@ -31,6 +31,12 @@ export interface BotCard {
   tags?: string[];
   eventType?: string;
   context?: string;
+  /** Campos financeiros (kind === 'finance'). */
+  direction?: 'expense' | 'income';
+  amount?: number;
+  pending?: boolean;
+  category?: string;
+  counterparty?: string;
 }
 
 interface BotMessageCardProps {
@@ -41,7 +47,12 @@ const KIND_CONFIG: Record<BotCardKind, { icon: keyof typeof Ionicons.glyphMap; l
   task: { icon: 'checkmark-circle-outline', label: 'Tarefa', color: Colors.accent, bg: Colors.accentLight },
   event: { icon: 'calendar-outline', label: 'Evento', color: Colors.accent, bg: Colors.accentLight },
   deadline: { icon: 'time-outline', label: 'Prazo', color: Colors.warning, bg: '#FEF3C7' },
+  finance: { icon: 'wallet-outline', label: 'Financeiro', color: Colors.accent, bg: Colors.accentLight },
 };
+
+function formatAmount(value: number): string {
+  return `R$ ${Math.abs(value).toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`;
+}
 
 const TAG_COLORS = [
   { bg: '#EBF5FF', text: '#2563EB' },
@@ -61,8 +72,9 @@ function getTagColor(tag: string) {
 export function BotMessageCard({ card }: BotMessageCardProps) {
   const cfg = KIND_CONFIG[card.kind];
   const dateColor = card.kind === 'deadline' ? Colors.warning : Colors.accent;
-  // Tags só existem em TAREFAS (eventos não têm visualização de tags no app).
+  // Tags em TAREFAS e FINANÇAS (categoria como chip); eventos não têm.
   const showTags = card.kind !== 'event' && card.tags && card.tags.length > 0;
+  const financeTags = card.kind === 'finance' && card.category ? [card.category] : card.tags;
 
   return (
     <View style={styles.card}>
@@ -83,7 +95,7 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
       )}
 
       {/* Metadata: data + horário + pessoa */}
-      {(card.date || card.assignee) && (
+      {(card.date || card.assignee || card.counterparty) && (
         <View style={styles.metaRow}>
           {card.date && (
             <View style={[styles.dateChip, { backgroundColor: dateColor + '15' }]}>
@@ -94,19 +106,34 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
               </Text>
             </View>
           )}
-          {card.assignee && (
+          {(card.assignee || card.counterparty) && (
             <View style={styles.assigneeChip}>
               <Ionicons name="person-outline" size={12} color={Colors.textSecondary} />
-              <Text style={styles.assigneeText} numberOfLines={1}>{card.assignee}</Text>
+              <Text style={styles.assigneeText} numberOfLines={1}>{card.assignee || card.counterparty}</Text>
             </View>
           )}
         </View>
       )}
 
-      {/* Tags como chips coloridos — SÓ em tarefas/deadlines */}
-      {showTags && (
+      {/* Valor financeiro — valor em destaque + status pendente */}
+      {card.kind === 'finance' && card.amount !== undefined && (
+        <View style={styles.metaRow}>
+          <Text style={[styles.amountText, card.direction === 'income' ? styles.amountIn : styles.amountOut]}>
+            {card.direction === 'income' ? '+' : '−'} {formatAmount(card.amount)}
+          </Text>
+          {card.pending && (
+            <View style={styles.pendingChip}>
+              <Ionicons name="time-outline" size={11} color={Colors.warning} />
+              <Text style={styles.pendingText}>{card.direction === 'income' ? 'a receber' : 'a pagar'}</Text>
+            </View>
+          )}
+        </View>
+      )}
+
+      {/* Tags como chips coloridos — SÓ em tarefas/deadlines/finanças */}
+      {card.kind !== 'event' && showTags && (
         <View style={styles.tagsRow}>
-          {card.tags!.map((tag) => {
+          {(financeTags ?? card.tags!).map((tag) => {
             const c = getTagColor(tag);
             return (
               <View key={tag} style={[styles.tagChip, { backgroundColor: c.bg }]}>
@@ -199,6 +226,26 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     maxWidth: 120,
+  },
+  amountText: {
+    fontFamily: 'PlusJakartaSans_800ExtraBold',
+    fontSize: FontSize.md,
+  },
+  amountIn: { color: Colors.accent },
+  amountOut: { color: Colors.primary },
+  pendingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: Radius.full,
+    backgroundColor: '#FEF3C7',
+  },
+  pendingText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.warning,
   },
   tagsRow: {
     flexDirection: 'row',

@@ -9,7 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test \"src/engine/taskEngine/__tests__/**/*.test.ts\" \"src/engine/calendarEngine/__tests__/**/*.test.ts\" \"src/store/__tests__/**/*.test.ts\""
+    "test": "node --experimental-strip-types --test \"src/engine/taskEngine/__tests__/*.test.ts\" \"src/engine/calendarEngine/__tests__/*.test.ts\" \"src/engine/financialEngine/__tests__/*.test.ts\" \"src/store/__tests__/*.test.ts\""
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

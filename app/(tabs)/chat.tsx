@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+﻿import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, Image,
   TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView,
@@ -10,10 +10,14 @@ import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
 import type { TaskParserContext, TaskParseResult } from '../../src/engine/taskEngine/types';
 import { parseCalendarMessage, decideHybrid } from '../../src/engine/calendarEngine/calendarParser';
 import type { CalendarParserContext } from '../../src/engine/calendarEngine/types';
+import {
+  parseFinancialMessage, applyFinancialResult, buildFinanceCards,
+  buildFinancialBotText, answerFinancialQuery, formatBRL,
+} from '../../src/engine/financialEngine';
+import type { FinancialParserContext } from '../../src/engine/financialEngine';
 import { useAppStore } from '../../src/store';
-import VoiceInput from '../components/onboarding/VoiceInput';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
-import { suggestedDueDate } from '../../src/utils/supplier';
+import VoiceInput from '../components/onboarding/VoiceInput';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
@@ -119,6 +123,59 @@ return date.toISOString().split('T')[0];
   const runCalendarEngine = useCallback((text: string) => {
     return parseCalendarMessage(text, buildCalendarContext());
   }, [buildCalendarContext]);
+
+  // ─────── Motor financeiro (determinístico) ───────
+  // Prioridade sobre tarefas/calendário quando a mensagem é sobre DINHEIRO
+  // ("paguei 500", "recebi 2 mil do João"). Para obrigações futuras cria
+  // transação pendente + tarefa + calendário derivado, vinculados.
+  const buildFinancialContext = useCallback((): FinancialParserContext => {
+    const s = useAppStore.getState();
+    return {
+      now: new Date(),
+      expenseCategories: (s.financialExpenseCategories || []).map((c) => c.label),
+      incomeCategories: (s.financialIncomeCategories || []).map((c) => c.label),
+      keywordMap: s.keywordMap || {},
+      clients: (s.clienteItems || []).map((c) => ({ id: c.id, name: c.name })),
+      suppliers: (s.fornecedorItems || []).map((f) => ({ id: f.id, name: f.name, paymentTerm: f.paymentTerm })),
+      employees: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),
+    };
+  }, []);
+
+  const applyFinancialEngine = useCallback((text: string): TaskOutcome => {
+    const result = parseFinancialMessage(text, buildFinancialContext());
+
+    if (result.intent === 'query' && result.query) {
+      const txs = useAppStore.getState().transactions;
+      return { handled: true, botText: answerFinancialQuery(result.query, txs, new Date()), botType: 'bot' };
+    }
+
+    if (result.intent === 'incomplete') {
+      return { handled: true, botText: 'Entendi que é um lançamento financeiro, mas não consegui identificar o valor com segurança. Quanto foi exatamente?', botType: 'bot' };
+    }
+
+    if (result.intent === 'recurrence' && result.recurrence) {
+      return { handled: true, botText: `Reconheci um lançamento recorrente ("${result.recurrence.expression}"), mas o Financeiro ainda não automatiza recorrências. Registre cada ocorrência quando acontecer — ou me diga a de hoje.`, botType: 'bot' };
+    }
+
+    if (result.intent === 'edit' || result.intent === 'delete') {
+      return { handled: true, botText: 'Para corrigir ou excluir um lançamento, abra a tela Financeiro e deslize o lançamento para editar ou excluir — assim você escolhe exatamente qual registro mudar.', botType: 'bot' };
+    }
+
+    if (result.intent === 'create_transaction' || result.intent === 'create_obligation') {
+      const store = useAppStore.getState();
+      const applied = applyFinancialResult(result, store);
+      if (applied.created === 'nothing') return { handled: false };
+      const cards = buildFinanceCards(result.entries);
+      let extra = '';
+      if (applied.created === 'obligation' && applied.taskId) {
+        const task = store.tasks.find((t) => t.id === applied.taskId);
+        extra = task ? `\nTambém criei a tarefa "${task.description}" com prazo no calendário.` : '';
+      }
+      return { handled: true, botText: `${buildFinancialBotText(result.entries)}${extra}`, cards, botType: 'bot' };
+    }
+
+    return { handled: false };
+  }, [buildFinancialContext]);
 
   type TaskOutcome = {
     handled: boolean;
@@ -266,503 +323,277 @@ return date.toISOString().split('T')[0];
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  const handleSend = useCallback(() => {
-    const text = input.trim();
-    if (!text) return;
+  /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
+  const commitMessages = useCallback((userText: string, outcome: { botText: string; actions: string[]; botType: 'bot' | 'fallback'; cards?: BotCard[] }) => {
     refreshOrcamentos();
     refreshContratos();
-
     const userMsg: Message = {
       id: Date.now().toString(),
       type: 'user',
-      text,
+      text: userText,
       timestamp: new Date(),
     };
+    const botMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      type: outcome.botType,
+      text: outcome.botText,
+      actions: outcome.actions,
+      cards: outcome.cards,
+      timestamp: new Date(),
+    };
+    setMessages((prev) => [...prev, userMsg, botMsg]);
+    scrollToBottom();
+  }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
 
+
+  /**
+   * Intents de PLUGINS (regexEngine): consultas e criações específicas de
+   * módulos (equipe, orçamentos, entregas, agenda, contratos, pedidos,
+   * estoque, fornecedores, clientes). Devolve `{botText}` ou null.
+   */
+  const handlePluginIntent = useCallback((parsed: ReturnType<typeof parseMessage>): { botText: string; botType?: 'bot' | 'fallback'; actions?: string[] } | null => {
+    let botText = buildBotResponse(parsed);
+    let botType: 'bot' | 'fallback' = 'bot';
+    let actions: string[] = [];
+
+    if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
+      const matches = resolveEmployee(parsed.entities.employeeName || '');
+      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
+      else if (parsed.intent === 'EMPLOYEE_TASKS_QUERY') {
+        const today = new Date().toISOString().split('T')[0];
+        const tasks = useAppStore.getState().tasks.filter((task) => task.employeeId === matches[0].id && !task.done && task.dueDate === today);
+        botText = tasks.length ? `${matches[0].name} tem hoje: ${tasks.map((task) => task.description).join('; ')}.` : `${matches[0].name} não tem tarefas pendentes para hoje.`;
+      } else {
+        const pending = useAppStore.getState().tasks.filter((task) => !task.done);
+        const task = pending[pending.length - 1];
+        if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
+else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+      }
+    } else if (parsed.intent === 'COMMISSION_MONTH_QUERY' || parsed.intent === 'COMMISSION_PAY') {
+      const matches = resolveEmployee(parsed.entities.employeeName || '');
+      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
+      else if (parsed.intent === 'COMMISSION_MONTH_QUERY') {
+        const now = new Date();
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const total = commissions.filter((c) => c.employeeId === matches[0].id && !c.paid && c.month === month).reduce((sum, c) => sum + c.amount, 0);
+        botText = `${matches[0].name} tem ${formatMoney(total)} de comissão pendente este mês.`;
+      } else {
+        const pending = useAppStore.getState().commissions.filter((c) => c.employeeId === matches[0].id && !c.paid);
+        if (pending.length === 0) botText = `${matches[0].name} não tem comissão pendente para fechar.`;
+        else { const total = pending.reduce((sum, c) => sum + c.amount, 0); closeEmployeeCommission(matches[0].id); botText = `✓ Comissão de ${formatMoney(total)} de ${matches[0].name} concluída. O saldo foi fechado sem alterar o Financeiro.`; }
+      }
+    } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
+      if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
+        const now = new Date(); const start = new Date(now); const day = start.getDay() || 7; start.setDate(start.getDate() - day + 1); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 6);
+        const expiring = orcamentos.filter((quote) => quote.status === 'pendente' && new Date(`${quote.validUntil}T00:00:00`) >= start && new Date(`${quote.validUntil}T00:00:00`) <= end);
+        botText = expiring.length ? `Vencem esta semana: ${expiring.map((quote) => `#${quote.id.slice(-6)} em ${quote.validUntil}`).join(', ')}.` : 'Nenhum orçamento pendente vence esta semana.';
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de criar o orçamento.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else if (parsed.intent === 'QUOTE_STATUS_QUERY') {
+          const quote = orcamentos.find((item) => item.clientId === matches[0].id);
+          botText = quote ? `O orçamento ${quote.id.slice(-6)} de ${matches[0].name} está ${quote.status}.` : `Não encontrei orçamento para ${matches[0].name}.`;
+        } else {
+          const items = parseQuoteItems(parsed.entities.quoteItemsText || ''); const validUntil = new Date(); validUntil.setDate(validUntil.getDate() + 7); const id = addOrcamento({ clientId: matches[0].id, items, total: 0, validUntil: validUntil.toISOString().split('T')[0], status: 'pendente', createdAt: new Date().toISOString() });
+          botText = `✓ Orçamento ${id.slice(-6)} criado para ${matches[0].name}, válido por 7 dias.`;
+        }
+      }
+    } else if (parsed.intent === 'DELIVERY_STATUS_QUERY' || parsed.intent === 'DELIVERY_PENDING_QUERY') {
+      const today = new Date().toISOString().split('T')[0];
+      if (parsed.intent === 'DELIVERY_PENDING_QUERY') {
+        const pending = entregas.filter((delivery) => delivery.status === 'a caminho' && delivery.estimatedDate === today);
+        botText = pending.length ? `Entregas pendentes hoje: ${pending.map((delivery) => `pedido ${delivery.orderId.slice(-6)}`).join(', ')}.` : 'Não há entregas pendentes para hoje.';
+      } else {
+        const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
+        const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
+        botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
+      }
+    } else if (parsed.intent === 'FREE_SLOT_QUERY' || parsed.intent === 'APPOINTMENT_CREATE' || parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
+      if (!activatedPlugins.includes('agenda')) {
+        botText = 'Ative o módulo Agenda / Atendimento em Apps para agendar horários.';
+      } else if (parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
+        const today = new Date().toISOString().split('T')[0];
+        const todayAppointments = atendimentos.filter((appointment) => appointment.date === today && appointment.status !== 'cancelado');
+        botText = todayAppointments.length ? `Hoje você tem: ${todayAppointments.map((appointment) => `${appointment.time} — ${appointment.service}`).join('; ')}.` : 'Você não tem atendimentos agendados para hoje.';
+      } else {
+        const date = dateForToken(parsed.entities.date || 'hoje');
+        const occupied = atendimentos.some((appointment) => appointment.date === date && appointment.time === parsed.entities.time && appointment.status !== 'cancelado');
+        if (parsed.intent === 'FREE_SLOT_QUERY') botText = occupied ? `Esse horário já está ocupado em ${date} às ${parsed.entities.time}.` : `Sim, o horário de ${date} às ${parsed.entities.time} está livre.`;
+        else {
+          const matches = resolveClient(parsed.entities.clientName || '');
+          if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de agendar.`;
+          else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+          else if (occupied) botText = `O horário de ${date} às ${parsed.entities.time} já está ocupado.`;
+          else { const id = addAtendimento({ clientId: matches[0].id, date, time: parsed.entities.time || '00:00', duration: 60, service: 'Atendimento', status: 'confirmado', createdAt: new Date().toISOString() }); botText = id ? `✓ Atendimento de ${matches[0].name} marcado para ${date} às ${parsed.entities.time}.` : 'Não foi possível criar o atendimento.'; }
+        }
+      }
+    } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
+      const now = new Date();
+      if (parsed.intent === 'CONTRACT_DUE_QUERY') {
+        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const due = contratos.filter((contract) => contract.status === 'ativo' && contract.nextBillingDate.startsWith(month));
+        botText = due.length ? `Vencem este mês: ${due.map((contract) => `${clienteItems.find((client) => client.id === contract.clientId)?.name ?? 'cliente'} em ${formatDate(contract.nextBillingDate)}`).join(', ')}.` : 'Nenhum contrato ativo vence este mês.';
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}".`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else {
+          const pending = transactions.some((transaction) => transaction.clientId === matches[0].id && transaction.contractId && transaction.confirmed === false && !!transaction.expectedDate && transaction.expectedDate <= new Date().toISOString().split('T')[0]);
+          botText = pending ? `${matches[0].name} tem uma cobrança de contrato pendente.` : `${matches[0].name} está em dia com os contratos.`;
+        }
+      }
+    } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
+      if (parsed.intent === 'ORDER_OPEN_QUERY') {
+        const openOrders = pedidos.filter((order) => order.status === 'aberto');
+        botText = openOrders.length ? `Pedidos em aberto: ${openOrders.map((order) => `#${order.id.slice(-6)}`).join(', ')}.` : 'Não há pedidos em aberto.';
+      } else if (parsed.intent === 'SALES_WEEK_QUERY') {
+        const now = new Date();
+        const start = new Date(now);
+        const day = start.getDay() || 7;
+        start.setDate(start.getDate() - day + 1);
+        start.setHours(0, 0, 0, 0);
+        const sold = pedidos.filter((order) => order.status === 'concluido' && new Date(order.createdAt) >= start).reduce((sum, order) => sum + order.total, 0);
+        botText = `Você vendeu ${formatMoney(sold)} nesta semana.`;
+      } else {
+        const matches = resolveClient(parsed.entities.clientName || '');
+        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de registrar o pedido.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
+        else {
+          const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
+          const quantity = parsed.entities.orderQuantity || 0;
+          const unitPrice = parsed.entities.unitPrice || 0;
+          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
+          botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
+        }
+      }
+    } else if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
+      if (parsed.intent === 'STOCK_LOW_QUERY') {
+        const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
+        botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
+      } else {
+        const matches = resolveStockItem(parsed.entities.stockItemName || '');
+        if (matches.length === 0) botText = `Não encontrei o item "${parsed.entities.stockItemName}" no estoque.`;
+        else if (matches.length > 1) botText = `Encontrei mais de um item parecido com "${parsed.entities.stockItemName}". Informe o nome completo.`;
+        else if (parsed.intent === 'STOCK_BALANCE_QUERY') botText = `Você tem ${matches[0].quantity} ${matches[0].unit} de ${matches[0].name}.`;
+        else if (moveEstoqueItem(matches[0].id, -(parsed.entities.value || 0), 'uso interno')) botText = `✓ Baixa de ${parsed.entities.value} ${matches[0].unit} de ${matches[0].name} registrada.`;
+        else botText = `Não foi possível dar baixa: o estoque de ${matches[0].name} não pode ficar negativo.`;
+      }
+    } else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY' || parsed.intent === 'SUPPLIER_DUE_QUERY') {
+      const matches = resolveSupplier(parsed.entities.supplierName || '');
+      if (matches.length === 0) botText = `Não encontrei um fornecedor chamado "${parsed.entities.supplierName}". Cadastre-o em Fornecedores antes de consultar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um fornecedor parecido com "${parsed.entities.supplierName}". Informe o nome completo.`;
+      else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY') {
+        const debt = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0 && !transaction.supplierPaid).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
+        botText = `Você deve ${formatMoney(debt)} para ${matches[0].name}.`;
+      } else {
+        const purchases = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0).sort((a, b) => b.id.localeCompare(a.id));
+        botText = purchases[0]?.supplierDueDate ? `A última compra de ${matches[0].name} vence em ${formatDate(purchases[0].supplierDueDate)}.` : `A última compra de ${matches[0].name} não tem vencimento informado.`;
+      }
+    } else if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
+      const matches = resolveClient(parsed.entities.clientName || '');
+      if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
+      else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
+      else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
+         const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0 && transaction.confirmed !== false).reduce((sum, transaction) => sum + transaction.amount, 0);
+        botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
+      } else {
+        botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;
+      }
+    } else if (parsed.intent === 'UNKNOWN') {
+      botType = 'fallback';
+    }
+
+    return { botText, botType, actions: actions.length ? actions : undefined };
+  }, [resolveEmployee, resolveClient, resolveSupplier, resolveStockItem, updateTask, commissions, closeEmployeeCommission, orcamentos, addOrcamento, pedidos, addPedido, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins, contratos, clienteItems, transactions, formatDate, dateForToken, parseQuoteItems, formatMoney]);
+
+  /**
+   * Processamento ÚNICO da mensagem do usuário (texto e voz compartilham).
+   * Ordem de prioridade dos motores:
+   *  1. Intents específicas de plugins (regexEngine) — órdenes/pedidos etc;
+   *  2. FINANCEIRO (quando a mensagem é sobre dinheiro) — cria transações,
+   *     obrigações (tarefa+calendário+transação vinculadas), responde
+   *     consultas com dados reais;
+   *  3. TAREFAS + CALENDÁRIO (fluxo híbrido existente);
+   *  4. Fallback.
+   */
+  const processMessage = useCallback((text: string) => {
     const parsed = parseMessage(text);
     let botText = buildBotResponse(parsed);
-
     let actions: string[] = [];
     let botType: 'bot' | 'fallback' = 'bot';
+    let cards: BotCard[] | undefined;
 
-    // Motor de TAREFAS — toma a frente quando o domínio é tarefa (regex
-    // classificou TASK_ADD/TASK_WITH_DATE) ou quando o regex não reconheceu
-    // (UNKNOWN) mas o motor consegue extrair uma tarefa com confiança.
+    const isPluginIntent =
+      parsed.intent !== 'TASK_ADD' && parsed.intent !== 'TASK_WITH_DATE' &&
+      parsed.intent !== 'UNKNOWN' && parsed.intent !== 'QUERY_REPORT';
+
+    // ── 1) Financeiro primeiro (domínio dinheiro tem prioridade) ──
+    // QUERY_REPORT do regexEngine legado também cai no financeiro (dados reais).
+    const financialTextualDomains = parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD' || parsed.intent === 'QUERY_REPORT';
+    if (financialTextualDomains || parsed.intent === 'UNKNOWN') {
+      const outcome = applyFinancialEngine(text);
+      if (outcome.handled) {
+        botText = outcome.botText ?? botText;
+        actions = outcome.actions ?? actions;
+        botType = outcome.botType ?? botType;
+        cards = outcome.cards;
+        return { botText, actions, botType, cards };
+      }
+    }
+
+    // ── 2) Motor de TAREFAS + CALENDÁRIO (híbrido existente) ──
     if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE' || parsed.intent === 'UNKNOWN') {
       const outcome = applyTaskEngineResult(text, parsed.intent);
       if (outcome.handled) {
-        botText = outcome.botText ?? botText;
-        actions = outcome.actions ?? actions;
-        botType = outcome.botType ?? botType;
-        const botMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          type: botType,
-          text: botText,
-          actions,
+        return {
+          botText: outcome.botText ?? botText,
+          actions: outcome.actions ?? actions,
+          botType: outcome.botType ?? botType,
           cards: outcome.cards,
-          timestamp: new Date(),
         };
-        setMessages((prev) => [...prev, userMsg, botMsg]);
-        setInput('');
-        scrollToBottom();
-        return;
       }
-      // não handled: se era TASK_ADD/TASK_WITH_DATE e motor não criou, evita
-      // o fluxo antigo (que criaria tarefa sem entidades). Vai para fallback.
       if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE') {
-        botType = 'fallback';
-        botText = 'Não consegui identificar uma tarefa nessa mensagem. O que você quer fazer?';
-        const botMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          type: botType,
-          text: botText,
-          actions,
-          timestamp: new Date(),
+        return {
+          botText: 'Não consegui identificar uma tarefa nessa mensagem. O que você quer fazer?',
+          actions: [],
+          botType: 'fallback' as const,
+          cards: undefined,
         };
-        setMessages((prev) => [...prev, userMsg, botMsg]);
-        setInput('');
-        scrollToBottom();
-        return;
       }
     }
 
-    if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
-      const matches = resolveEmployee(parsed.entities.employeeName || '');
-      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
-      else if (parsed.intent === 'EMPLOYEE_TASKS_QUERY') {
-        const today = new Date().toISOString().split('T')[0];
-        const tasks = useAppStore.getState().tasks.filter((task) => task.employeeId === matches[0].id && !task.done && task.dueDate === today);
-        botText = tasks.length ? `${matches[0].name} tem hoje: ${tasks.map((task) => task.description).join('; ')}.` : `${matches[0].name} não tem tarefas pendentes para hoje.`;
-      } else {
-        const pending = useAppStore.getState().tasks.filter((task) => !task.done);
-        const task = pending[pending.length - 1];
-        if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
-else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
+    // ── 3) Intents de plugins (consulta/criação específicas) ──
+    if (isPluginIntent) {
+      const pluginOutcome = handlePluginIntent(parsed);
+      if (pluginOutcome) {
+        botText = pluginOutcome.botText;
+        botType = pluginOutcome.botType ?? 'bot';
+        actions = pluginOutcome.actions ?? actions;
       }
-    } else if (parsed.intent === 'COMMISSION_MONTH_QUERY' || parsed.intent === 'COMMISSION_PAY') {
-      const matches = resolveEmployee(parsed.entities.employeeName || '');
-      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
-      else if (parsed.intent === 'COMMISSION_MONTH_QUERY') {
-        const now = new Date();
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const total = commissions.filter((c) => c.employeeId === matches[0].id && !c.paid && c.month === month).reduce((sum, c) => sum + c.amount, 0);
-        botText = `${matches[0].name} tem ${formatMoney(total)} de comissão pendente este mês.`;
-      } else {
-        const pending = useAppStore.getState().commissions.filter((c) => c.employeeId === matches[0].id && !c.paid);
-        if (pending.length === 0) botText = `${matches[0].name} não tem comissão pendente para fechar.`;
-        else { const total = pending.reduce((sum, c) => sum + c.amount, 0); closeEmployeeCommission(matches[0].id); botText = `✓ Comissão de ${formatMoney(total)} de ${matches[0].name} concluída. O saldo foi fechado sem alterar o Financeiro.`; }
-      }
-    } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
-      if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
-        const now = new Date(); const start = new Date(now); const day = start.getDay() || 7; start.setDate(start.getDate() - day + 1); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 6);
-        const expiring = orcamentos.filter((quote) => quote.status === 'pendente' && new Date(`${quote.validUntil}T00:00:00`) >= start && new Date(`${quote.validUntil}T00:00:00`) <= end);
-        botText = expiring.length ? `Vencem esta semana: ${expiring.map((quote) => `#${quote.id.slice(-6)} em ${quote.validUntil}`).join(', ')}.` : 'Nenhum orçamento pendente vence esta semana.';
-      } else {
-        const matches = resolveClient(parsed.entities.clientName || '');
-        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de criar o orçamento.`;
-        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-        else if (parsed.intent === 'QUOTE_STATUS_QUERY') {
-          const quote = orcamentos.find((item) => item.clientId === matches[0].id);
-          botText = quote ? `O orçamento ${quote.id.slice(-6)} de ${matches[0].name} está ${quote.status}.` : `Não encontrei orçamento para ${matches[0].name}.`;
-        } else {
-          const items = parseQuoteItems(parsed.entities.quoteItemsText || ''); const validUntil = new Date(); validUntil.setDate(validUntil.getDate() + 7); const id = addOrcamento({ clientId: matches[0].id, items, total: 0, validUntil: validUntil.toISOString().split('T')[0], status: 'pendente', createdAt: new Date().toISOString() });
-          botText = `✓ Orçamento ${id.slice(-6)} criado para ${matches[0].name}, válido por 7 dias.`;
-        }
-      }
-    } else if (parsed.intent === 'DELIVERY_STATUS_QUERY' || parsed.intent === 'DELIVERY_PENDING_QUERY') {
-      const today = new Date().toISOString().split('T')[0];
-      if (parsed.intent === 'DELIVERY_PENDING_QUERY') {
-        const pending = entregas.filter((delivery) => delivery.status === 'a caminho' && delivery.estimatedDate === today);
-        botText = pending.length ? `Entregas pendentes hoje: ${pending.map((delivery) => `pedido ${delivery.orderId.slice(-6)}`).join(', ')}.` : 'Não há entregas pendentes para hoje.';
-      } else {
-        const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
-        const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
-        botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
-      }
-    } else if (parsed.intent === 'FREE_SLOT_QUERY' || parsed.intent === 'APPOINTMENT_CREATE' || parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
-      if (!activatedPlugins.includes('agenda')) {
-        botText = 'Ative o módulo Agenda / Atendimento em Apps para agendar horários.';
-      } else if (parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
-        const today = new Date().toISOString().split('T')[0];
-        const todayAppointments = atendimentos.filter((appointment) => appointment.date === today && appointment.status !== 'cancelado');
-        botText = todayAppointments.length ? `Hoje você tem: ${todayAppointments.map((appointment) => `${appointment.time} — ${appointment.service}`).join('; ')}.` : 'Você não tem atendimentos agendados para hoje.';
-      } else {
-        const date = dateForToken(parsed.entities.date || 'hoje');
-        const occupied = atendimentos.some((appointment) => appointment.date === date && appointment.time === parsed.entities.time && appointment.status !== 'cancelado');
-        if (parsed.intent === 'FREE_SLOT_QUERY') botText = occupied ? `Esse horário já está ocupado em ${date} às ${parsed.entities.time}.` : `Sim, o horário de ${date} às ${parsed.entities.time} está livre.`;
-        else {
-          const matches = resolveClient(parsed.entities.clientName || '');
-          if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de agendar.`;
-          else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-          else if (occupied) botText = `O horário de ${date} às ${parsed.entities.time} já está ocupado.`;
-          else { const id = addAtendimento({ clientId: matches[0].id, date, time: parsed.entities.time || '00:00', duration: 60, service: 'Atendimento', status: 'confirmado', createdAt: new Date().toISOString() }); botText = id ? `✓ Atendimento de ${matches[0].name} marcado para ${date} às ${parsed.entities.time}.` : 'Não foi possível criar o atendimento.'; }
-        }
-      }
-    } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
-      const now = new Date();
-      if (parsed.intent === 'CONTRACT_DUE_QUERY') {
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const due = contratos.filter((contract) => contract.status === 'ativo' && contract.nextBillingDate.startsWith(month));
-        botText = due.length ? `Vencem este mês: ${due.map((contract) => `${clienteItems.find((client) => client.id === contract.clientId)?.name ?? 'cliente'} em ${formatDate(contract.nextBillingDate)}`).join(', ')}.` : 'Nenhum contrato ativo vence este mês.';
-      } else {
-        const matches = resolveClient(parsed.entities.clientName || '');
-        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}".`;
-        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-        else {
-          const pending = transactions.some((transaction) => transaction.clientId === matches[0].id && transaction.contractId && transaction.confirmed === false && !!transaction.expectedDate && transaction.expectedDate <= new Date().toISOString().split('T')[0]);
-          botText = pending ? `${matches[0].name} tem uma cobrança de contrato pendente.` : `${matches[0].name} está em dia com os contratos.`;
-        }
-      }
-    } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
-      if (parsed.intent === 'ORDER_OPEN_QUERY') {
-        const openOrders = pedidos.filter((order) => order.status === 'aberto');
-        botText = openOrders.length ? `Pedidos em aberto: ${openOrders.map((order) => `#${order.id.slice(-6)}`).join(', ')}.` : 'Não há pedidos em aberto.';
-      } else if (parsed.intent === 'SALES_WEEK_QUERY') {
-        const now = new Date();
-        const start = new Date(now);
-        const day = start.getDay() || 7;
-        start.setDate(start.getDate() - day + 1);
-        start.setHours(0, 0, 0, 0);
-        const sold = pedidos.filter((order) => order.status === 'concluido' && new Date(order.createdAt) >= start).reduce((sum, order) => sum + order.total, 0);
-        botText = `Você vendeu ${formatMoney(sold)} nesta semana.`;
-      } else {
-        const matches = resolveClient(parsed.entities.clientName || '');
-        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de registrar o pedido.`;
-        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-        else {
-          const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
-          const quantity = parsed.entities.orderQuantity || 0;
-          const unitPrice = parsed.entities.unitPrice || 0;
-          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
-          botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
-        }
-      }
-    } else if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
-      if (parsed.intent === 'STOCK_LOW_QUERY') {
-        const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
-        botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
-      } else {
-        const matches = resolveStockItem(parsed.entities.stockItemName || '');
-        if (matches.length === 0) botText = `Não encontrei o item "${parsed.entities.stockItemName}" no estoque.`;
-        else if (matches.length > 1) botText = `Encontrei mais de um item parecido com "${parsed.entities.stockItemName}". Informe o nome completo.`;
-        else if (parsed.intent === 'STOCK_BALANCE_QUERY') botText = `Você tem ${matches[0].quantity} ${matches[0].unit} de ${matches[0].name}.`;
-        else if (moveEstoqueItem(matches[0].id, -(parsed.entities.value || 0), 'uso interno')) botText = `✓ Baixa de ${parsed.entities.value} ${matches[0].unit} de ${matches[0].name} registrada.`;
-        else botText = `Não foi possível dar baixa: o estoque de ${matches[0].name} não pode ficar negativo.`;
-      }
-    } else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY' || parsed.intent === 'SUPPLIER_DUE_QUERY') {
-      const matches = resolveSupplier(parsed.entities.supplierName || '');
-      if (matches.length === 0) botText = `Não encontrei um fornecedor chamado "${parsed.entities.supplierName}". Cadastre-o em Fornecedores antes de consultar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um fornecedor parecido com "${parsed.entities.supplierName}". Informe o nome completo.`;
-      else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY') {
-        const debt = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0 && !transaction.supplierPaid).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
-        botText = `Você deve ${formatMoney(debt)} para ${matches[0].name}.`;
-      } else {
-        const purchases = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0).sort((a, b) => b.id.localeCompare(a.id));
-        botText = purchases[0]?.supplierDueDate ? `A última compra de ${matches[0].name} vence em ${formatDate(purchases[0].supplierDueDate)}.` : `A última compra de ${matches[0].name} não tem vencimento informado.`;
-      }
-    } else if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
-      const matches = resolveClient(parsed.entities.clientName || '');
-      if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
-      else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
-         const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0 && transaction.confirmed !== false).reduce((sum, transaction) => sum + transaction.amount, 0);
-        botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
-      } else {
-        botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;
-      }
+    } else if (parsed.intent === 'QUERY_REPORT') {
+      // já tratado no financeiro; se chegou aqui, sem dados
+      botText = 'Nada registrado ainda para resumir.';
     } else if (parsed.intent === 'UNKNOWN') {
       botType = 'fallback';
-    } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
-      actions = ['Editar', 'Excluir'];
-      if (parsed.intent === 'EXPENSE_RECORD') {
-        const supplierMatches = parsed.entities.supplierName ? resolveSupplier(parsed.entities.supplierName) : [];
-        if (parsed.entities.category === 'Fornecedores' && (supplierMatches.length !== 1)) {
-          actions = [];
-          botText = supplierMatches.length > 1 ? 'Encontrei mais de um fornecedor parecido. Informe o nome completo antes de registrar.' : `Não encontrei o fornecedor "${parsed.entities.supplierName || 'informado'}". Cadastre-o em Fornecedores antes de registrar.`;
-        } else {
-          const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-          const supplier = supplierMatches[0];
-          addTransaction({ date, description: parsed.entities.description || 'Despesa', amount: -(parsed.entities.value || 0), category: parsed.entities.category || 'Outros', supplierId: supplier?.id, supplierDueDate: supplier ? (parsed.entities.paymentDays !== undefined ? suggestedDueDate(date, `${parsed.entities.paymentDays} dias`) : suggestedDueDate(date, supplier.paymentTerm)) : undefined, supplierPaid: supplier ? false : undefined });
-          botText = supplier ? `✓ Compra de ${formatMoney(parsed.entities.value || 0)} para ${supplier.name} registrada como pendente.` : botText;
-        }
-      } else {
-        const matches = resolveClient(parsed.entities.description || '');
-        if (matches.length > 1) {
-          botText = `Encontrei mais de um cliente parecido com "${parsed.entities.description}". Informe o nome completo antes de registrar.`;
-          botType = 'bot';
-        } else if (matches.length === 0 && parsed.entities.description && parsed.entities.description !== 'Receita') {
-          botText = `Não encontrei um cliente chamado "${parsed.entities.description}". Você quer cadastrá-lo antes de registrar essa receita?`;
-          botType = 'bot';
-        } else {
-        addTransaction({
-          date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          description: parsed.entities.description || 'Receita',
-          amount: parsed.entities.value || 0,
-          category: 'Receita',
-          clientId: matches[0]?.id,
-        });
-        }
-      }
     }
 
-    const botMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      type: botType,
-      text: botText,
-      actions,
-      timestamp: new Date(),
-    };
+    return { botText, actions, botType, cards };
+  }, [applyFinancialEngine, applyTaskEngineResult, handlePluginIntent]);
 
-    setMessages((prev) => [...prev, userMsg, botMsg]);
+  const handleSend = useCallback(() => {
+    const text = input.trim();
+    if (!text) return;
+    commitMessages(text, processMessage(text));
     setInput('');
-    scrollToBottom();
-}, [input, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins, applyTaskEngineResult, scrollToBottom]);
+  }, [input, processMessage, commitMessages]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
-    refreshOrcamentos();
-    refreshContratos();
-
-    const userMsg: Message = {
-      id: Date.now().toString(),
-      type: 'user',
-      text: transcript.trim(),
-      timestamp: new Date(),
-    };
-
-    const parsed = parseMessage(transcript.trim());
-    let botText = buildBotResponse(parsed);
-
-    let actions: string[] = [];
-    let botType: 'bot' | 'fallback' = 'bot';
-
-    if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE' || parsed.intent === 'UNKNOWN') {
-      const outcome = applyTaskEngineResult(transcript.trim(), parsed.intent);
-      if (outcome.handled) {
-        botText = outcome.botText ?? botText;
-        actions = outcome.actions ?? actions;
-        botType = outcome.botType ?? botType;
-        const botMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          type: botType,
-          text: botText,
-          actions,
-          cards: outcome.cards,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, userMsg, botMsg]);
-        scrollToBottom();
-        return;
-      }
-      if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE') {
-        botType = 'fallback';
-        botText = 'Não consegui identificar uma tarefa nessa mensagem. O que você quer fazer?';
-        const botMsg: Message = {
-          id: (Date.now() + 1).toString(),
-          type: botType,
-          text: botText,
-          actions,
-          timestamp: new Date(),
-        };
-        setMessages((prev) => [...prev, userMsg, botMsg]);
-        scrollToBottom();
-        return;
-      }
-    }
-
-    if (parsed.intent === 'EMPLOYEE_TASKS_QUERY' || parsed.intent === 'TASK_ASSIGN') {
-      const matches = resolveEmployee(parsed.entities.employeeName || '');
-      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
-      else if (parsed.intent === 'EMPLOYEE_TASKS_QUERY') {
-        const today = new Date().toISOString().split('T')[0];
-        const tasks = useAppStore.getState().tasks.filter((task) => task.employeeId === matches[0].id && !task.done && task.dueDate === today);
-        botText = tasks.length ? `${matches[0].name} tem hoje: ${tasks.map((task) => task.description).join('; ')}.` : `${matches[0].name} não tem tarefas pendentes para hoje.`;
-      } else {
-        const pending = useAppStore.getState().tasks.filter((task) => !task.done);
-        const task = pending[pending.length - 1];
-        if (!task) botText = 'Não encontrei uma tarefa pendente para atribuir.';
-else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa "${task.description}" atribuída para ${matches[0].name}.`; }
-      }
-    } else if (parsed.intent === 'COMMISSION_MONTH_QUERY' || parsed.intent === 'COMMISSION_PAY') {
-      const matches = resolveEmployee(parsed.entities.employeeName || '');
-      if (matches.length === 0) botText = `Não encontrei um funcionário chamado "${parsed.entities.employeeName}". Cadastre-o em Equipe antes de continuar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um funcionário parecido com "${parsed.entities.employeeName}". Informe o nome completo.`;
-      else if (parsed.intent === 'COMMISSION_MONTH_QUERY') {
-        const now = new Date();
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const total = commissions.filter((c) => c.employeeId === matches[0].id && !c.paid && c.month === month).reduce((sum, c) => sum + c.amount, 0);
-        botText = `${matches[0].name} tem ${formatMoney(total)} de comissão pendente este mês.`;
-      } else {
-        const pending = useAppStore.getState().commissions.filter((c) => c.employeeId === matches[0].id && !c.paid);
-        if (pending.length === 0) botText = `${matches[0].name} não tem comissão pendente para fechar.`;
-        else { const total = pending.reduce((sum, c) => sum + c.amount, 0); closeEmployeeCommission(matches[0].id); botText = `✓ Comissão de ${formatMoney(total)} de ${matches[0].name} concluída. O saldo foi fechado sem alterar o Financeiro.`; }
-      }
-    } else if (parsed.intent === 'QUOTE_CREATE' || parsed.intent === 'QUOTE_STATUS_QUERY' || parsed.intent === 'QUOTE_EXPIRING_QUERY') {
-      if (parsed.intent === 'QUOTE_EXPIRING_QUERY') {
-        const now = new Date(); const start = new Date(now); const day = start.getDay() || 7; start.setDate(start.getDate() - day + 1); start.setHours(0, 0, 0, 0); const end = new Date(start); end.setDate(end.getDate() + 6);
-        const expiring = orcamentos.filter((quote) => quote.status === 'pendente' && new Date(`${quote.validUntil}T00:00:00`) >= start && new Date(`${quote.validUntil}T00:00:00`) <= end);
-        botText = expiring.length ? `Vencem esta semana: ${expiring.map((quote) => `#${quote.id.slice(-6)} em ${quote.validUntil}`).join(', ')}.` : 'Nenhum orçamento pendente vence esta semana.';
-      } else {
-        const matches = resolveClient(parsed.entities.clientName || '');
-        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de criar o orçamento.`;
-        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-        else if (parsed.intent === 'QUOTE_STATUS_QUERY') {
-          const quote = orcamentos.find((item) => item.clientId === matches[0].id);
-          botText = quote ? `O orçamento ${quote.id.slice(-6)} de ${matches[0].name} está ${quote.status}.` : `Não encontrei orçamento para ${matches[0].name}.`;
-        } else {
-          const items = parseQuoteItems(parsed.entities.quoteItemsText || ''); const validUntil = new Date(); validUntil.setDate(validUntil.getDate() + 7); const id = addOrcamento({ clientId: matches[0].id, items, total: 0, validUntil: validUntil.toISOString().split('T')[0], status: 'pendente', createdAt: new Date().toISOString() });
-          botText = `✓ Orçamento ${id.slice(-6)} criado para ${matches[0].name}, válido por 7 dias.`;
-        }
-      }
-    } else if (parsed.intent === 'DELIVERY_STATUS_QUERY' || parsed.intent === 'DELIVERY_PENDING_QUERY') {
-      const today = new Date().toISOString().split('T')[0];
-      if (parsed.intent === 'DELIVERY_PENDING_QUERY') {
-        const pending = entregas.filter((delivery) => delivery.status === 'a caminho' && delivery.estimatedDate === today);
-        botText = pending.length ? `Entregas pendentes hoje: ${pending.map((delivery) => `pedido ${delivery.orderId.slice(-6)}`).join(', ')}.` : 'Não há entregas pendentes para hoje.';
-      } else {
-        const order = pedidos.find((item) => item.id === parsed.entities.orderId || item.id.endsWith(parsed.entities.orderId || ''));
-        const delivery = order && entregas.find((item) => item.orderId === order.id && item.status !== 'cancelada');
-        botText = delivery ? `A entrega do pedido ${order!.id.slice(-6)} está ${delivery.status}, com prazo para ${formatDate(delivery.estimatedDate)}.` : `Não encontrei uma entrega ativa para o pedido ${parsed.entities.orderId}.`;
-      }
-    } else if (parsed.intent === 'FREE_SLOT_QUERY' || parsed.intent === 'APPOINTMENT_CREATE' || parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
-      if (!activatedPlugins.includes('agenda')) {
-        botText = 'Ative o módulo Agenda / Atendimento em Apps para agendar horários.';
-      } else if (parsed.intent === 'APPOINTMENT_TODAY_QUERY') {
-        const today = new Date().toISOString().split('T')[0];
-        const todayAppointments = atendimentos.filter((appointment) => appointment.date === today && appointment.status !== 'cancelado');
-        botText = todayAppointments.length ? `Hoje você tem: ${todayAppointments.map((appointment) => `${appointment.time} — ${appointment.service}`).join('; ')}.` : 'Você não tem atendimentos agendados para hoje.';
-      } else {
-        const date = dateForToken(parsed.entities.date || 'hoje');
-        const occupied = atendimentos.some((appointment) => appointment.date === date && appointment.time === parsed.entities.time && appointment.status !== 'cancelado');
-        if (parsed.intent === 'FREE_SLOT_QUERY') botText = occupied ? `Esse horário já está ocupado em ${date} às ${parsed.entities.time}.` : `Sim, o horário de ${date} às ${parsed.entities.time} está livre.`;
-        else {
-          const matches = resolveClient(parsed.entities.clientName || '');
-          if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de agendar.`;
-          else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-          else if (occupied) botText = `O horário de ${date} às ${parsed.entities.time} já está ocupado.`;
-          else { const id = addAtendimento({ clientId: matches[0].id, date, time: parsed.entities.time || '00:00', duration: 60, service: 'Atendimento', status: 'confirmado', createdAt: new Date().toISOString() }); botText = id ? `✓ Atendimento de ${matches[0].name} marcado para ${date} às ${parsed.entities.time}.` : 'Não foi possível criar o atendimento.'; }
-        }
-      }
-    } else if (parsed.intent === 'CONTRACT_DUE_QUERY' || parsed.intent === 'CONTRACT_STATUS_QUERY') {
-      const now = new Date();
-      if (parsed.intent === 'CONTRACT_DUE_QUERY') {
-        const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-        const due = contratos.filter((contract) => contract.status === 'ativo' && contract.nextBillingDate.startsWith(month));
-        botText = due.length ? `Vencem este mês: ${due.map((contract) => `${clienteItems.find((client) => client.id === contract.clientId)?.name ?? 'cliente'} em ${formatDate(contract.nextBillingDate)}`).join(', ')}.` : 'Nenhum contrato ativo vence este mês.';
-      } else {
-        const matches = resolveClient(parsed.entities.clientName || '');
-        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}".`;
-        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-        else {
-          const pending = transactions.some((transaction) => transaction.clientId === matches[0].id && transaction.contractId && transaction.confirmed === false && !!transaction.expectedDate && transaction.expectedDate <= new Date().toISOString().split('T')[0]);
-          botText = pending ? `${matches[0].name} tem uma cobrança de contrato pendente.` : `${matches[0].name} está em dia com os contratos.`;
-        }
-      }
-    } else if (parsed.intent === 'ORDER_CREATE' || parsed.intent === 'ORDER_OPEN_QUERY' || parsed.intent === 'SALES_WEEK_QUERY') {
-      if (parsed.intent === 'ORDER_OPEN_QUERY') {
-        const openOrders = pedidos.filter((order) => order.status === 'aberto');
-        botText = openOrders.length ? `Pedidos em aberto: ${openOrders.map((order) => `#${order.id.slice(-6)}`).join(', ')}.` : 'Não há pedidos em aberto.';
-      } else if (parsed.intent === 'SALES_WEEK_QUERY') {
-        const now = new Date();
-        const start = new Date(now);
-        const day = start.getDay() || 7;
-        start.setDate(start.getDate() - day + 1);
-        start.setHours(0, 0, 0, 0);
-        const sold = pedidos.filter((order) => order.status === 'concluido' && new Date(order.createdAt) >= start).reduce((sum, order) => sum + order.total, 0);
-        botText = `Você vendeu ${formatMoney(sold)} nesta semana.`;
-      } else {
-        const matches = resolveClient(parsed.entities.clientName || '');
-        if (matches.length === 0) botText = `Não encontrei o cliente "${parsed.entities.clientName}". Cadastre-o em Clientes antes de registrar o pedido.`;
-        else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo.`;
-        else {
-          const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
-          const quantity = parsed.entities.orderQuantity || 0;
-          const unitPrice = parsed.entities.unitPrice || 0;
-          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
-          botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
-        }
-      }
-    } else if (parsed.intent === 'STOCK_BALANCE_QUERY' || parsed.intent === 'STOCK_DECREASE' || parsed.intent === 'STOCK_LOW_QUERY') {
-      if (parsed.intent === 'STOCK_LOW_QUERY') {
-        const lowItems = estoqueItems.filter((item) => item.quantity < item.minAlert);
-        botText = lowItems.length ? `Estão acabando: ${lowItems.map((item) => `${item.name} (${item.quantity} ${item.unit})`).join(', ')}.` : 'Nenhum item está abaixo do mínimo.';
-      } else {
-        const matches = resolveStockItem(parsed.entities.stockItemName || '');
-        if (matches.length === 0) botText = `Não encontrei o item "${parsed.entities.stockItemName}" no estoque.`;
-        else if (matches.length > 1) botText = `Encontrei mais de um item parecido com "${parsed.entities.stockItemName}". Informe o nome completo.`;
-        else if (parsed.intent === 'STOCK_BALANCE_QUERY') botText = `Você tem ${matches[0].quantity} ${matches[0].unit} de ${matches[0].name}.`;
-        else if (moveEstoqueItem(matches[0].id, -(parsed.entities.value || 0), 'uso interno')) botText = `✓ Baixa de ${parsed.entities.value} ${matches[0].unit} de ${matches[0].name} registrada.`;
-        else botText = `Não foi possível dar baixa: o estoque de ${matches[0].name} não pode ficar negativo.`;
-      }
-    } else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY' || parsed.intent === 'SUPPLIER_DUE_QUERY') {
-      const matches = resolveSupplier(parsed.entities.supplierName || '');
-      if (matches.length === 0) botText = `Não encontrei um fornecedor chamado "${parsed.entities.supplierName}". Cadastre-o em Fornecedores antes de consultar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um fornecedor parecido com "${parsed.entities.supplierName}". Informe o nome completo.`;
-      else if (parsed.intent === 'SUPPLIER_BALANCE_QUERY') {
-        const debt = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0 && !transaction.supplierPaid).reduce((sum, transaction) => sum + Math.abs(transaction.amount), 0);
-        botText = `Você deve ${formatMoney(debt)} para ${matches[0].name}.`;
-      } else {
-        const purchases = transactions.filter((transaction) => transaction.supplierId === matches[0].id && transaction.amount < 0).sort((a, b) => b.id.localeCompare(a.id));
-        botText = purchases[0]?.supplierDueDate ? `A última compra de ${matches[0].name} vence em ${formatDate(purchases[0].supplierDueDate)}.` : `A última compra de ${matches[0].name} não tem vencimento informado.`;
-      }
-    } else if (parsed.intent === 'CLIENT_PAYMENT_QUERY' || parsed.intent === 'CLIENT_PENDING_QUERY') {
-      const matches = resolveClient(parsed.entities.clientName || '');
-      if (matches.length === 0) botText = `Não encontrei um cliente chamado "${parsed.entities.clientName}". Cadastre-o em Clientes antes de consultar.`;
-      else if (matches.length > 1) botText = `Encontrei mais de um cliente parecido com "${parsed.entities.clientName}". Informe o nome completo para eu continuar.`;
-      else if (parsed.intent === 'CLIENT_PAYMENT_QUERY') {
-         const total = transactions.filter((transaction) => transaction.clientId === matches[0].id && transaction.amount > 0 && transaction.confirmed !== false).reduce((sum, transaction) => sum + transaction.amount, 0);
-        botText = `${matches[0].name} já pagou ${formatMoney(total)} nas receitas vinculadas.`;
-      } else {
-        botText = /pend[eê]ncia|aberto|deve/i.test(matches[0].notes) ? `${matches[0].name} tem uma pendência registrada nas observações: ${matches[0].notes}` : `Não há pendência registrada para ${matches[0].name}.`;
-      }
-    } else if (parsed.intent === 'UNKNOWN') {
-      botType = 'fallback';
-    } else if (parsed.intent === 'EXPENSE_RECORD' || parsed.intent === 'INCOME_RECORD') {
-      actions = ['Editar', 'Excluir'];
-      if (parsed.intent === 'EXPENSE_RECORD') {
-        const supplierMatches = parsed.entities.supplierName ? resolveSupplier(parsed.entities.supplierName) : [];
-        if (parsed.entities.category === 'Fornecedores' && supplierMatches.length !== 1) {
-          actions = [];
-          botText = supplierMatches.length > 1 ? 'Encontrei mais de um fornecedor parecido. Informe o nome completo antes de registrar.' : `Não encontrei o fornecedor "${parsed.entities.supplierName || 'informado'}". Cadastre-o em Fornecedores antes de registrar.`;
-        } else {
-          const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-          const supplier = supplierMatches[0];
-          addTransaction({ date, description: parsed.entities.description || 'Despesa', amount: -(parsed.entities.value || 0), category: parsed.entities.category || 'Outros', supplierId: supplier?.id, supplierDueDate: supplier ? (parsed.entities.paymentDays !== undefined ? suggestedDueDate(date, `${parsed.entities.paymentDays} dias`) : suggestedDueDate(date, supplier.paymentTerm)) : undefined, supplierPaid: supplier ? false : undefined });
-          botText = supplier ? `✓ Compra de ${formatMoney(parsed.entities.value || 0)} para ${supplier.name} registrada como pendente.` : botText;
-        }
-      } else {
-        const matches = resolveClient(parsed.entities.description || '');
-        if (matches.length > 1) {
-          botText = `Encontrei mais de um cliente parecido com "${parsed.entities.description}". Informe o nome completo antes de registrar.`;
-        } else if (matches.length === 0 && parsed.entities.description && parsed.entities.description !== 'Receita') {
-          botText = `Não encontrei um cliente chamado "${parsed.entities.description}". Você quer cadastrá-lo antes de registrar essa receita?`;
-        } else {
-        addTransaction({
-          date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-          description: parsed.entities.description || 'Receita',
-          amount: parsed.entities.value || 0,
-          category: 'Receita',
-          clientId: matches[0]?.id,
-        });
-        }
-      }
-    }
-
-    const botMsg: Message = {
-      id: (Date.now() + 1).toString(),
-      type: botType,
-      text: botText,
-      actions,
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMsg, botMsg]);
-    setInput('');
-    scrollToBottom();
-}, [scrollToBottom, addTransaction, addTask, addEvent, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, resolveClient, resolveSupplier, resolveStockItem, resolveEmployee, updateTask, commissions, closeEmployeeCommission, transactions, estoqueItems, moveEstoqueItem, entregas, atendimentos, addAtendimento, activatedPlugins, applyTaskEngineResult]);
+    commitMessages(transcript.trim(), processMessage(transcript.trim()));
+  }, [processMessage, commitMessages]);
 
   const renderMessage = ({ item }: { item: Message }) => {
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');

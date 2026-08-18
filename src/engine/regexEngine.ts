@@ -238,7 +238,9 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'TASK_WITH_DATE':
       return `✓ Adicionado ao calendário: ${entities.description} — ${entities.date}.`;
     case 'QUERY_REPORT':
-      return `Você gastou R$ 1.640,00 este mês, distribuídos em:\n• Combustível: R$ 620,00\n• Materiais: R$ 480,00\n• Fornecedores: R$ 350,00\n• Alimentação: R$ 190,00\n\nEntradas: R$ 3.200,00 — Saldo: R$ 1.560,00`;
+      // Respondido com dados REAIS pelo financialEngine (queryAnswer) —
+      // ver `processMessage` em app/(tabs)/chat.tsx. Nunca inventar números.
+      return '';
     case 'CLIENT_PAYMENT_QUERY':
       return '';
     case 'CLIENT_PENDING_QUERY':

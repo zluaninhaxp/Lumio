@@ -28,6 +28,15 @@ export interface Transaction {
   confirmed?: boolean;
   /** Funcionário vinculado (ex: comissão paga). */
   employeeId?: string;
+  /**
+   * Id da `Task` que originou/está vinculada a esta movimentação, quando o
+   * lançamento veio de uma obrigação financeira criada via chat ("tenho
+   * que pagar o fornecedor até sexta"). Relação bidirecional: a `Task`
+   * correspondente possui `financeTransactionId` apontando de volta.
+   * Concluir a tarefa NÃO apaga o lançamento (o registro financeiro é
+   * permanente; ver integração Chat→Financeiro, seção 46).
+   */
+  taskId?: string;
 }
 export interface Task {
   id: string;
@@ -51,6 +60,13 @@ export interface Task {
    * campo fica `undefined`. Ver seção 5/6 da especificação de Calendário.
    */
   calendarEventId?: string;
+  /**
+   * Id da `Transaction` vinculada a esta tarefa quando ela representa uma
+   * obrigação financeira criada via chat ("preciso pagar o funcionário até
+   * dia 20"). Relação bidirecional: a `Transaction` possui `taskId`.
+   * Concluir/excluir a tarefa NÃO apaga o lançamento financeiro.
+   */
+  financeTransactionId?: string;
 }
 
 export interface CalendarEvent {
@@ -445,6 +461,13 @@ employeeItems: EmployeeItem[];
     deadline?: boolean;
     eventType?: string;
   }) => boolean;
+  /**
+   * Vincula bidirecionalmente uma tarefa a uma transação financeira
+   * (obrigações criadas via chat: "tenho que pagar o fornecedor até
+   * sexta"). Idempotente. Concluir/remover a tarefa NÃO remove a
+   * transação — o registro financeiro permanece (seção 46).
+   */
+  linkTaskToTransaction: (taskId: string, transactionId: string) => void;
 
   customTaskTags: string[];
   addCustomTaskTag: (tag: string) => void;
@@ -1124,6 +1147,9 @@ updateEmployeeItem: (id, item) =>
       return {
         tasks: s.tasks.filter((t) => t.id !== id),
         events,
+        // Tarefa removida NÃO apaga o lançamento financeiro vinculado —
+        // apenas desvincula (o registro financeiro é permanente).
+        transactions: s.transactions.map((t) => (t.taskId === id ? { ...t, taskId: undefined } : t)),
       };
     }),
   calendarizeTask: (taskId, opts) => {
@@ -1156,6 +1182,15 @@ updateEmployeeItem: (id, item) =>
     });
     return ok;
   },
+
+  linkTaskToTransaction: (taskId, transactionId) =>
+    set((s) => {
+      if (!s.tasks.some((t) => t.id === taskId) || !s.transactions.some((t) => t.id === transactionId)) return s;
+      return {
+        tasks: s.tasks.map((t) => (t.id === taskId && t.financeTransactionId !== transactionId ? { ...t, financeTransactionId: transactionId } : t)),
+        transactions: s.transactions.map((t) => (t.id === transactionId && t.taskId !== taskId ? { ...t, taskId } : t)),
+      };
+    }),
 
   customTaskTags: [],
   addCustomTaskTag: (tag) =>

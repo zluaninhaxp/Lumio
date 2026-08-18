@@ -5,9 +5,10 @@
  * da especificação). NÃO usa datas fixas — toda referência é relativa ao
  * `now` injetado pelo contexto da aplicação.
  *
- * Suporta: hoje, amanhã, depois de amanhã, ontem, dias da semana (sexta,
- * próxima sexta), semana que vem, períodos (manhã/tarde/noite), "daqui a N
- * dias", "em N dias", "dia 20", "20/08", "20/08/2026", "20 de agosto",
+ * Suporta: hoje, amanhã, depois de amanhã, ontem, anteontem, "há N dias",
+ * "semana passada", "mês passado", dias da semana (sexta, próxima sexta),
+ * semana que vem, períodos (manhã/tarde/noite), "daqui a N dias",
+ * "em N dias", "dia 20", "20/08", "20/08/2026", "20 de agosto",
  * horários ("às 15h", "às 10", "15h30"), prazos ("até sexta", "para amanhã").
  */
 import { stripAccents } from './normalize.ts';
@@ -100,6 +101,41 @@ function isDeadlineLead(t: string | undefined): boolean {
 export function resolveTemporal(tokens: string[], now: Date): { resolution: TemporalResolution; span: [number, number] | null } {
   const n = tokens.length;
   if (n === 0) return { resolution: empty(), span: null };
+
+  // 0) PASSADO — "ontem", "anteontem", "há N dias/semanas", "semana
+  // passada". Reconhecido ANTES de tudo para o financialEngine registrar
+  // movimentações retroativas ("recebi 800 ontem do Carlos"). Os motores
+  // de tarefa/calendário continuam filtrando passado em seus intent
+  // detectors — este resolver apenas calcula a data.
+  for (let i = 0; i < n; i++) {
+    const t = tokens[i];
+    if (t === 'anteontem') {
+      return { resolution: { dueDate: toISO(addDays(now, -2)), dueTime: null, expression: 'anteontem', isDeadline: false }, span: [i, i + 1] };
+    }
+    if (t === 'ontem') {
+      return { resolution: { dueDate: toISO(addDays(now, -1)), dueTime: null, expression: 'ontem', isDeadline: false }, span: [i, i + 1] };
+    }
+    // "há/ha/faz/fazem N dias/semanas" (também "a 2 dias")
+    if (t === 'há' || t === 'ha' || t === 'faz' || t === 'fazem') {
+      const numTok = tokens[i + 1];
+      const num = /^\d+$/.test(numTok) ? Number(numTok) : WORD_NUM[stripAccents(numTok ?? '')];
+      const unitTok = stripAccents(tokens[i + 2] ?? '');
+      const perDay = ADD_UNIT_DAYS[unitTok];
+      if (num !== undefined && perDay !== undefined) {
+        return { resolution: { dueDate: toISO(addDays(now, -num * perDay)), dueTime: null, expression: `${tokens.slice(i, i + 3).join(' ')}`, isDeadline: false }, span: [i, i + 3] };
+      }
+    }
+    // "semana passada" / "mês passado"
+    const two = tokens.slice(i, i + 2).join(' ');
+    if (two === 'semana passada') {
+      return { resolution: { dueDate: toISO(addDays(now, -7)), dueTime: null, expression: 'semana passada', isDeadline: false }, span: [i, i + 2] };
+    }
+    if (two === 'mês passado' || two === 'mes passado') {
+      const d = clone(now);
+      d.setMonth(d.getMonth() - 1);
+      return { resolution: { dueDate: toISO(d), dueTime: null, expression: two, isDeadline: false }, span: [i, i + 2] };
+    }
+  }
 
   // 1) "depois de amanhã" / "depois deamanha" — ANTES do loop de hoje/amanhã.
   for (let i = 0; i + 2 < n; i++) {
