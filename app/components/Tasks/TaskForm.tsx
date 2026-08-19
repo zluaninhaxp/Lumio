@@ -6,6 +6,8 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
@@ -34,6 +36,28 @@ const PRIORITY_OPTIONS: { key: TaskPriority; label: string; color: string; icon:
 ];
 
 const PERIOD_LABELS = ['Esta semana', 'Próxima semana'];
+const CHOOSE_DATE_LABEL = 'Escolher data';
+
+function getCalendarDays(year: number, month: number): (number | null)[][] {
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDow = new Date(year, month, 1).getDay();
+  const weeks: (number | null)[][] = [];
+  let week: (number | null)[] = [];
+
+  for (let i = 0; i < firstDow; i++) week.push(null);
+  for (let day = 1; day <= daysInMonth; day++) {
+    week.push(day);
+    if (week.length === 7) {
+      weeks.push(week);
+      week = [];
+    }
+  }
+  if (week.length > 0) {
+    while (week.length < 7) week.push(null);
+    weeks.push(week);
+  }
+  return weeks;
+}
 
 function getDateQuickOptions(): { label: string; value: string | null; icon: any }[] {
   const today = new Date();
@@ -47,6 +71,7 @@ function getDateQuickOptions(): { label: string; value: string | null; icon: any
   const fmt = (d: Date) => d.toISOString().split('T')[0];
 
   return [
+    { label: CHOOSE_DATE_LABEL, value: null, icon: 'calendar-outline' },
     { label: 'Hoje', value: fmt(today), icon: 'sunny-outline' },
     { label: 'Amanhã', value: fmt(tomorrow), icon: 'calendar-outline' },
     { label: 'Esta semana', value: fmt(endOfWeek), icon: 'today-outline' },
@@ -61,8 +86,12 @@ export function TaskForm({ onSave, onCancel }: TaskFormProps) {
   const [priority, setPriority] = useState<TaskPriority>('baixa');
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [dueDateLabel, setDueDateLabel] = useState<string | null>(null);
+  const [customDateSelected, setCustomDateSelected] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [employeeId, setEmployeeId] = useState<string | undefined>();
+  const [calendarVisible, setCalendarVisible] = useState(false);
+  const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
+  const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
 
   const quickOptions = getDateQuickOptions();
   const availableTags = Array.from(new Set([
@@ -71,8 +100,25 @@ export function TaskForm({ onSave, onCancel }: TaskFormProps) {
   ]));
 
   const selectDateOption = (opt: { label: string; value: string | null }) => {
+    if (opt.label === CHOOSE_DATE_LABEL) {
+      const currentDate = dueDate ? new Date(`${dueDate}T00:00:00`) : new Date();
+      setCalendarMonth(currentDate.getMonth());
+      setCalendarYear(currentDate.getFullYear());
+      setCalendarVisible(true);
+      return;
+    }
     setDueDate(opt.value);
     setDueDateLabel(PERIOD_LABELS.includes(opt.label) ? opt.label : null);
+    setCustomDateSelected(false);
+  };
+
+  const selectCalendarDate = (day: number) => {
+    const month = String(calendarMonth + 1).padStart(2, '0');
+    const date = String(day).padStart(2, '0');
+    setDueDate(`${calendarYear}-${month}-${date}`);
+    setDueDateLabel(null);
+    setCustomDateSelected(true);
+    setCalendarVisible(false);
   };
 
   const toggleTag = (tag: string) => {
@@ -134,7 +180,14 @@ export function TaskForm({ onSave, onCancel }: TaskFormProps) {
         contentContainerStyle={styles.dateRow}
       >
         {quickOptions.map((opt) => {
-          const active = dueDate === opt.value && (dueDateLabel ?? null) === (PERIOD_LABELS.includes(opt.label) ? opt.label : null);
+          const isChooseDate = opt.label === CHOOSE_DATE_LABEL;
+          const isCustomDate = customDateSelected;
+          const active = isChooseDate
+            ? isCustomDate
+            : !customDateSelected && dueDate === opt.value && (dueDateLabel ?? null) === (PERIOD_LABELS.includes(opt.label) ? opt.label : null);
+          const label = isChooseDate && isCustomDate
+            ? new Date(`${dueDate}T00:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+            : opt.label;
           return (
             <TouchableOpacity
               key={opt.label}
@@ -143,12 +196,56 @@ export function TaskForm({ onSave, onCancel }: TaskFormProps) {
             >
               <Ionicons name={opt.icon} size={13} color={active ? '#FFFFFF' : Colors.textSecondary} />
               <Text style={[styles.dateChipText, active && styles.dateChipTextActive]}>
-                {opt.label}
+                {label}
               </Text>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
+
+      <Modal visible={calendarVisible} transparent animationType="fade" onRequestClose={() => setCalendarVisible(false)}>
+        <Pressable style={styles.calendarOverlay} onPress={() => setCalendarVisible(false)}>
+          <Pressable style={styles.calendarCard}>
+            <View style={styles.calendarHeader}>
+              <Text style={styles.calendarTitle}>Escolher data</Text>
+              <TouchableOpacity onPress={() => setCalendarVisible(false)} hitSlop={10}>
+                <Ionicons name="close" size={21} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.calendarNavigation}>
+              <TouchableOpacity onPress={() => {
+                if (calendarMonth === 0) {
+                  setCalendarYear((year) => year - 1);
+                  setCalendarMonth(11);
+                } else setCalendarMonth((month) => month - 1);
+              }}>
+                <Ionicons name="chevron-back" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+              <Text style={styles.calendarMonthLabel}>{new Date(calendarYear, calendarMonth).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</Text>
+              <TouchableOpacity onPress={() => {
+                if (calendarMonth === 11) {
+                  setCalendarYear((year) => year + 1);
+                  setCalendarMonth(0);
+                } else setCalendarMonth((month) => month + 1);
+              }}>
+                <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.calendarWeekDays}>
+              {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={styles.calendarWeekDay}>{day}</Text>)}
+            </View>
+            {getCalendarDays(calendarYear, calendarMonth).map((week, weekIndex) => (
+              <View key={weekIndex} style={styles.calendarWeek}>
+                {week.map((day, dayIndex) => day === null ? <View key={dayIndex} style={styles.calendarDay} /> : (
+                  <TouchableOpacity key={day} style={styles.calendarDay} onPress={() => selectCalendarDate(day)}>
+                    <Text style={styles.calendarDayText}>{day}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ))}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <Text style={styles.label}>Tags</Text>
       {availableTags.length > 0 ? (
@@ -280,6 +377,54 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   dateChipTextActive: { color: '#FFF' },
+  calendarOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+  },
+  calendarCard: {
+    padding: Spacing.md,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.bgCard,
+  },
+  calendarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  calendarTitle: {
+    fontFamily: 'PlusJakartaSans_700Bold',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+  },
+  calendarNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: Spacing.md,
+  },
+  calendarMonthLabel: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    textTransform: 'capitalize',
+  },
+  calendarWeekDays: { flexDirection: 'row', marginTop: Spacing.md },
+  calendarWeekDay: {
+    flex: 1,
+    textAlign: 'center',
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  calendarWeek: { flexDirection: 'row', marginTop: Spacing.sm },
+  calendarDay: { flex: 1, alignItems: 'center', paddingVertical: 5 },
+  calendarDayText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+  },
   tagsRow: {
     gap: 6,
     paddingVertical: 2,

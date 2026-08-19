@@ -16,6 +16,7 @@ import { TaskForm, type TaskFormData } from '../components/Tasks/TaskForm';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
+import { ChatIndicator } from '../components/ChatIndicator';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -630,12 +631,15 @@ export default function TarefasScreen() {
                   }}
                   activeOpacity={1}
                 >
-                  <Text
-                    style={[styles.taskText, item.done && styles.taskTextDone]}
-                    numberOfLines={isExpanded ? undefined : 2}
-                  >
-                    {item.description}
-                  </Text>
+                  <View style={styles.taskDescriptionRow}>
+                    {item.source === 'chat' && <ChatIndicator size={14} />}
+                    <Text
+                      style={[styles.taskText, item.done && styles.taskTextDone]}
+                      numberOfLines={isExpanded ? undefined : 2}
+                    >
+                      {item.description}
+                    </Text>
+                  </View>
                 </TouchableOpacity>
               )}
 
@@ -1551,6 +1555,7 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  taskDescriptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   taskText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,

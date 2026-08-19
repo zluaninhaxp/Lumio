@@ -19,7 +19,7 @@ interface EventFormProps {
 
 export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<'event' | 'task'>('task');
+  const [type, setType] = useState<'event' | 'task'>('event');
   const [eventType, setEventType] = useState<string>('');
   const [time, setTime] = useState('');
   const [date, setDate] = useState(initialDate);
@@ -76,19 +76,19 @@ export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
       <Text style={styles.label}>Tipo</Text>
       <View style={styles.typeRow}>
         <TouchableOpacity
-          style={[styles.typeBtn, type === 'task' && styles.typeBtnActive]}
-          onPress={() => handleSelectType('task')}
-        >
-          <Text style={[styles.typeBtnText, type === 'task' && styles.typeBtnTextActive]}>
-            Tarefa
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.typeBtn, type === 'event' && styles.typeBtnActive]}
           onPress={() => handleSelectType('event')}
         >
           <Text style={[styles.typeBtnText, type === 'event' && styles.typeBtnTextActive]}>
             Evento
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.typeBtn, type === 'task' && styles.typeBtnActive]}
+          onPress={() => handleSelectType('task')}
+        >
+          <Text style={[styles.typeBtnText, type === 'task' && styles.typeBtnTextActive]}>
+            Tarefa
           </Text>
         </TouchableOpacity>
       </View>

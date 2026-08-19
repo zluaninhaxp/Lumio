@@ -62,7 +62,7 @@ export function applyFinancialResult(
   store: FinancialStoreApi
 ): FinancialApplicationResult {
   if (result.intent === 'create_transaction') {
-    const ids = result.entries.map((e) => store.addTransaction(entryToTransactionPayload(e)));
+    const ids = result.entries.map((e) => store.addTransaction({ ...entryToTransactionPayload(e), source: 'chat' }));
     return { transactionIds: ids, taskId: null, created: 'transactions' };
   }
 
@@ -72,6 +72,7 @@ export function applyFinancialResult(
     const entry = result.entries[0];
     const taskId = store.addTask({
       description: obligationTaskTitle(entry) || 'Acertar compromisso financeiro',
+      source: 'chat',
       done: false,
       dueDate: entry.dueDate,
       dueDateLabel: null,
@@ -80,7 +81,7 @@ export function applyFinancialResult(
       tags: ['Financeiro'],
       createdAt: new Date().toISOString(),
     });
-    const transactionIds = result.entries.map((e) => store.addTransaction(entryToTransactionPayload(e)));
+    const transactionIds = result.entries.map((e) => store.addTransaction({ ...entryToTransactionPayload(e), source: 'chat' }));
     if (entry.dueDate) {
       store.calendarizeTask(taskId, { date: entry.dueDate, deadline: true });
     }

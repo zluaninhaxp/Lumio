@@ -280,6 +280,7 @@ return date.toISOString().split('T')[0];
       if (t.confidence < minconf) continue;
       const taskId = addTask({
         description: t.title,
+        source: 'chat',
         done: false,
         dueDate: t.dueDate,
         dueDateLabel: t.dueDateLabel,

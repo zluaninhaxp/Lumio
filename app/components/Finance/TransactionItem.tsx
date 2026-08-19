@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { ChatIndicator } from '../ChatIndicator';
 import { getCategoryIcon, getCategoryIconColor } from '../../../src/hooks/useFinanceState';
 import type { Transaction } from '../../../src/store';
 
@@ -117,11 +118,12 @@ export function TransactionItem({
         </View>
 
         <View style={styles.center}>
-          <Text style={styles.desc} numberOfLines={1}>
-            {item.description}
-          </Text>
+          <View style={styles.descriptionRow}>
+            {item.source === 'chat' && <ChatIndicator size={14} />}
+            <Text style={styles.desc} numberOfLines={1}>{item.description}</Text>
+          </View>
           <Text style={styles.category} numberOfLines={1}>
-            {item.category}{item.confirmed === false ? ' · Prevista' : ''}
+           {item.category || 'Sem categoria'}{item.confirmed === false ? ' · Prevista' : ''}
           </Text>
           {item.confirmed === false && onMarkReceived && <TouchableOpacity onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>Marcar recebida</Text></TouchableOpacity>}
         </View>
@@ -181,6 +183,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   center: { flex: 1 },
+  descriptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   desc: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,

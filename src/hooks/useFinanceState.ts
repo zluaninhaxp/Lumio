@@ -136,7 +136,7 @@ export function useFinanceState() {
     () =>
       [
         ...new Set([
-          ...transactions.map((t) => t.category),
+          ...transactions.map((t) => t.category).filter((category): category is string => !!category),
           ...onboardingCategoryLabels,
         ]),
       ].filter((c) => c !== 'Receita'),
@@ -199,7 +199,7 @@ export function useFinanceState() {
     periodTransactions
       .filter((t) => t.amount < 0 && t.category !== 'Receita')
       .forEach((t) => {
-        catMap[t.category] = (catMap[t.category] || 0) + Math.abs(t.amount);
+      if (t.category) catMap[t.category] = (catMap[t.category] || 0) + Math.abs(t.amount);
       });
 
     const categories = Object.entries(catMap)

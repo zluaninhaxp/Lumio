@@ -79,14 +79,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
       ? ''
       : editData.description
     : draft?.description ?? '';
-  const initialCategory = editData
-    ? editData.category
-    : draft?.category ?? (
-      initialType === 'entrada'
-    ? 'Receita'
-    : categories.length > 0
-    ? categories[0]
-    : 'Outros');
+  const initialCategory = editData ? editData.category : draft?.category ?? '';
 
   const [amount, setAmount] = useState(initialAmount);
   const [type, setType] = useState<'saida' | 'entrada'>(initialType);
@@ -117,21 +110,11 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
     return () => clearTimeout(t);
   }, []);
 
-  useEffect(() => {
-    if (type === 'entrada') {
-      setCategory('Receita');
-    } else if (categories.length > 0 && (category === 'Receita' || !categories.includes(category))) {
-      setCategory(categories[0]);
-    }
-  }, [type, categories]);
-
   const handleSave = () => {
     const num = parseFloat(amount.replace(',', '.'));
     if (!amount.trim() || isNaN(num) || num <= 0) return;
     if (!/^\d{2}\/\d{2}$/.test(transactionDate.trim())) return;
     if (!description.trim()) return;
-    if (!category.trim()) return;
-
     const finalDate = transactionDate.trim() || initialDateStr;
 
     const selectedClientId = clientId;
@@ -146,7 +129,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
       date: finalDate,
       description: description.trim() || (type === 'entrada' ? 'Receita' : 'Despesa'),
       amount: type === 'entrada' ? num : -num,
-      category: category || 'Outros',
+      category: category.trim(),
       clientId: type === 'entrada' ? selectedClientId : undefined,
       supplierId: type === 'saida' ? selectedSupplierId : undefined,
       supplierDueDate: finalSupplierDueDate,
@@ -167,8 +150,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
     !isNaN(parseFloat(amount.replace(',', '.'))) &&
     parseFloat(amount.replace(',', '.')) > 0 &&
     /^\d{2}\/\d{2}$/.test(transactionDate.trim()) &&
-    description.trim().length > 0 &&
-      category.trim().length > 0;
+    description.trim().length > 0;
 
   const presetAmounts = ['10', '50', '100', '200', '500'];
 

@@ -10,6 +10,7 @@ import { generateId } from '../utils/id';
 
 export interface Transaction {
   id: string;
+  source?: 'manual' | 'chat';
   date: string;
   description: string;
   amount: number;
@@ -41,6 +42,7 @@ export interface Transaction {
 export interface Task {
   id: string;
   description: string;
+  source?: 'manual' | 'chat';
   done: boolean;
   dueDate: string | null;
   dueDateLabel?: string | null;
@@ -107,6 +109,7 @@ export interface CalendarEvent {
    * com `Task` — preservando o comportamento anterior.
    */
   source?: 'manual' | 'chat' | 'task';
+  origin?: 'chat';
   /**
    * `true` quando este evento representa um PRAZO (deadline), não uma
    * execução pontual. Ex.: tarefa "pagar funcionário até dia 20" gera
@@ -1173,6 +1176,7 @@ updateEmployeeItem: (id, item) =>
         eventType: opts.eventType,
         taskId,
         source: 'task',
+        origin: task.source === 'chat' ? 'chat' : undefined,
         deadline: opts.deadline ? true : undefined,
       };
       return {

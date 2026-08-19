@@ -44,7 +44,7 @@ export default function CalendarioScreen() {
     formatSelectedDate,
   } = useCalendarState();
 
-  const { events, toggleEvent, removeEvent, addEvent, refreshContratos, markTransactionReceived, clienteItems, orcamentos, activatedPlugins, addAtendimento, concludeAtendimento, updateAtendimento, removeAtendimento } = useAppStore();
+  const { events, toggleEvent, removeEvent, addEvent, addTask, calendarizeTask, refreshContratos, markTransactionReceived, clienteItems, orcamentos, activatedPlugins, addAtendimento, concludeAtendimento, updateAtendimento, removeAtendimento } = useAppStore();
   const { transactions, fornecedorItems, markSupplierTransactionPaid } = useAppStore();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -129,10 +129,28 @@ export default function CalendarioScreen() {
 
   const handleSave = useCallback(
     (data: Omit<CalendarEvent, 'id' | 'done'>) => {
-      addEvent(data);
+      if (data.type === 'task') {
+        const taskId = addTask({
+          description: data.description,
+          done: false,
+          dueDate: data.date,
+          dueDateLabel: null,
+          priority: 'media',
+          subtasks: [],
+          tags: [],
+          createdAt: new Date().toISOString(),
+        });
+        calendarizeTask(taskId, {
+          date: data.date,
+          time: data.time,
+          eventType: data.eventType,
+        });
+      } else {
+        addEvent(data);
+      }
       setSheetVisible(false);
     },
-    [addEvent]
+    [addEvent, addTask, calendarizeTask]
   );
 
   const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => {
