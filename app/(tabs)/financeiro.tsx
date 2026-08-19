@@ -5,13 +5,10 @@ import {
   StyleSheet,
   Animated,
   SectionList,
-  TouchableOpacity,
   Pressable,
   SafeAreaView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
@@ -26,13 +23,15 @@ import { UndoSnackbar } from '../components/Finance/UndoSnackbar';
 import { SelectionBar } from '../components/Finance/SelectionBar';
 import { FAB } from '../components/Calendar/FAB';
 import { BottomSheet } from '../components/Calendar/BottomSheet';
+import { UserAvatar } from '../components/account/UserAvatar';
+import { AccountSheet } from '../components/account/AccountSheet';
 
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
 
 export default function FinanceiroScreen() {
-  const router = useRouter();
-  const { logout } = useAuth();
+  const { currentUser } = useAuth();
+  const [accountVisible, setAccountVisible] = useState(false);
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
@@ -85,11 +84,6 @@ export default function FinanceiroScreen() {
     const timer = setTimeout(() => setLoading(false), 600);
     return () => clearTimeout(timer);
   }, [refreshContratos]);
-
-  const handleLogout = useCallback(() => {
-    logout();
-    router.replace('/login');
-  }, [logout, router]);
 
   const openAddSheet = useCallback(() => {
     setEditingItem(null);
@@ -239,9 +233,7 @@ export default function FinanceiroScreen() {
       <View style={styles.topBar}>
         <Text style={styles.title}>Financeiro</Text>
         <View style={styles.topActions}>
-          <TouchableOpacity onPress={handleLogout} hitSlop={12} accessibilityLabel="Sair">
-            <Ionicons name="log-out-outline" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
       </View>
 
@@ -318,6 +310,8 @@ export default function FinanceiroScreen() {
         )}
 
         <UndoSnackbar ref={snackbarRef} onUndo={handleUndo} />
+
+        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
       </View>
     </SafeAreaView>
   );

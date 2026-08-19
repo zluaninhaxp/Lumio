@@ -10,6 +10,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { daysUntil } from '../../src/utils/supplier';
+import { FAB } from '../components/Calendar/FAB';
+import { BottomSheet } from '../components/Calendar/BottomSheet';
+import { TaskForm, type TaskFormData } from '../components/Tasks/TaskForm';
+import { useAuth } from '../../src/hooks/useAuth';
+import { UserAvatar } from '../components/account/UserAvatar';
+import { AccountSheet } from '../components/account/AccountSheet';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -158,6 +164,8 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
+  const { currentUser } = useAuth();
+  const [accountVisible, setAccountVisible] = useState(false);
   const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -167,20 +175,14 @@ export default function TarefasScreen() {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
-  const [newTaskText, setNewTaskText] = useState('');
-  const [newTaskPriority, setNewTaskPriority] = useState<Priority>('baixa');
-  const [newTaskDueDate, setNewTaskDueDate] = useState<string | null>(null);
-  const [newTaskDueDateLabel, setNewTaskDueDateLabel] = useState<string | null>(null);
-  const [isNewTaskFocused, setIsNewTaskFocused] = useState(false);
+  const [sheetVisible, setSheetVisible] = useState(false);
   const [priorityPicker, setPriorityPicker] = useState<{
     taskId?: string;
     current: Priority;
-    isNewTask?: boolean;
   } | null>(null);
   const [datePicker, setDatePicker] = useState<{
     taskId?: string;
     current: string | null;
-    isNewTask?: boolean;
   } | null>(null);
   const [calendarViewYear, setCalendarViewYear] = useState(new Date().getFullYear());
   const [calendarViewMonth, setCalendarViewMonth] = useState(new Date().getMonth());
@@ -190,7 +192,6 @@ export default function TarefasScreen() {
   const [newTagName, setNewTagName] = useState('');
   const [newSubtaskTexts, setNewSubtaskTexts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
-  const newTaskInputRef = useRef<TextInput>(null);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   const supplierSuggestions = useMemo(() => transactions.flatMap((transaction) => {
@@ -333,26 +334,21 @@ export default function TarefasScreen() {
 
   const hasNoTasksAtAll = tasks.length === 0;
 
-  const handleAddTask = useCallback(() => {
-    const text = newTaskText.trim();
-    if (!text) return;
+  const handleAddTask = useCallback((data: TaskFormData) => {
     addTask({
-      description: text,
+      description: data.description,
       done: false,
-      dueDate: newTaskDueDate,
-      dueDateLabel: newTaskDueDateLabel,
-      priority: newTaskPriority,
+      dueDate: data.dueDate,
+      dueDateLabel: data.dueDateLabel,
+      priority: data.priority,
       subtasks: [],
-      tags: [],
+      tags: data.tags,
       createdAt: new Date().toISOString(),
+      employeeId: data.employeeId,
     });
-    setNewTaskText('');
-    setNewTaskPriority('baixa');
-    setNewTaskDueDate(null);
-    setNewTaskDueDateLabel(null);
-    setIsNewTaskFocused(false);
+    setSheetVisible(false);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-  }, [newTaskText, newTaskDueDate, newTaskDueDateLabel, newTaskPriority, addTask]);
+  }, [addTask]);
 
   const handleToggle = useCallback(
     (id: string) => {
@@ -393,10 +389,8 @@ export default function TarefasScreen() {
   }, []);
 
   const handleSetPriority = useCallback(
-    (taskId: string | undefined, priority: Priority, isNewTask: boolean) => {
-      if (isNewTask || !taskId) {
-        setNewTaskPriority(priority);
-      } else {
+    (taskId: string | undefined, priority: Priority) => {
+      if (taskId) {
         updateTask(taskId, { priority });
       }
       setPriorityPicker(null);
@@ -405,11 +399,8 @@ export default function TarefasScreen() {
   );
 
   const handleSetDueDate = useCallback(
-    (taskId: string | undefined, dueDate: string | null, isNewTask: boolean, label?: string | null) => {
-      if (isNewTask || !taskId) {
-        setNewTaskDueDate(dueDate);
-        setNewTaskDueDateLabel(label ?? null);
-      } else {
+    (taskId: string | undefined, dueDate: string | null, label?: string | null) => {
+      if (taskId) {
         updateTask(taskId, { dueDate, dueDateLabel: label ?? null });
       }
       setDatePicker(null);
@@ -512,87 +503,6 @@ export default function TarefasScreen() {
     [removeCustomTaskTag, tagManager],
   );
 
-  // ─────── Quick Add Bar ───────
-  const renderQuickAddBar = () => (
-    <View style={[styles.quickAddContainer, isNewTaskFocused && styles.quickAddContainerFocused]}>
-      <View style={styles.quickAddRow}>
-        <View style={styles.quickAddIconWrap}>
-          <Ionicons name="add-circle-outline" size={20} color={Colors.textMuted} />
-        </View>
-        <TextInput
-          ref={newTaskInputRef}
-          style={styles.quickAddInput}
-          placeholder={isNewTaskFocused ? '' : 'O que você precisa fazer?'}
-          placeholderTextColor={Colors.textMuted}
-          value={newTaskText}
-          onChangeText={(t) => {
-            setNewTaskText(t);
-            if (t.length > 0) setIsNewTaskFocused(true);
-          }}
-          onFocus={() => setIsNewTaskFocused(true)}
-          onBlur={() => {
-            if (newTaskText.length === 0) setIsNewTaskFocused(false);
-          }}
-          onSubmitEditing={handleAddTask}
-          returnKeyType="done"
-          blurOnSubmit={false}
-        />
-        {newTaskText.length > 0 && (
-          <TouchableOpacity
-            onPress={handleAddTask}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            style={styles.quickAddSubmit}
-          >
-            <Ionicons name="arrow-up-circle" size={26} color={Colors.accent} />
-          </TouchableOpacity>
-        )}
-        {isNewTaskFocused && newTaskText.length > 0 && (
-          <TouchableOpacity
-            style={styles.quickAddCancel}
-            onPress={() => {
-              setNewTaskText('');
-              setNewTaskPriority('baixa');
-              setNewTaskDueDate(null);
-              setNewTaskDueDateLabel(null);
-              setIsNewTaskFocused(false);
-            }}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          >
-            <Ionicons name="close" size={18} color={Colors.textMuted} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {isNewTaskFocused && newTaskText.length > 0 && (
-        <View style={styles.quickAddMeta}>
-          <TouchableOpacity
-            style={styles.metaBadge}
-            onPress={() => setPriorityPicker({ current: newTaskPriority, isNewTask: true })}
-          >
-            <Ionicons
-              name={PRIORITY_CONFIG[newTaskPriority].icon}
-              size={12}
-              color={PRIORITY_CONFIG[newTaskPriority].color}
-            />
-            <Text style={[styles.metaBadgeText, { color: PRIORITY_CONFIG[newTaskPriority].color }]}>
-              {PRIORITY_CONFIG[newTaskPriority].label}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.metaBadge}
-            onPress={() => setDatePicker({ current: newTaskDueDate, isNewTask: true })}
-          >
-            <Ionicons name="calendar-outline" size={12} color={Colors.textSecondary} />
-            <Text style={styles.metaBadgeText}>
-              {newTaskDueDateLabel ?? (newTaskDueDate ? formatDueDate(newTaskDueDate) : 'Prazo')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </View>
-  );
-
   // ─────── Empty State ───────
   const renderEmptyState = () => (
     <View style={styles.emptyContainer}>
@@ -603,7 +513,7 @@ export default function TarefasScreen() {
           </View>
           <Text style={styles.emptyTitle}>Nenhuma tarefa ainda</Text>
           <Text style={styles.emptySubtitle}>
-            Use o campo acima para criar sua primeira tarefa.
+            Toque no botão + para criar sua primeira tarefa.
           </Text>
         </>
       ) : (
@@ -973,7 +883,7 @@ export default function TarefasScreen() {
               style={[styles.pickerOption, priorityPicker?.current === p && styles.pickerOptionActive]}
               onPress={() => {
                 if (priorityPicker) {
-                  handleSetPriority(priorityPicker.taskId, p, priorityPicker.isNewTask ?? false);
+                  handleSetPriority(priorityPicker.taskId, p);
                 }
               }}
             >
@@ -1030,7 +940,7 @@ export default function TarefasScreen() {
       const d = String(day).padStart(2, '0');
       const dateStr = `${calendarViewYear}-${m}-${d}`;
       if (datePicker) {
-        handleSetDueDate(datePicker.taskId, dateStr, datePicker.isNewTask ?? false);
+        handleSetDueDate(datePicker.taskId, dateStr);
         setShowCalendar(false);
       }
     };
@@ -1064,7 +974,7 @@ export default function TarefasScreen() {
                     if (datePicker) {
                       const periodLabels = ['Esta semana', 'Próxima semana'];
                       const label = periodLabels.includes(opt.label) ? opt.label : null;
-                      handleSetDueDate(datePicker.taskId, opt.value, datePicker.isNewTask ?? false, label);
+                      handleSetDueDate(datePicker.taskId, opt.value, label);
                       setShowCalendar(false);
                     }
                   }}
@@ -1189,14 +1099,13 @@ export default function TarefasScreen() {
       <SafeAreaView style={styles.safe}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Tarefas</Text>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>OJ</Text>
-          </View>
+          <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.accent} />
           <Text style={styles.loadingText}>Carregando tarefas...</Text>
         </View>
+        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
       </SafeAreaView>
     );
   }
@@ -1214,9 +1123,7 @@ export default function TarefasScreen() {
                 {filteredTasks.filter((t) => !t.done).length !== 1 ? 's' : ''}
               </Text>
             )}
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>OJ</Text>
-            </View>
+            <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
           </View>
 
           {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
@@ -1367,8 +1274,6 @@ export default function TarefasScreen() {
               contentContainerStyle={{ flexGrow: 1, paddingHorizontal: CONTENT_H }}
               keyboardShouldPersistTaps="handled"
             >
-              {renderQuickAddBar()}
-              <View style={{ height: Spacing.sm }} />
               {renderEmptyState()}
             </ScrollView>
           ) : (
@@ -1380,11 +1285,14 @@ export default function TarefasScreen() {
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
               onScrollBeginDrag={closeOpenSwipeable}
-              ListHeaderComponent={
-                <>{renderQuickAddBar()}</>
-              }
             />
           )}
+
+          <FAB onPress={() => setSheetVisible(true)} />
+
+          <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)}>
+            <TaskForm onSave={handleAddTask} onCancel={() => setSheetVisible(false)} />
+          </BottomSheet>
         </KeyboardAvoidingView>
 
         {renderTagManager()}
@@ -1448,6 +1356,8 @@ export default function TarefasScreen() {
             </Pressable>
           </Modal>
         )}
+
+        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -1526,19 +1436,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginRight: Spacing.md,
   },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 12,
-    color: '#FFFFFF',
-  },
 
   // Search
   searchContainer: {
@@ -1609,70 +1506,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   filterChipBadgeTextActive: { color: '#FFFFFF' },
-
-  // Quick Add
-  quickAddWrapper: {
-    paddingBottom: Spacing.sm,
-  },
-  quickAddContainer: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    marginBottom: Spacing.sm,
-  },
-  quickAddContainerFocused: {
-    borderColor: Colors.accent + '40',
-  },
-  quickAddRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  quickAddIconWrap: {
-    paddingLeft: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  quickAddInput: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: 0,
-    paddingRight: Spacing.xs,
-  },
-  quickAddSubmit: {
-    paddingRight: Spacing.sm,
-    paddingVertical: Spacing.md,
-  },
-  quickAddCancel: {
-    paddingRight: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  quickAddMeta: {
-    flexDirection: 'row',
-    marginHorizontal: Spacing.lg,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.md,
-    gap: Spacing.sm,
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  metaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.bg,
-    paddingHorizontal: Spacing.sm + 2,
-    paddingVertical: Spacing.xs + 2,
-    borderRadius: Radius.sm,
-    gap: 5,
-  },
-  metaBadgeText: {
-    fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-  },
 
   // List
   listContent: {
