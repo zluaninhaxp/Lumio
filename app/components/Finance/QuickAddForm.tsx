@@ -7,10 +7,19 @@ import {
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 import type { Transaction } from '../../../src/store';
 import { useAppStore } from '../../../src/store';
 import { suggestedDueDate } from '../../../src/utils/supplier';
+import { getPluginDefinition } from '../../../src/plugins/registry';
+
+function formatTransactionDateInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
 
 interface QuickAddFormProps {
   onSave: (data: Omit<Transaction, 'id'>) => string;
@@ -19,53 +28,87 @@ interface QuickAddFormProps {
   categories: string[];
 }
 
+type TransactionDraft = {
+  amount: string;
+  type: 'saida' | 'entrada';
+  expanded: boolean;
+  description: string;
+  category: string;
+  transactionDate: string;
+  clientId?: string;
+  supplierId?: string;
+  supplierDueDate: string;
+  supplierPaid: boolean;
+  stockItemId?: string;
+  stockQuantity: string;
+  stockReceived: boolean;
+};
+
+let pendingTransactionDraft: TransactionDraft | null = null;
+let preserveDraftOnClose = false;
+
+export function clearPendingTransactionDraft() {
+  pendingTransactionDraft = null;
+  preserveDraftOnClose = false;
+}
+
+export function consumeDraftClosePreservation() {
+  const shouldPreserve = preserveDraftOnClose;
+  preserveDraftOnClose = false;
+  return shouldPreserve;
+}
+
+export function setPendingTransactionRelation(relation: 'client' | 'supplier', id: string) {
+  if (!pendingTransactionDraft) return;
+  if (relation === 'client') pendingTransactionDraft.clientId = id;
+  else pendingTransactionDraft.supplierId = id;
+}
+
 export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAddFormProps) {
+  const router = useRouter();
   const isEditing = !!editData;
-  const initialAmount = editData ? String(Math.abs(editData.amount)).replace('.', ',') : '';
+  const draft = !editData ? pendingTransactionDraft : null;
+  const initialAmount = editData ? String(Math.abs(editData.amount)).replace('.', ',') : draft?.amount ?? '';
   const initialType: 'saida' | 'entrada' = editData
     ? editData.amount > 0
       ? 'entrada'
       : 'saida'
-    : 'saida';
+    : draft?.type ?? 'saida';
   const initialDesc = editData
     ? editData.description === 'Receita' || editData.description === 'Despesa'
       ? ''
       : editData.description
-    : '';
+    : draft?.description ?? '';
   const initialCategory = editData
     ? editData.category
-    : initialType === 'entrada'
+    : draft?.category ?? (
+      initialType === 'entrada'
     ? 'Receita'
     : categories.length > 0
     ? categories[0]
-    : 'Outros';
+    : 'Outros');
 
   const [amount, setAmount] = useState(initialAmount);
   const [type, setType] = useState<'saida' | 'entrada'>(initialType);
-  const [expanded, setExpanded] = useState(isEditing);
+  const [expanded, setExpanded] = useState(isEditing || !!draft);
   const [description, setDescription] = useState(initialDesc);
   const [category, setCategory] = useState(initialCategory);
 
   const today = new Date();
   const initialDateStr = editData
     ? editData.date
-    : today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    : draft?.transactionDate ?? today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const [transactionDate, setTransactionDate] = useState(initialDateStr);
-  const { clienteItems, addClienteItem, fornecedorItems, addFornecedorItem, estoqueItems, activatedPlugins, receiveStockFromPurchase } = useAppStore();
-  const [clientId, setClientId] = useState(editData?.clientId);
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientContact, setNewClientContact] = useState('');
-  const [creatingClient, setCreatingClient] = useState(false);
-  const [supplierId, setSupplierId] = useState(editData?.supplierId);
-  const [supplierDueDate, setSupplierDueDate] = useState(editData?.supplierDueDate ?? '');
-  const [supplierPaid, setSupplierPaid] = useState(editData?.supplierPaid ?? false);
-  const [newSupplierName, setNewSupplierName] = useState('');
-  const [newSupplierContact, setNewSupplierContact] = useState('');
-  const [newSupplierTerm, setNewSupplierTerm] = useState('');
-  const [creatingSupplier, setCreatingSupplier] = useState(false);
-  const [stockItemId, setStockItemId] = useState(editData?.stockItemId);
-  const [stockQuantity, setStockQuantity] = useState(editData?.stockQuantity ? String(editData.stockQuantity) : '');
-  const [stockReceived, setStockReceived] = useState(editData?.stockReceived ?? false);
+  const { clienteItems, fornecedorItems, estoqueItems, activatedPlugins, receiveStockFromPurchase } = useAppStore();
+  const [clientId, setClientId] = useState(editData?.clientId ?? draft?.clientId);
+  const [clientSearch, setClientSearch] = useState('');
+  const [supplierId, setSupplierId] = useState(editData?.supplierId ?? draft?.supplierId);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [supplierDueDate, setSupplierDueDate] = useState(editData?.supplierDueDate ?? draft?.supplierDueDate ?? '');
+  const [supplierPaid, setSupplierPaid] = useState(editData?.supplierPaid ?? draft?.supplierPaid ?? false);
+  const [stockItemId, setStockItemId] = useState(editData?.stockItemId ?? draft?.stockItemId);
+  const [stockQuantity, setStockQuantity] = useState(editData?.stockQuantity ? String(editData.stockQuantity) : draft?.stockQuantity ?? '');
+  const [stockReceived, setStockReceived] = useState(editData?.stockReceived ?? draft?.stockReceived ?? false);
 
   const amountRef = useRef<TextInput>(null);
 
@@ -85,31 +128,15 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
   const handleSave = () => {
     const num = parseFloat(amount.replace(',', '.'));
     if (!amount.trim() || isNaN(num) || num <= 0) return;
+    if (!/^\d{2}\/\d{2}$/.test(transactionDate.trim())) return;
+    if (!description.trim()) return;
     if (!category.trim()) return;
 
     const finalDate = transactionDate.trim() || initialDateStr;
 
-    let selectedClientId = clientId;
-    if (type === 'entrada' && creatingClient && newClientName.trim()) {
-      selectedClientId = addClienteItem({
-        name: newClientName.trim(),
-        contact: newClientContact.trim(),
-        notes: '',
-        createdAt: new Date().toISOString(),
-      });
-    }
-
-    let selectedSupplierId = supplierId;
-    let selectedSupplierTerm = fornecedorItems.find((supplier) => supplier.id === selectedSupplierId)?.paymentTerm ?? '';
-    if (type === 'saida' && creatingSupplier && newSupplierName.trim()) {
-      selectedSupplierId = addFornecedorItem({
-        name: newSupplierName.trim(),
-        contact: newSupplierContact.trim(),
-        paymentTerm: newSupplierTerm.trim(),
-        notes: '',
-      });
-      selectedSupplierTerm = newSupplierTerm.trim();
-    }
+    const selectedClientId = clientId;
+    const selectedSupplierId = supplierId;
+    const selectedSupplierTerm = fornecedorItems.find((supplier) => supplier.id === selectedSupplierId)?.paymentTerm ?? '';
     const finalSupplierDueDate = type === 'saida' && selectedSupplierId
       ? supplierDueDate || suggestedDueDate(finalDate, selectedSupplierTerm)
       : undefined;
@@ -129,6 +156,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
       stockReceived: type === 'saida' && stockItemId ? (editData?.stockReceived ?? false) : undefined,
     };
     const transactionId = onSave(data);
+    clearPendingTransactionDraft();
     if (shouldReceiveStock && data.stockItemId && data.stockQuantity) {
       receiveStockFromPurchase(transactionId, data.stockItemId, data.stockQuantity);
     }
@@ -138,9 +166,135 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
     amount.trim().length > 0 &&
     !isNaN(parseFloat(amount.replace(',', '.'))) &&
     parseFloat(amount.replace(',', '.')) > 0 &&
+    /^\d{2}\/\d{2}$/.test(transactionDate.trim()) &&
+    description.trim().length > 0 &&
       category.trim().length > 0;
 
   const presetAmounts = ['10', '50', '100', '200', '500'];
+
+  const discardDraft = () => {
+    clearPendingTransactionDraft();
+    onCancel();
+  };
+
+  const saveDraftBeforeNavigation = () => {
+    pendingTransactionDraft = {
+      amount,
+      type,
+      expanded,
+      description,
+      category,
+      transactionDate,
+      clientId,
+      supplierId,
+      supplierDueDate,
+      supplierPaid,
+      stockItemId,
+      stockQuantity,
+      stockReceived,
+    };
+    preserveDraftOnClose = true;
+  };
+
+  const goToPluginStore = (pluginId: 'clientes' | 'fornecedores') => {
+    saveDraftBeforeNavigation();
+    onCancel();
+    router.push(`/plugins/store?highlight=${pluginId}&returnToFinance=1&relation=${pluginId === 'clientes' ? 'client' : 'supplier'}` as any);
+  };
+  const goToPlugin = (pluginId: 'clientes' | 'fornecedores') => {
+    const route = getPluginDefinition(pluginId)?.route;
+    if (route) {
+      saveDraftBeforeNavigation();
+      onCancel();
+      router.push(`${route}?returnToFinance=1&relation=${pluginId === 'clientes' ? 'client' : 'supplier'}` as any);
+    }
+  };
+
+  const goToRelationPlugin = (pluginId: 'clientes' | 'fornecedores') => {
+    if (activatedPlugins.includes(pluginId)) goToPlugin(pluginId);
+    else goToPluginStore(pluginId);
+  };
+
+  const renderRelationSelector = (relation: 'client' | 'supplier') => {
+    const isClient = relation === 'client';
+    const items = isClient ? clienteItems : fornecedorItems;
+    const selectedId = isClient ? clientId : supplierId;
+    const pluginId = isClient ? 'clientes' : 'fornecedores';
+    const label = isClient ? 'Cliente' : 'Fornecedor';
+    const search = isClient ? clientSearch : supplierSearch;
+    const setSearch = isClient ? setClientSearch : setSupplierSearch;
+    const visibleItems = search.trim()
+      ? items.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
+      : items;
+    const clear = () => {
+      if (isClient) setClientId(undefined);
+      else {
+        setSupplierId(undefined);
+        setSupplierDueDate('');
+      }
+    };
+
+    return (
+      <>
+        <View style={styles.relationHeader}>
+          <Text style={styles.label}>{label}</Text>
+        </View>
+        <View style={styles.relationActions}>
+          <TouchableOpacity
+            style={[styles.categoryChip, !selectedId && styles.categoryChipActive]}
+            onPress={clear}
+          >
+            <Text style={[styles.categoryChipText, !selectedId && styles.categoryChipTextActive]}>
+              Não atribuir
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addRelationChip}
+            onPress={() => goToRelationPlugin(pluginId)}
+          >
+            <Ionicons name="add-circle-outline" size={15} color={Colors.textSecondary} />
+            <Text style={styles.categoryChipText}>Adicionar</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+          {items.length > 3 && (
+            <View style={styles.relationSearch}>
+              <Ionicons name="search-outline" size={14} color={Colors.textMuted} />
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder={`Buscar ${label.toLowerCase()}`}
+                placeholderTextColor={Colors.textMuted}
+                style={styles.relationSearchInput}
+                returnKeyType="search"
+              />
+            </View>
+          )}
+          {visibleItems.map((item) => {
+            const active = selectedId === item.id;
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.categoryChip, active && styles.categoryChipActive]}
+                onPress={() => {
+                  if (isClient) setClientId(item.id);
+                  else {
+                    setSupplierId(item.id);
+                    const supplier = fornecedorItems.find((candidate) => candidate.id === item.id);
+                    setSupplierDueDate(supplierDueDate || suggestedDueDate(transactionDate, supplier?.paymentTerm ?? '') || '');
+                  }
+                }}
+              >
+                <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                  {item.name}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -165,7 +319,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.label}>Valor</Text>
+      <Text style={styles.label}>Valor *</Text>
       <TextInput
         ref={amountRef}
         style={styles.amountInput}
@@ -188,90 +342,25 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
         ))}
       </View>
 
-      {type === 'saida' && (
-        <>
-          <Text style={styles.label}>Categoria</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoryRow}
-          >
-            {categories.map((cat) => {
-              const active = category === cat;
-              return (
-                <TouchableOpacity
-                  key={cat}
-                  style={[styles.categoryChip, active && styles.categoryChipActive]}
-                  onPress={() => setCategory(cat)}
-                >
-                  <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
-                    {cat}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </>
-      )}
+      <Text style={styles.label}>Data *</Text>
+      <TextInput
+        style={styles.input}
+        value={transactionDate}
+        onChangeText={(value) => setTransactionDate(formatTransactionDateInput(value))}
+        placeholder="DD/MM"
+        placeholderTextColor={Colors.textMuted}
+        keyboardType="number-pad"
+        maxLength={5}
+      />
 
-      {type === 'entrada' && (
-        <>
-          <Text style={styles.label}>Quem pagou?</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-            <TouchableOpacity style={[styles.categoryChip, !clientId && !creatingClient && styles.categoryChipActive]} onPress={() => { setClientId(undefined); setCreatingClient(false); }}>
-              <Text style={[styles.categoryChipText, !clientId && !creatingClient && styles.categoryChipTextActive]}>Sem cliente</Text>
-            </TouchableOpacity>
-            {clienteItems.map((client) => (
-              <TouchableOpacity key={client.id} style={[styles.categoryChip, clientId === client.id && styles.categoryChipActive]} onPress={() => { setClientId(client.id); setCreatingClient(false); }}>
-                <Text style={[styles.categoryChipText, clientId === client.id && styles.categoryChipTextActive]}>{client.name}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.categoryChip, creatingClient && styles.categoryChipActive]} onPress={() => { setCreatingClient(true); setClientId(undefined); }}>
-              <Text style={[styles.categoryChipText, creatingClient && styles.categoryChipTextActive]}>+ Criar cliente</Text>
-            </TouchableOpacity>
-          </ScrollView>
-          {creatingClient && <>
-            <TextInput style={styles.input} value={newClientName} onChangeText={setNewClientName} placeholder="Nome do novo cliente" placeholderTextColor={Colors.textMuted} />
-            <TextInput style={styles.input} value={newClientContact} onChangeText={setNewClientContact} placeholder="Contato (opcional)" placeholderTextColor={Colors.textMuted} />
-          </>}
-        </>
-      )}
-
-      {type === 'saida' && (
-        <>
-          <Text style={styles.label}>Fornecedor</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-            <TouchableOpacity style={[styles.categoryChip, !supplierId && !creatingSupplier && styles.categoryChipActive]} onPress={() => { setSupplierId(undefined); setCreatingSupplier(false); setSupplierDueDate(''); }}>
-              <Text style={[styles.categoryChipText, !supplierId && !creatingSupplier && styles.categoryChipTextActive]}>Sem fornecedor</Text>
-            </TouchableOpacity>
-            {fornecedorItems.map((supplier) => (
-              <TouchableOpacity key={supplier.id} style={[styles.categoryChip, supplierId === supplier.id && styles.categoryChipActive]} onPress={() => { setSupplierId(supplier.id); setCreatingSupplier(false); setSupplierDueDate(supplierDueDate || suggestedDueDate(transactionDate, supplier.paymentTerm) || ''); }}>
-                <Text style={[styles.categoryChipText, supplierId === supplier.id && styles.categoryChipTextActive]}>{supplier.name}</Text>
-              </TouchableOpacity>
-            ))}
-            <TouchableOpacity style={[styles.categoryChip, creatingSupplier && styles.categoryChipActive]} onPress={() => { setCreatingSupplier(true); setSupplierId(undefined); }}>
-              <Text style={[styles.categoryChipText, creatingSupplier && styles.categoryChipTextActive]}>+ Criar fornecedor</Text>
-            </TouchableOpacity>
-          </ScrollView>
-          {creatingSupplier && <>
-            <TextInput style={styles.input} value={newSupplierName} onChangeText={setNewSupplierName} placeholder="Nome do fornecedor" placeholderTextColor={Colors.textMuted} />
-            <TextInput style={styles.input} value={newSupplierContact} onChangeText={setNewSupplierContact} placeholder="Contato (opcional)" placeholderTextColor={Colors.textMuted} />
-            <TextInput style={styles.input} value={newSupplierTerm} onChangeText={setNewSupplierTerm} placeholder="Prazo padrão (ex.: 30 dias)" placeholderTextColor={Colors.textMuted} />
-          </>}
-          {!!(supplierId || creatingSupplier) && <>
-            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
-            <TouchableOpacity style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
-          </>}
-          {activatedPlugins.includes('estoque') && !!(supplierId || creatingSupplier) && <>
-            <Text style={styles.label}>Receber no estoque</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-              <TouchableOpacity style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
-              {estoqueItems.map((item) => <TouchableOpacity key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
-            </ScrollView>
-            {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" /><TouchableOpacity style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
-          </>}
-        </>
-      )}
+      <Text style={styles.label}>Descrição *</Text>
+      <TextInput
+        style={styles.input}
+        value={description}
+        onChangeText={setDescription}
+        placeholder="Ex: Gasolina posto BR"
+        placeholderTextColor={Colors.textMuted}
+      />
 
       <TouchableOpacity
         style={styles.expandBtn}
@@ -284,29 +373,51 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
 
       {expanded && (
         <>
-          <Text style={styles.label}>Data</Text>
-          <TextInput
-            style={styles.input}
-            value={transactionDate}
-            onChangeText={setTransactionDate}
-            placeholder={initialDateStr}
-            placeholderTextColor={Colors.textMuted}
-            keyboardType="numbers-and-punctuation"
-          />
+          {type === 'entrada' && renderRelationSelector('client')}
+          {type === 'saida' && (
+            <>
+              <Text style={styles.label}>Categoria</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryRow}
+              >
+                {categories.map((cat) => {
+                  const active = category === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[styles.categoryChip, active && styles.categoryChipActive]}
+                      onPress={() => setCategory(cat)}
+                    >
+                      <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
 
-          <Text style={styles.label}>Descrição</Text>
-          <TextInput
-            style={styles.input}
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Ex: Gasolina posto BR"
-            placeholderTextColor={Colors.textMuted}
-          />
+              {renderRelationSelector('supplier')}
+              {!!supplierId && <>
+                <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
+                <TouchableOpacity style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
+              </>}
+              {activatedPlugins.includes('estoque') && !!supplierId && <>
+                <Text style={styles.label}>Receber no estoque</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+                  <TouchableOpacity style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
+                  {estoqueItems.map((item) => <TouchableOpacity key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
+                </ScrollView>
+                {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" /><TouchableOpacity style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
+              </>}
+            </>
+          )}
         </>
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+        <TouchableOpacity style={styles.cancelBtn} onPress={discardDraft}>
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
         <TouchableOpacity
@@ -385,6 +496,17 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.xs,
   },
+  relationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  relationActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: Spacing.xs,
+  },
   categoryChip: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
@@ -402,7 +524,37 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
+  relationSearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    width: 150,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bg,
+  },
+  relationSearchInput: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: 0,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.primary,
+  },
   categoryChipTextActive: { color: '#FFF' },
+  addRelationChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bg,
+  },
   expandBtn: {
     paddingVertical: Spacing.sm,
     alignItems: 'center',

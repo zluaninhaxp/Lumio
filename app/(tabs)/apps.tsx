@@ -52,9 +52,42 @@ export default function AppsScreen() {
            <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
 
+        <Text style={styles.sectionLabel}>
+          SEUS MÓDULOS
+        </Text>
+        {activeDefs.length === 0 && (
+          <View style={styles.empty}>
+            <Ionicons name="apps-outline" size={40} color={Colors.textMuted} />
+            <Text style={styles.emptyText}>Nenhum módulo ativado ainda.</Text>
+          </View>
+        )}
+        {activeDefs.map((def) => (
+          <TouchableOpacity
+            key={def.id}
+            style={styles.moduleCard}
+            onPress={() => router.push(def.route as any)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.moduleIcon}>
+              <Ionicons name={def.icon as any} size={20} color={Colors.primary} />
+            </View>
+            <Text style={styles.moduleName}>{def.label}</Text>
+            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+          </TouchableOpacity>
+        ))}
+
+        <TouchableOpacity
+          style={styles.addMoreBtn}
+          onPress={() => router.push('/plugins/store' as any)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add-circle-outline" size={20} color={Colors.accent} />
+          <Text style={styles.addMoreText}>Adicionar mais módulos</Text>
+        </TouchableOpacity>
+
         {suggestions.length > 0 && (
           <>
-            <Text style={styles.sectionLabel}>SUGERIDO PRA VOCÊ</Text>
+            <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>SUGERIDO PRA VOCÊ</Text>
             {suggestions.map((s) => {
               const def = getPluginDefinition(s.plugin);
               if (!def) return null;
@@ -87,39 +120,6 @@ export default function AppsScreen() {
             })}
           </>
         )}
-
-        <Text style={[styles.sectionLabel, { marginTop: suggestions.length ? Spacing.xl : 0 }]}>
-          SEUS MÓDULOS
-        </Text>
-        {activeDefs.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="apps-outline" size={40} color={Colors.textMuted} />
-            <Text style={styles.emptyText}>Nenhum módulo ativado ainda.</Text>
-          </View>
-        )}
-        {activeDefs.map((def) => (
-          <TouchableOpacity
-            key={def.id}
-            style={styles.moduleCard}
-            onPress={() => router.push(def.route as any)}
-            activeOpacity={0.7}
-          >
-            <View style={styles.moduleIcon}>
-              <Ionicons name={def.icon as any} size={20} color={Colors.primary} />
-            </View>
-            <Text style={styles.moduleName}>{def.label}</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
-          </TouchableOpacity>
-        ))}
-
-        <TouchableOpacity
-          style={styles.addMoreBtn}
-          onPress={() => router.push('/plugins/store' as any)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add-circle-outline" size={20} color={Colors.accent} />
-          <Text style={styles.addMoreText}>Adicionar mais módulos</Text>
-        </TouchableOpacity>
        </ScrollView>
        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>

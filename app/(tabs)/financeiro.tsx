@@ -9,13 +9,19 @@ import {
   SafeAreaView,
   Platform,
 } from 'react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
 import { useAppStore, type Transaction } from '../../src/store';
 import { CollapsingHeader } from '../components/Finance/CollapsingHeader';
 import { TransactionItem } from '../components/Finance/TransactionItem';
-import { QuickAddForm } from '../components/Finance/QuickAddForm';
+import {
+  QuickAddForm,
+  clearPendingTransactionDraft,
+  consumeDraftClosePreservation,
+  setPendingTransactionRelation,
+} from '../components/Finance/QuickAddForm';
 import { MonthSelector } from '../components/Finance/MonthSelector';
 import { FinanceSkeleton } from '../components/Finance/FinanceSkeleton';
 import { FinanceEmptyState } from '../components/Finance/FinanceEmptyState';
@@ -30,8 +36,15 @@ const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
 
 export default function FinanceiroScreen() {
+  const router = useRouter();
+  const { returnToFinance, createdId, relation } = useLocalSearchParams<{
+    returnToFinance?: string;
+    createdId?: string;
+    relation?: 'client' | 'supplier';
+  }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
+  const handledReturnRef = useRef<string | null>(null);
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
@@ -91,9 +104,21 @@ export default function FinanceiroScreen() {
   }, []);
 
   const closeSheet = useCallback(() => {
+    if (!consumeDraftClosePreservation()) clearPendingTransactionDraft();
     setSheetVisible(false);
     setEditingItem(null);
   }, []);
+
+  useEffect(() => {
+    if (returnToFinance !== '1' || !createdId || !relation) return;
+    const key = `${relation}:${createdId}`;
+    if (handledReturnRef.current === key) return;
+    handledReturnRef.current = key;
+    setPendingTransactionRelation(relation, createdId);
+    setEditingItem(null);
+    setSheetVisible(true);
+    router.setParams({ returnToFinance: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToFinance, router]);
 
   const handleSaveTransaction = useCallback(
     (data: Omit<Transaction, 'id'>) => {

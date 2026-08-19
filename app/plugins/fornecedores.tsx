@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { FornecedorItem, useAppStore } from '../../src/store';
 import { suggestedDueDate } from '../../src/utils/supplier';
@@ -12,6 +12,7 @@ const money = (value: number) => `R$ ${Math.abs(value).toFixed(2).replace('.', '
 
 export default function FornecedoresScreen() {
   const router = useRouter();
+  const { returnToFinance, relation } = useLocalSearchParams<{ returnToFinance?: string; relation?: string }>();
   const { fornecedorItems, transactions, addFornecedorItem, updateFornecedorItem, removeFornecedorItem, linkTransactionToSupplier, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -31,8 +32,12 @@ export default function FornecedoresScreen() {
   const save = () => {
     if (!form.name.trim()) return;
     const payload = { name: form.name.trim(), contact: form.contact.trim(), paymentTerm: form.paymentTerm.trim(), notes: form.notes.trim() };
-    if (editingId) updateFornecedorItem(editingId, payload); else addFornecedorItem(payload);
+    let createdId: string | undefined;
+    if (editingId) updateFornecedorItem(editingId, payload); else createdId = addFornecedorItem(payload);
     setModalVisible(false);
+    if (!editingId && createdId && returnToFinance === '1' && relation === 'supplier') {
+      router.replace({ pathname: '/(tabs)/financeiro', params: { returnToFinance: '1', createdId, relation: 'supplier' } });
+    }
   };
   const deleteSupplier = (id: string) => Alert.alert('Excluir fornecedor', 'Despesas vinculadas ficarão sem fornecedor, mas não serão excluídas.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => removeFornecedorItem(id) }]);
   const linkOldExpense = (supplier: FornecedorItem) => {

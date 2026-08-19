@@ -1,14 +1,24 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { PLUGIN_LIST, canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
 
 export default function PluginStoreScreen() {
   const router = useRouter();
+  const { highlight, returnToFinance, relation } = useLocalSearchParams<{
+    highlight?: PluginId;
+    returnToFinance?: string;
+    relation?: 'client' | 'supplier';
+  }>();
   const { activatedPlugins, setPluginActivation } = useAppStore();
+  const orderedPlugins = [...PLUGIN_LIST].sort((a, b) => {
+    const aActive = activatedPlugins.includes(a.id);
+    const bActive = activatedPlugins.includes(b.id);
+    return Number(bActive) - Number(aActive);
+  });
 
   const tryActivate = (pluginId: PluginId) => {
     const check = canActivatePlugin(pluginId, activatedPlugins);
@@ -22,6 +32,13 @@ export default function PluginStoreScreen() {
       return;
     }
     setPluginActivation(pluginId, true);
+    const route = getPluginDefinition(pluginId)?.route;
+    if (route) {
+      const returnParams = returnToFinance === '1' && relation
+        ? `?returnToFinance=1&relation=${relation}`
+        : '';
+      router.push(`${route}${returnParams}` as any);
+    }
   };
 
   return (
@@ -40,12 +57,12 @@ export default function PluginStoreScreen() {
           dados já cadastrados.
         </Text>
 
-        {PLUGIN_LIST.map((def) => {
+        {orderedPlugins.map((def) => {
           const isActive = activatedPlugins.includes(def.id);
           const check = canActivatePlugin(def.id, activatedPlugins);
           const blocked = !isActive && !check.ok;
           return (
-            <View key={def.id} style={styles.card}>
+            <View key={def.id} style={[styles.card, highlight === def.id && styles.cardHighlighted]}>
               <View style={styles.cardIcon}>
                 <Ionicons name={def.icon as any} size={22} color={Colors.primary} />
               </View>
@@ -119,6 +136,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.04,
     shadowRadius: 3,
     elevation: 1,
+  },
+  cardHighlighted: {
+    borderWidth: 2,
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentLight,
   },
   cardIcon: {
     width: 40, height: 40, borderRadius: Radius.md,
