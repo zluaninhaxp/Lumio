@@ -59,7 +59,7 @@ export function entryToTransactionPayload(entry: ParsedFinancialEntry): Omit<imp
       date,
       description: buildDescription(entry),
       amount: signedAmount,
-      category: entry.category ?? 'Sem categoria',
+       category: entry.categoryId === null || entry.categoryId === undefined ? 'Sem categoria' : entry.category!,
       ...(entry.direction === 'income'
         ? { expectedDate: entry.dueDate!, confirmed: false }
         : { supplierDueDate: entry.dueDate!, supplierPaid: false }),
@@ -73,7 +73,7 @@ export function entryToTransactionPayload(entry: ParsedFinancialEntry): Omit<imp
     date,
     description: buildDescription(entry),
     amount: signedAmount,
-    category: entry.category ?? 'Sem categoria',
+     category: entry.categoryId === null || entry.categoryId === undefined ? 'Sem categoria' : entry.category!,
     ...(entry.counterpartyClientId ? { clientId: entry.counterpartyClientId } : {}),
     ...(entry.counterpartySupplierId ? { supplierId: entry.counterpartySupplierId, supplierPaid: true } : {}),
     ...(entry.counterpartyEmployeeId ? { employeeId: entry.counterpartyEmployeeId } : {}),

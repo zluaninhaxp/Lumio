@@ -34,6 +34,8 @@ import type {
   FinancialDirection, FinancialEditRef, FinancialIntent, FinancialParseResult,
   FinancialParserContext, FinancialQuery, ParsedFinancialEntry,
 } from './types.ts';
+import { resolveEntity } from '../taxonomy/entityResolver.ts';
+import type { GenericNode, TaxonomyDomain } from '../taxonomy/types.ts';
 
 export const FINANCIAL_ENGINE_VERSION = '1.0.0';
 
@@ -122,15 +124,21 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     }
 
     const counterparty = extractCounterparty(normalized.original, fn, context);
-    const category = classifyCategory(fn.text, direction, context);
+     const categoryResolution = resolveFinancialCategory(fn.text, direction, context);
+     const category = categoryResolution.genericLabel;
     const item = extractItem(fragTokens, direction);
-    const confidence = computeConfidence(signal, fragSignal, picked, category, dateISO);
+     const confidence = computeConfidence(signal, fragSignal, picked, category, dateISO);
 
     entries.push({
       direction, tense,
       amount, amountComputed: picked.computed,
       ...counterparty,
-      category, item,
+       category,
+       categoryId: categoryResolution.genericId,
+       subcategory: categoryResolution.specificLabel,
+       subcategoryId: categoryResolution.specificId,
+       subcategoryCandidates: categoryResolution.specificCandidates.map((candidate) => candidate.label),
+       item,
       transactionDate: tense === 'realized' ? (dateISO ?? isoToday(context.now)) : null,
       dueDate: tense === 'future' ? dateISO : null,
       status: tense === 'realized' ? (direction === 'expense' ? 'paid' : 'received') : 'pending',
@@ -337,23 +345,29 @@ export function classifyCategory(
   direction: FinancialDirection,
   context: FinancialParserContext
 ): string | null {
+  return resolveFinancialCategory(text, direction, context).genericLabel;
+}
+
+function resolveFinancialCategory(text: string, direction: FinancialDirection, context: FinancialParserContext) {
   const categories = direction === 'expense' ? context.expenseCategories : context.incomeCategories;
   const t = stripAccents(text.toLowerCase());
-  if (categories.length === 0) return null;
+  if (categories.length === 0 && !context.taxonomy?.length) return emptyResolution();
+  const taxonomy = direction === 'expense' ? (context.expenseTaxonomy ?? context.taxonomy) : (context.incomeTaxonomy ?? context.taxonomy);
+  if (taxonomy?.length) return resolveEntity(text, `financial.${direction}` as TaxonomyDomain, taxonomy);
 
   // 1) keywordMap (chave na mensagem, valor é categoria real)
   for (const [kw, cat] of Object.entries(context.keywordMap)) {
     if (!categories.includes(cat)) continue;
     const k = stripAccents(kw.toLowerCase());
-    if (k && contains(t, k)) return cat;
+    if (k && contains(t, k)) return resolutionForLegacy(cat, context, 1, kw);
   }
 
   // 2) label direto (com plural simples)
   for (const cat of categories) {
     const cn = stripAccents(cat.toLowerCase());
-    if (contains(t, cn)) return cat;
-    if (cn.endsWith('s') && contains(t, cn.slice(0, -1))) return cat;
-    if (!cn.endsWith('s') && contains(t, cn + 's')) return cat;
+    if (contains(t, cn)) return resolutionForLegacy(cat, context, 1, cat);
+    if (cn.endsWith('s') && contains(t, cn.slice(0, -1))) return resolutionForLegacy(cat, context, 1, cat);
+    if (!cn.endsWith('s') && contains(t, cn + 's')) return resolutionForLegacy(cat, context, 1, cat);
   }
 
   // 3) aliases padrão — só se a categoria existir no onboarding do usuário
@@ -361,11 +375,17 @@ export function classifyCategory(
     if (!categories.includes(label)) continue;
     for (const alias of aliases) {
       const a = stripAccents(alias.toLowerCase());
-      if (a && contains(t, a)) return label;
+      if (a && contains(t, a)) return resolutionForLegacy(label, context, 1, alias);
     }
   }
-  return null;
+  return emptyResolution();
 }
+
+function emptyResolution() { return { genericId: null, genericLabel: null, specificId: null, specificLabel: null, specificCandidates: [] as { id: string; label: string; score: number }[], genericConfidence: 0, specificConfidence: null, matchedTerm: null }; }
+function resolutionForLegacy(label: string, context: FinancialParserContext, confidence: number, matchedTerm: string) {
+  return { ...emptyResolution(), genericId: `legacy_${slug(label)}`, genericLabel: label, genericConfidence: confidence, matchedTerm };
+}
+function slug(value: string): string { return stripAccents(value.toLowerCase()).replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'categoria'; }
 
 // ═════════════════ ITEM / DESCRIÇÃO ═════════════════
 

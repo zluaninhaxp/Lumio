@@ -17,6 +17,7 @@
  * false` + `supplierDueDate` (padrão do fluxo de fornecedores).
  */
 import type { ConfidenceLevel } from '../taskEngine/types.ts';
+import type { GenericNode } from '../taxonomy/types.ts';
 
 export type FinancialDirection = 'expense' | 'income';
 
@@ -58,6 +59,9 @@ export interface FinancialParserContext {
   incomeCategories: string[];
   /** keywordMap do onboarding (palavra -> categoria/tag). */
   keywordMap: Record<string, string>;
+  taxonomy?: GenericNode[];
+  expenseTaxonomy?: GenericNode[];
+  incomeTaxonomy?: GenericNode[];
   /** Clientes reais (`clienteItems`). */
   clients: ReadonlyArray<{ id: string; name: string }>;
   /** Fornecedores reais (`fornecedorItems`). */
@@ -81,6 +85,10 @@ export interface ParsedFinancialEntry {
   counterpartyEmployeeId: string | null;
   /** Categoria resolvida contra o onboarding, ou null = sem categoria. */
   category: string | null;
+  categoryId?: string | null;
+  subcategory?: string | null;
+  subcategoryId?: string | null;
+  subcategoryCandidates?: string[];
   /** Texto do item (ex.: "Gasolina") para a descrição, ou null. */
   item: string | null;
   /** Data EFETIVA da movimentação (ISO YYYY-MM-DD) — só para realizada. */

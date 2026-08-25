@@ -97,6 +97,7 @@ return date.toISOString().split('T')[0];
       people: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),
       taskTags: tags,
       keywordMap: s.keywordMap || {},
+      taxonomy: s.taxonomy?.domains.task,
     };
   }, []);
 
@@ -116,6 +117,7 @@ return date.toISOString().split('T')[0];
       now: new Date(),
       calendarEventTypes: (s.calendarEventTypes || []).map((c) => c.label),
       keywordMap: s.keywordMap || {},
+      taxonomy: s.taxonomy?.domains.calendar,
       people: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),
     };
   }, []);
@@ -135,6 +137,8 @@ return date.toISOString().split('T')[0];
       expenseCategories: (s.financialExpenseCategories || []).map((c) => c.label),
       incomeCategories: (s.financialIncomeCategories || []).map((c) => c.label),
       keywordMap: s.keywordMap || {},
+      expenseTaxonomy: s.taxonomy?.domains['financial.expense'],
+      incomeTaxonomy: s.taxonomy?.domains['financial.income'],
       clients: (s.clienteItems || []).map((c) => ({ id: c.id, name: c.name })),
       suppliers: (s.fornecedorItems || []).map((f) => ({ id: f.id, name: f.name, paymentTerm: f.paymentTerm })),
       employees: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),

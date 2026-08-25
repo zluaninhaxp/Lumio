@@ -167,7 +167,7 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 export default function TarefasScreen() {
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
-  const { tasks, addTask, updateTask, toggleTask, removeTask, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
+  const { tasks, addTask, updateTask, toggleTask, removeTask, taskTags, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>('todas');
@@ -194,6 +194,11 @@ export default function TarefasScreen() {
   const [newSubtaskTexts, setNewSubtaskTexts] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
+
+  const allTaskTags = useMemo(
+    () => [...new Set([...taskTags.map((tag) => tag.label), ...customTaskTags])],
+    [taskTags, customTaskTags],
+  );
 
   const supplierSuggestions = useMemo(() => transactions.flatMap((transaction) => {
     if (transaction.amount >= 0 || !transaction.supplierId || !transaction.supplierDueDate || transaction.supplierPaid) return [];
@@ -483,14 +488,14 @@ export default function TarefasScreen() {
 
   const handleCreateTag = useCallback(() => {
     const name = newTagName.trim();
-    if (!name || customTaskTags.includes(name)) return;
+    if (!name || allTaskTags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return;
     addCustomTaskTag(name);
     if (tagManager) {
       updateTask(tagManager.taskId, { tags: [...tagManager.current, name] });
       setTagManager((prev) => (prev ? { ...prev, current: [...prev.current, name] } : null));
     }
     setNewTagName('');
-  }, [newTagName, customTaskTags, addCustomTaskTag, updateTask, tagManager]);
+  }, [newTagName, allTaskTags, addCustomTaskTag, updateTask, tagManager]);
 
   const handleRemoveGlobalTag = useCallback(
     (tag: string) => {
@@ -812,14 +817,15 @@ export default function TarefasScreen() {
             </TouchableOpacity>
           </View>
 
-          {customTaskTags.length === 0 && (
+          {allTaskTags.length === 0 && (
             <Text style={styles.tagEmpty}>Nenhuma tag criada ainda.</Text>
           )}
 
           <View style={styles.tagGrid}>
-            {customTaskTags.map((tag) => {
+            {allTaskTags.map((tag) => {
               const c = getTagColor(tag);
               const active = tagManager?.current.includes(tag) ?? false;
+              const canRemove = customTaskTags.includes(tag);
               return (
                 <View key={tag} style={styles.tagRow}>
                   <TouchableOpacity
@@ -836,12 +842,12 @@ export default function TarefasScreen() {
                     </Text>
                     {active && <Ionicons name="checkmark" size={14} color={c.text} style={{ marginLeft: 4 }} />}
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => handleRemoveGlobalTag(tag)}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  >
-                    <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
-                  </TouchableOpacity>
+                  {canRemove && <TouchableOpacity
+                      onPress={() => handleRemoveGlobalTag(tag)}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
+                    </TouchableOpacity>}
                 </View>
               );
             })}
@@ -1319,11 +1325,11 @@ export default function TarefasScreen() {
             <Pressable style={styles.modalOverlay} onPress={() => setShowTagFilter(false)}>
               <Pressable style={styles.tagFilterPopover}>
                 <Text style={styles.tagFilterTitle}>Filtrar por tags</Text>
-                {customTaskTags.length === 0 ? (
+                {allTaskTags.length === 0 ? (
                   <Text style={styles.tagFilterEmpty}>Nenhuma tag disponível.</Text>
                 ) : (
                   <View style={styles.tagFilterList}>
-                    {customTaskTags.map((tag) => {
+                    {allTaskTags.map((tag) => {
                       const c = getTagColor(tag);
                       const active = activeTagFilters.includes(tag);
                       return (

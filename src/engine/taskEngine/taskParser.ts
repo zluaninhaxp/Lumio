@@ -19,6 +19,7 @@ import { resolveTags } from './tagResolver.ts';
 import { humanizeDueDate, resolveTemporal } from './temporal.ts';
 import { ACTION_DICTIONARY, resolveAction } from './dictionaries.ts';
 import type { TaskParserContext, TaskParseResult, ParsedTask, NormalizedText, TaskEntity } from './types.ts';
+import { resolveEntity } from '../taxonomy/entityResolver.ts';
 
 /** Versão do motor — útil para logs/TCC. */
 export const TASK_ENGINE_VERSION = '2.0.0';
@@ -91,7 +92,8 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
 
   // Resolve tags contra o contexto do usuário.
   const tagSource = cleanedEntity.object ? `${cleanedEntity.action ?? ''} ${cleanedEntity.object} ${person.name ?? ''}` : `${cleanedEntity.action ?? ''} ${person.name ?? ''}`;
-  const tags = resolveTags(tagSource, { taskTags: context.taskTags, keywordMap: context.keywordMap });
+   const taxonomyEntity = context.taxonomy ? resolveEntity(tagSource, 'task', context.taxonomy) : null;
+   const tags = taxonomyEntity?.genericLabel ? [taxonomyEntity.genericLabel] : resolveTags(tagSource, { taskTags: context.taskTags, keywordMap: context.keywordMap });
 
   // Data: usa a resolução já calculada no extractor; herda data compartilhada
   // quando o fragmento não tem a sua (múltiplas tarefas, seção 7).
@@ -117,7 +119,12 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
     dueDateLabel,
     assigneeId: person.id,
     assigneeName: person.name,
-    tags,
+     tags,
+     category: taxonomyEntity?.genericLabel ?? null,
+     categoryId: taxonomyEntity?.genericId ?? null,
+     subcategory: taxonomyEntity?.specificLabel ?? null,
+     subcategoryId: taxonomyEntity?.specificId ?? null,
+     subcategoryCandidates: taxonomyEntity?.specificCandidates.map((candidate) => candidate.label) ?? [],
     entities: { ...cleanedEntity, personName: person.name },
     confidence: fragConf.score,
     confidenceLevel: fragConf.level,

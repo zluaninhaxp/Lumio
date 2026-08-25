@@ -28,6 +28,7 @@ export interface TaskParserContext {
   taskTags: string[];
   /** Palavra/expressão -> tag, do onboarding (`keywordMap`). */
   keywordMap: Record<string, string>;
+  taxonomy?: GenericNode[];
 }
 
 /** Entidades brutas extraídas da mensagem (antes da resolução de contexto). */
@@ -67,6 +68,11 @@ export interface ParsedTask {
   assigneeName: string | null;
   /** Tags resolvidas a partir de `taskTags`/`keywordMap`. */
   tags: string[];
+  category?: string | null;
+  categoryId?: string | null;
+  subcategory?: string | null;
+  subcategoryId?: string | null;
+  subcategoryCandidates?: string[];
   /** Entidades brutas extraídas. */
   entities: TaskEntity;
   /** Confiança numérica 0..1. */
@@ -99,3 +105,4 @@ export interface NormalizedText {
   /** Tokens por espaço. */
   tokens: string[];
 }
+import type { GenericNode } from '../taxonomy/types.ts';

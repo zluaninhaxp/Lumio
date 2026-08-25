@@ -14,6 +14,7 @@ import type { Transaction } from '../../../src/store';
 import { useAppStore } from '../../../src/store';
 import { suggestedDueDate } from '../../../src/utils/supplier';
 import { getPluginDefinition } from '../../../src/plugins/registry';
+import { TagSelector } from '../TagSelector';
 
 function formatTransactionDateInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 4);
@@ -26,6 +27,7 @@ interface QuickAddFormProps {
   onCancel: () => void;
   editData?: Transaction | null;
   categories: string[];
+  incomeCategories: string[];
 }
 
 type TransactionDraft = {
@@ -64,7 +66,7 @@ export function setPendingTransactionRelation(relation: 'client' | 'supplier', i
   else pendingTransactionDraft.supplierId = id;
 }
 
-export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAddFormProps) {
+export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCategories }: QuickAddFormProps) {
   const router = useRouter();
   const isEditing = !!editData;
   const draft = !editData ? pendingTransactionDraft : null;
@@ -92,7 +94,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
     ? editData.date
     : draft?.transactionDate ?? today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const [transactionDate, setTransactionDate] = useState(initialDateStr);
-  const { clienteItems, fornecedorItems, estoqueItems, activatedPlugins, receiveStockFromPurchase } = useAppStore();
+  const { clienteItems, fornecedorItems, estoqueItems, activatedPlugins, receiveStockFromPurchase, addFinancialExpenseCategory, addFinancialIncomeCategory } = useAppStore();
   const [clientId, setClientId] = useState(editData?.clientId ?? draft?.clientId);
   const [clientSearch, setClientSearch] = useState('');
   const [supplierId, setSupplierId] = useState(editData?.supplierId ?? draft?.supplierId);
@@ -195,6 +197,21 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
   const goToRelationPlugin = (pluginId: 'clientes' | 'fornecedores') => {
     if (activatedPlugins.includes(pluginId)) goToPlugin(pluginId);
     else goToPluginStore(pluginId);
+  };
+
+  const renderCategorySelector = () => {
+    const categoryOptions = type === 'entrada' ? incomeCategories : categories;
+
+    return (
+      <TagSelector
+        title="Categoria"
+        hint={type === 'entrada' ? 'Como você identifica esse recebimento?' : 'Organize essa saída'}
+        tags={categoryOptions}
+        selected={category}
+        onSelect={setCategory}
+        onAdd={type === 'entrada' ? addFinancialIncomeCategory : addFinancialExpenseCategory}
+      />
+    );
   };
 
   const renderRelationSelector = (relation: 'client' | 'supplier') => {
@@ -355,30 +372,13 @@ export function QuickAddForm({ onSave, onCancel, editData, categories }: QuickAd
 
       {expanded && (
         <>
-          {type === 'entrada' && renderRelationSelector('client')}
+          {type === 'entrada' && <>
+            {renderCategorySelector()}
+            {renderRelationSelector('client')}
+          </>}
           {type === 'saida' && (
             <>
-              <Text style={styles.label}>Categoria</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoryRow}
-              >
-                {categories.map((cat) => {
-                  const active = category === cat;
-                  return (
-                    <TouchableOpacity
-                      key={cat}
-                      style={[styles.categoryChip, active && styles.categoryChipActive]}
-                      onPress={() => setCategory(cat)}
-                    >
-                      <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
-                        {cat}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
+              {renderCategorySelector()}
 
               {renderRelationSelector('supplier')}
               {!!supplierId && <>

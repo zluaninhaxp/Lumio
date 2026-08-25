@@ -7,6 +7,8 @@ import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardin
 import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
 import { canActivatePlugin, PluginId } from '../plugins/registry';
 import { generateId } from '../utils/id';
+import type { BusinessTaxonomy } from '../engine/taxonomy/types';
+import { migrateV1toV2 } from '../engine/taxonomy/migrateV1toV2';
 
 export interface Transaction {
   id: string;
@@ -304,6 +306,7 @@ export interface AppStore {
    * abaixo para consumo direto pelos 3 módulos.
    */
   onboardingExtraction: OnboardingExtractionResult | null;
+  taxonomy: BusinessTaxonomy | null;
 
   /**
    * Resultado calculado na tela de celebração (`app/celebration.tsx`),
@@ -329,6 +332,9 @@ export interface AppStore {
   financialIncomeCategories: CategorySuggestion[];
   taskTags: CategorySuggestion[];
   calendarEventTypes: CategorySuggestion[];
+  addFinancialExpenseCategory: (label: string) => void;
+  addFinancialIncomeCategory: (label: string) => void;
+  addCalendarEventType: (label: string) => void;
   /** Palavra/expressão -> nome de categoria, para auto-classificação futura. */
   keywordMap: Record<string, string>;
 
@@ -487,6 +493,16 @@ employeeItems: EmployeeItem[];
   clearMessages: () => void;
 }
 
+function addCategorySuggestion(
+  state: AppStore,
+  key: 'financialExpenseCategories' | 'financialIncomeCategories' | 'calendarEventTypes',
+  label: string,
+) {
+  const normalized = label.trim();
+  if (!normalized || state[key].some((item) => item.label.toLocaleLowerCase() === normalized.toLocaleLowerCase())) return state;
+  return { [key]: [...state[key], { label: normalized, origin: 'mentioned' as const }] };
+}
+
 function getOrderStockDeductions(order: Pedido, stockItems: EstoqueItem[]): Array<{ stockItemId: string; quantity: number }> {
   const deductions = new Map<string, number>();
   order.items.forEach((item) => {
@@ -599,6 +615,7 @@ export const useAppStore = create<AppStore>((set) => ({
     }),
 
   onboardingExtraction: null,
+  taxonomy: null,
   pendingOnboardingExtraction: null,
   pendingOnboardingExtractionIsSimulation: false,
   setPendingOnboardingExtraction: (result, isSimulation = false) =>
@@ -607,6 +624,9 @@ export const useAppStore = create<AppStore>((set) => ({
   financialIncomeCategories: [],
   taskTags: [],
   calendarEventTypes: [],
+  addFinancialExpenseCategory: (label) => set((s) => addCategorySuggestion(s, 'financialExpenseCategories', label)),
+  addFinancialIncomeCategory: (label) => set((s) => addCategorySuggestion(s, 'financialIncomeCategories', label)),
+  addCalendarEventType: (label) => set((s) => addCategorySuggestion(s, 'calendarEventTypes', label)),
   keywordMap: {},
   recommendedPlugins: [],
   activatedPlugins: [],
@@ -990,7 +1010,8 @@ updateEmployeeItem: (id, item) =>
 
   applyOnboardingExtraction: (result) =>
     set((s) => ({
-      onboardingExtraction: result,
+       onboardingExtraction: result,
+       taxonomy: result.taxonomy ?? migrateV1toV2({ ...result, coreCategories: { financial: { expense: result.coreCategories.financial.expense.map((c) => c.label), income: result.coreCategories.financial.income.map((c) => c.label) }, taskTags: result.coreCategories.taskTags.map((c) => c.label), calendarEventTypes: result.coreCategories.calendarEventTypes.map((c) => c.label) } }),
       pendingOnboardingExtraction: null,
       pendingOnboardingExtractionIsSimulation: false,
       businessName: result.businessName ?? s.businessName,
@@ -1007,7 +1028,8 @@ updateEmployeeItem: (id, item) =>
     set((s) => structuredProfile ? {
       openAnswers: responses,
       onboardingContext: context,
-      onboardingExtraction: structuredProfile,
+       onboardingExtraction: structuredProfile,
+       taxonomy: structuredProfile.taxonomy ?? migrateV1toV2({ ...structuredProfile, coreCategories: { financial: { expense: structuredProfile.coreCategories.financial.expense.map((c) => c.label), income: structuredProfile.coreCategories.financial.income.map((c) => c.label) }, taskTags: structuredProfile.coreCategories.taskTags.map((c) => c.label), calendarEventTypes: structuredProfile.coreCategories.calendarEventTypes.map((c) => c.label) } }),
       pendingOnboardingExtraction: null,
       pendingOnboardingExtractionIsSimulation: false,
       businessName: structuredProfile.businessName ?? s.businessName,
@@ -1026,7 +1048,8 @@ updateEmployeeItem: (id, item) =>
       onboardingContext: context,
       activatedPlugins,
       onboardingCompleted: true,
-      onboardingExtraction: null,
+       onboardingExtraction: null,
+       taxonomy: null,
       pendingOnboardingExtraction: null,
       pendingOnboardingExtractionIsSimulation: false,
       financialExpenseCategories: [],
@@ -1046,6 +1069,7 @@ updateEmployeeItem: (id, item) =>
       openAnswers: {},
       onboardingContext: null,
       onboardingExtraction: null,
+      taxonomy: null,
       pendingOnboardingExtraction: null,
       pendingOnboardingExtractionIsSimulation: false,
       financialExpenseCategories: [],

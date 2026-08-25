@@ -48,6 +48,7 @@ export default function FinanceiroScreen() {
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
+  const financialIncomeCategories = useAppStore((state) => state.financialIncomeCategories);
 
   const {
     sections,
@@ -188,6 +189,14 @@ export default function FinanceiroScreen() {
     [financialExpenseCategories]
   );
 
+  const quickAddIncomeCategories = useMemo(
+    () => {
+      const fromOnboarding = financialIncomeCategories.map((c) => c.label);
+      return fromOnboarding.length > 0 ? fromOnboarding : ['Receita'];
+    },
+    [financialIncomeCategories]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Transaction }) => (
       <TransactionItem
@@ -319,6 +328,7 @@ export default function FinanceiroScreen() {
             onCancel={closeSheet}
             editData={editingItem}
             categories={quickAddCategories}
+            incomeCategories={quickAddIncomeCategories}
           />
         </BottomSheet>
 

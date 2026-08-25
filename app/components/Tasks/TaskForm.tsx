@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 import { useAppStore } from '../../../src/store';
+import { TagSelector } from '../TagSelector';
 
 export type TaskPriority = 'alta' | 'media' | 'baixa';
 
@@ -81,7 +82,7 @@ function getDateQuickOptions(): { label: string; value: string | null; icon: any
 }
 
 export function TaskForm({ onSave, onCancel }: TaskFormProps) {
-  const { taskTags, customTaskTags, employeeItems } = useAppStore();
+  const { taskTags, customTaskTags, addCustomTaskTag, employeeItems } = useAppStore();
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('baixa');
   const [dueDate, setDueDate] = useState<string | null>(null);
@@ -247,26 +248,14 @@ export function TaskForm({ onSave, onCancel }: TaskFormProps) {
         </Pressable>
       </Modal>
 
-      <Text style={styles.label}>Tags</Text>
-      {availableTags.length > 0 ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tagsRow}>
-          {availableTags.map((tag) => {
-            const active = selectedTags.includes(tag);
-            return (
-              <TouchableOpacity
-                key={tag}
-                style={[styles.tagChip, active && styles.tagChipActive]}
-                onPress={() => toggleTag(tag)}
-              >
-                <Ionicons name={active ? 'checkmark' : 'pricetag-outline'} size={13} color={active ? '#FFFFFF' : Colors.textSecondary} />
-                <Text style={[styles.tagChipText, active && styles.tagChipTextActive]}>{tag}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      ) : (
-        <Text style={styles.mutedText}>Nenhuma tag disponível.</Text>
-      )}
+      <TagSelector
+        title="Tags"
+        hint="Você pode escolher mais de uma"
+        tags={availableTags}
+        selected={selectedTags}
+        onSelect={toggleTag}
+        onAdd={addCustomTaskTag}
+      />
 
       <Text style={styles.label}>Atribuir para</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>
@@ -319,7 +308,7 @@ const styles = StyleSheet.create({
   },
   label: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.xs,
+    fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 2,
   },

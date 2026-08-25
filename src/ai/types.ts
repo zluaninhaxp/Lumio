@@ -9,6 +9,7 @@
  * exatamente este formato.
  */
 export interface OnboardingExtractionResult {
+  taxonomy?: BusinessTaxonomy;
   businessName: string | null;
   segment: string | null;
 
@@ -83,3 +84,4 @@ export interface CategorySuggestion {
   label: string;
   origin: 'mentioned' | 'suggested';
 }
+import type { BusinessTaxonomy } from '../engine/taxonomy/types';
