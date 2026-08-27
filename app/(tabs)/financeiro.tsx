@@ -34,6 +34,9 @@ import { AccountSheet } from '../components/account/AccountSheet';
 
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
+const AnimatedSectionList = Animated.createAnimatedComponent(
+  SectionList<Transaction, TransactionSection>
+);
 
 export default function FinanceiroScreen() {
   const router = useRouter();
@@ -296,7 +299,7 @@ export default function FinanceiroScreen() {
           onSearchToggle={() => setSearchVisible((visible) => !visible)}
         />
 
-        <SectionList
+        <AnimatedSectionList
           sections={sections}
           renderItem={renderItem}
           renderSectionHeader={renderSectionHeader}

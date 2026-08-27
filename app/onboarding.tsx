@@ -114,6 +114,10 @@ export default function OnboardingScreen() {
     enterBlock(0);
   }, [enterBlock]);
 
+  const handleConfigureKey = useCallback(() => {
+    router.push('/ai-settings');
+  }, [router]);
+
   const advanceFromBlock = useCallback((currentIndex: number) => {
     const next = currentIndex + 1;
     if (next >= BLOCK_COUNT) {
@@ -195,6 +199,15 @@ export default function OnboardingScreen() {
           <StageProgress totalStages={TOTAL_STAGES} currentStage={stage} />
         </>
       )}
+
+      <TouchableOpacity
+        style={[styles.keyButton, !showIntro && styles.keyButtonDuringOnboarding]}
+        onPress={handleConfigureKey}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="key-outline" size={16} color={Colors.accent} />
+        <Text style={styles.keyButtonText}>Chave de IA</Text>
+      </TouchableOpacity>
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -312,6 +325,27 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
     color: Colors.textMuted,
+  },
+  keyButton: {
+    position: 'absolute',
+    top: Spacing.md,
+    right: Spacing.xl,
+    zIndex: 5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.bgCard,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  keyButtonDuringOnboarding: { top: Spacing.xl },
+  keyButtonText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.accent,
   },
 
   stageArea: {
