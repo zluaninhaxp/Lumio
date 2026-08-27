@@ -26,6 +26,7 @@
  */
 
 import type { ConfidenceLevel, NormalizedText } from '../taskEngine/types.ts';
+import type { GenericNode } from '../taxonomy/types.ts';
 
 /** Referência de tipo de evento do onboarding (`calendarEventTypes`). */
 export interface CalendarEventTypeRef {
@@ -42,6 +43,7 @@ export interface CalendarParserContext {
   calendarEventTypes: string[];
   /** keywordMap do onboarding — suporte complementar à classificação. */
   keywordMap: Record<string, string>;
+  taxonomy?: GenericNode[];
   /** Pessoas reais (mesma lista do taskEngine) — para reúso. */
   people: ReadonlyArray<{ id: string; name: string }>;
 }

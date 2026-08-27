@@ -26,7 +26,9 @@ import { secureKeyStorage } from '../services/secureKeyStorage';
  * defensivo em `aiOnboardingService.ts` continua ativo — o JSON mode reduz,
  * mas não elimina, a chance de vir texto extra.
  */
-export const GEMINI_MODEL = 'gemini-flash-latest';
+// Use a concrete model name. The `*-latest` aliases are not enabled for every
+// API key/project and commonly result in a misleading 404/400 response.
+export const GEMINI_MODEL = 'gemini-2.5-flash';
 export const GEMINI_LABEL = 'Google Gemini';
 
 const GEMINI_ENDPOINT = (model: string) =>
@@ -142,6 +144,9 @@ async function callGenerateContent(
       // nenhum custo de modo.
       ...(jsonMode ? { responseMimeType: 'application/json' } : {}),
       temperature: 0.4,
+      // A taxonomia contém quatro domínios e pode ser extensa. Sem esse
+      // limite o Gemini pode truncar o JSON e o parser reporta formato inválido.
+      ...(jsonMode ? { maxOutputTokens: 16384 } : {}),
     },
   };
 

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { ChatIndicator } from '../ChatIndicator';
 import { getCategoryIcon, getCategoryIconColor } from '../../../src/hooks/useFinanceState';
 import type { Transaction } from '../../../src/store';
 
@@ -40,16 +41,20 @@ export function TransactionItem({
   const renderRightActions = useCallback(
     () => {
       return (
-        <TouchableOpacity
-          style={styles.deleteAction}
-          onPress={() => {
-            swipeableRef.current?.close();
-            onDelete(item.id);
-          }}
-        >
-          <Ionicons name="trash-outline" size={20} color="#FFF" />
-          <Text style={styles.actionText}>Excluir</Text>
-        </TouchableOpacity>
+        <View style={styles.rightActions}>
+          <TouchableOpacity
+            style={styles.deleteAction}
+            accessibilityRole="button"
+            accessibilityLabel="Excluir transação"
+            onPress={() => {
+              swipeableRef.current?.close();
+              onDelete(item.id);
+            }}
+          >
+            <Ionicons name="trash-outline" size={19} color={Colors.danger} />
+            <Text style={[styles.actionText, styles.deleteActionText]}>Excluir</Text>
+          </TouchableOpacity>
+        </View>
       );
     },
     [item.id, onDelete]
@@ -61,13 +66,15 @@ export function TransactionItem({
         <View style={styles.leftActions}>
           <TouchableOpacity
             style={styles.editAction}
+            accessibilityRole="button"
+            accessibilityLabel="Editar transação"
             onPress={() => {
               swipeableRef.current?.close();
               onEdit(item);
             }}
           >
-            <Ionicons name="pencil-outline" size={18} color="#FFF" />
-            <Text style={styles.actionText}>Editar</Text>
+            <Ionicons name="pencil-outline" size={19} color={Colors.accent} />
+            <Text style={[styles.actionText, styles.editActionText]}>Editar</Text>
           </TouchableOpacity>
         </View>
       );
@@ -111,11 +118,12 @@ export function TransactionItem({
         </View>
 
         <View style={styles.center}>
-          <Text style={styles.desc} numberOfLines={1}>
-            {item.description}
-          </Text>
+          <View style={styles.descriptionRow}>
+            {item.source === 'chat' && <ChatIndicator size={14} />}
+            <Text style={styles.desc} numberOfLines={1}>{item.description}</Text>
+          </View>
           <Text style={styles.category} numberOfLines={1}>
-            {item.category}{item.confirmed === false ? ' · Prevista' : ''}
+           {item.category || 'Sem categoria'}{item.confirmed === false ? ' · Prevista' : ''}
           </Text>
           {item.confirmed === false && onMarkReceived && <TouchableOpacity onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>Marcar recebida</Text></TouchableOpacity>}
         </View>
@@ -175,6 +183,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   center: { flex: 1 },
+  descriptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   desc: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
@@ -196,30 +205,41 @@ const styles = StyleSheet.create({
   amountIn: { color: Colors.accent },
   amountOut: { color: Colors.primary },
 
+  rightActions: {
+    justifyContent: 'center',
+    paddingRight: Spacing.xs,
+  },
   deleteAction: {
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerLight,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 80,
-    borderTopRightRadius: Radius.lg,
-    borderBottomRightRadius: Radius.lg,
-    gap: 2,
+    width: 68,
+    minHeight: 56,
+    borderRadius: Radius.md,
+    gap: 3,
   },
   leftActions: {
     flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: Spacing.xs,
   },
   editAction: {
-    backgroundColor: Colors.warning,
+    backgroundColor: Colors.accentLight,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 80,
-    borderTopLeftRadius: Radius.lg,
-    borderBottomLeftRadius: Radius.lg,
-    gap: 2,
+    width: 68,
+    minHeight: 56,
+    borderRadius: Radius.md,
+    gap: 3,
   },
   actionText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.xs,
-    color: '#FFF',
+  },
+  editActionText: {
+    color: Colors.accent,
+  },
+  deleteActionText: {
+    color: Colors.danger,
   },
 });

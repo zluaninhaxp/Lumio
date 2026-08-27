@@ -18,7 +18,8 @@ import Mascot from './components/onboarding/Mascot';
  * existentes). Qualquer id fora do catálogo cai no fallback, que só
  * capitaliza o próprio id.
  */
-function friendlyPluginName(pluginId: string): string {
+function friendlyPluginName(pluginId: string | null | undefined): string {
+  if (!pluginId) return 'Plugin sugerido';
   return getPluginDefinition(pluginId)?.label
     ?? pluginId.replace(/-/g, ' ').replace(/^\w/, (c) => c.toUpperCase());
 }

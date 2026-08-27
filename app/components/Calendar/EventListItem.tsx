@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
+import { ChatIndicator } from '../ChatIndicator';
 
 interface EventListItemProps {
   item: CalendarEvent;
@@ -112,15 +113,18 @@ export function EventListItem({
               <Text style={styles.deadlineBadge}>Prazo</Text>
             </Text>
           )}
-          <Text
-            style={[
-              styles.description,
-              item.done && styles.descriptionDone,
-            ]}
-            numberOfLines={2}
-          >
-            {item.description}
-          </Text>
+          <View style={styles.descriptionRow}>
+            {(item.source === 'chat' || item.origin === 'chat') && <ChatIndicator size={14} />}
+            <Text
+              style={[
+                styles.description,
+                item.done && styles.descriptionDone,
+              ]}
+              numberOfLines={2}
+            >
+              {item.description}
+            </Text>
+          </View>
         </View>
 
         {item.id.startsWith('appointment:') && onCancel && <TouchableOpacity onPress={() => onCancel(item.id)} style={styles.deleteBtn}><Ionicons name="close-circle-outline" size={16} color={Colors.warning} /></TouchableOpacity>}
@@ -172,6 +176,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   info: { flex: 1, gap: 2 },
+  descriptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
   time: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,

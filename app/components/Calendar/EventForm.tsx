@@ -10,6 +10,7 @@ import {
 import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
 import { useAppStore } from '../../../src/store';
+import { TagSelector } from '../TagSelector';
 
 interface EventFormProps {
   initialDate: string;
@@ -19,12 +20,13 @@ interface EventFormProps {
 
 export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
   const [description, setDescription] = useState('');
-  const [type, setType] = useState<'event' | 'task'>('task');
+  const [type, setType] = useState<'event' | 'task'>('event');
   const [eventType, setEventType] = useState<string>('');
   const [time, setTime] = useState('');
   const [date, setDate] = useState(initialDate);
 
   const calendarEventTypes = useAppStore((s) => s.calendarEventTypes);
+  const addCalendarEventType = useAppStore((s) => s.addCalendarEventType);
   const eventTypeLabels = useMemo(
     () => calendarEventTypes.map((c) => c.label),
     [calendarEventTypes]
@@ -76,14 +78,6 @@ export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
       <Text style={styles.label}>Tipo</Text>
       <View style={styles.typeRow}>
         <TouchableOpacity
-          style={[styles.typeBtn, type === 'task' && styles.typeBtnActive]}
-          onPress={() => handleSelectType('task')}
-        >
-          <Text style={[styles.typeBtnText, type === 'task' && styles.typeBtnTextActive]}>
-            Tarefa
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
           style={[styles.typeBtn, type === 'event' && styles.typeBtnActive]}
           onPress={() => handleSelectType('event')}
         >
@@ -91,32 +85,25 @@ export function EventForm({ initialDate, onSave, onCancel }: EventFormProps) {
             Evento
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.typeBtn, type === 'task' && styles.typeBtnActive]}
+          onPress={() => handleSelectType('task')}
+        >
+          <Text style={[styles.typeBtnText, type === 'task' && styles.typeBtnTextActive]}>
+            Tarefa
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {type === 'event' && eventTypeLabels.length > 0 && (
-        <>
-          <Text style={styles.label}>Tipo de evento</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.eventTypeRow}
-          >
-            {eventTypeLabels.map((label) => {
-              const active = eventType === label;
-              return (
-                <TouchableOpacity
-                  key={label}
-                  style={[styles.eventTypeChip, active && styles.eventTypeChipActive]}
-                  onPress={() => setEventType(label)}
-                >
-                  <Text style={[styles.eventTypeChipText, active && styles.eventTypeChipTextActive]}>
-                    {label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </>
+      {type === 'event' && (
+        <TagSelector
+          title="Tipo de evento"
+          hint="Escolha uma tag para encontrar esse compromisso depois"
+          tags={eventTypeLabels}
+          selected={eventType}
+          onSelect={setEventType}
+          onAdd={addCalendarEventType}
+        />
       )}
 
       <Text style={styles.label}>Data</Text>

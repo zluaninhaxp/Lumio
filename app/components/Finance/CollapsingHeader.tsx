@@ -59,7 +59,10 @@ export function CollapsingHeader({
   const headerMaxHeight = cardHeight > 0
     ? Math.max(cardHeight + FILTERS_STRIP_HEIGHT, headerMinHeight)
     : headerMinHeight;
-  const diff = headerMaxHeight - headerMinHeight;
+  // On the first native render the card has not measured yet. An
+  // interpolation with inputRange [0, 0] is rejected by Android, while web
+  // happens to tolerate it.
+  const diff = Math.max(headerMaxHeight - headerMinHeight, 1);
 
   useEffect(() => {
     if (headerMaxHeight > 0) {

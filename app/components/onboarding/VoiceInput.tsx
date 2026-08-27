@@ -1,10 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  ExpoSpeechRecognitionModule,
-  useSpeechRecognitionEvent,
-} from 'expo-speech-recognition';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -36,7 +32,68 @@ interface VoiceInputProps {
 export default function VoiceInput({ onCapture, onPartialResult, disabled }: VoiceInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [speechUnavailable, setSpeechUnavailable] = useState(false);
   const [partialTranscript, setPartialTranscript] = useState('');
+  const [speechModule, setSpeechModule] = useState<
+    typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule | null
+  >(null);
+  const speechModuleRef = useRef<
+    typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule | null
+  >(null);
+  const onCaptureRef = useRef(onCapture);
+  const onPartialResultRef = useRef(onPartialResult);
+
+  useEffect(() => {
+    onCaptureRef.current = onCapture;
+    onPartialResultRef.current = onPartialResult;
+  }, [onCapture, onPartialResult]);
+
+  // Expo Go (and old standalone APKs) do not contain third-party native
+  // modules. Load this one lazily so text onboarding remains usable there.
+  useEffect(() => {
+    let mounted = true;
+    import('expo-speech-recognition')
+      .then(({ ExpoSpeechRecognitionModule }) => {
+        if (mounted) {
+          speechModuleRef.current = ExpoSpeechRecognitionModule;
+          setSpeechModule(ExpoSpeechRecognitionModule);
+        }
+      })
+      .catch(() => {
+        if (mounted) setSpeechUnavailable(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const module = speechModule;
+    if (!module) return;
+    const subscriptions = [
+      module.addListener('start', () => {
+        setIsRecording(true);
+        onPartialResultRef.current?.('');
+      }),
+      module.addListener('result', (event) => {
+        const transcript = event.results[0]?.transcript ?? '';
+        setPartialTranscript(transcript);
+        onPartialResultRef.current?.(transcript);
+      }),
+      module.addListener('end', () => {
+        setIsRecording(false);
+        setPartialTranscript((finalText) => {
+          if (finalText.trim()) onCaptureRef.current(finalText.trim());
+          return '';
+        });
+      }),
+      module.addListener('error', (event) => {
+        setIsRecording(false);
+        if (event.error === 'not-allowed') setPermissionDenied(true);
+      }),
+    ];
+    return () => subscriptions.forEach((subscription) => subscription.remove());
+  }, [speechModule]);
 
   const pulse = useSharedValue(1);
 
@@ -57,30 +114,6 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled }: Voi
     return () => cancelAnimation(pulse);
   }, [isRecording, pulse]);
 
-  useSpeechRecognitionEvent('start', () => {
-    setIsRecording(true);
-    onPartialResult?.('');
-  });
-
-  useSpeechRecognitionEvent('result', (event) => {
-    const transcript = event.results[0]?.transcript ?? '';
-    setPartialTranscript(transcript);
-    onPartialResult?.(transcript);
-  });
-
-  useSpeechRecognitionEvent('end', () => {
-    setIsRecording(false);
-    setPartialTranscript((finalText) => {
-      if (finalText.trim()) onCapture(finalText.trim());
-      return '';
-    });
-  });
-
-  useSpeechRecognitionEvent('error', (event) => {
-    setIsRecording(false);
-    if (event.error === 'not-allowed') setPermissionDenied(true);
-  });
-
   const pulseStyle = useAnimatedStyle(() => ({
     transform: [{ scale: pulse.value }],
   }));
@@ -88,19 +121,25 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled }: Voi
   const handlePress = async () => {
     if (disabled) return;
 
-    if (isRecording) {
-      ExpoSpeechRecognitionModule.stop();
+    const module = speechModuleRef.current;
+    if (!module) {
+      setSpeechUnavailable(true);
       return;
     }
 
-    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (isRecording) {
+      module.stop();
+      return;
+    }
+
+    const permission = await module.requestPermissionsAsync();
     if (!permission.granted) {
       setPermissionDenied(true);
       return;
     }
     setPermissionDenied(false);
 
-    ExpoSpeechRecognitionModule.start({
+    module.start({
       lang: 'pt-BR',
       interimResults: true,
       continuous: false,

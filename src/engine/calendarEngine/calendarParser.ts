@@ -35,6 +35,7 @@ import type {
   ParsedCalendarEvent,
   ParsedTaskCalendarLink,
 } from './types.ts';
+import { resolveEntity } from '../taxonomy/entityResolver.ts';
 
 /** Versão do motor — útil para logs/TCC. */
 export const CALENDAR_ENGINE_VERSION = '1.0.0';
@@ -180,7 +181,9 @@ export function parseCalendarMessage(
   // --- 6) Construção dos resultados ---
   const eventTypeAliases = buildEventTypeAliases(context.calendarEventTypes);
   const person = resolvePerson(normalized.original, [...context.people]);
-  const eventType = classifyEventType(text, eventTypeAliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
+   const eventType = context.taxonomy
+     ? resolveEntity(text, 'calendar', context.taxonomy).genericLabel
+     : classifyEventType(text, eventTypeAliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
 
   const out: CalendarParseResult = {
     intent,
@@ -382,7 +385,9 @@ function extractMultipleEvents(
   for (const p of valid) {
     const person = resolvePerson(p, [...context.people]);
     const frag = normalizeMessage(p);
-    const eventType = classifyEventType(frag.text, aliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
+     const eventType = context.taxonomy
+       ? resolveEntity(frag.text, 'calendar', context.taxonomy).genericLabel
+       : classifyEventType(frag.text, aliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
     // Shadow temporal para este fragmento.
     const fragFull = resolveTemporal(frag.tokens, context.now);
     const date = fragFull.resolution.dueDate ?? resolution.dueDate;

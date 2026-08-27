@@ -57,9 +57,14 @@
     },
     "extra": {
       "router": {},
+      "supabase": {
+        "url": "https://foruzsalsyqmccutvhdu.supabase.co",
+        "anonKey": "sb_publishable_ba0vk21R9LkZO53hGoxj1g_PfqIdJjX"
+      },
       "eas": {
         "projectId": "283de31d-2012-4e22-b258-dd25f8842fd8"
       }
-    }
+    },
+    "owner": "zluhcastro"
   }
 }

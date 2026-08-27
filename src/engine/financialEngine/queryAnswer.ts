@@ -101,7 +101,9 @@ export function answerFinancialQuery(query: FinancialQuery, transactions: Transa
   if (query.kind === 'month_expenses') {
     if (totalExpenses === 0) return `Você não teve gastos ${periodLabel}.`;
     const byCat = new Map<string, number>();
-    expenses.forEach((t) => byCat.set(t.category, (byCat.get(t.category) ?? 0) + Math.abs(t.amount)));
+    expenses.forEach((t) => {
+      if (t.category) byCat.set(t.category, (byCat.get(t.category) ?? 0) + Math.abs(t.amount));
+    });
     const top = [...byCat.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
     return [
       `Você gastou ${formatBRL(totalExpenses)} ${periodLabel}:`,

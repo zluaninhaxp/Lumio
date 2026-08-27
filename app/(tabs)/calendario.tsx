@@ -1,7 +1,8 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, SafeAreaView, PanResponder, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, PanResponder, TouchableOpacity,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, FontSize } from '../../src/constants/theme';
 import { useAppStore, type CalendarEvent, type Atendimento } from '../../src/store';
@@ -18,6 +19,7 @@ import { AppointmentForm } from '../components/Calendar/AppointmentForm';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
+import { BottomFade } from '../components/BottomFade';
 
 export default function CalendarioScreen() {
   const { currentUser } = useAuth();
@@ -44,7 +46,7 @@ export default function CalendarioScreen() {
     formatSelectedDate,
   } = useCalendarState();
 
-  const { events, toggleEvent, removeEvent, addEvent, refreshContratos, markTransactionReceived, clienteItems, orcamentos, activatedPlugins, addAtendimento, concludeAtendimento, updateAtendimento, removeAtendimento } = useAppStore();
+  const { events, toggleEvent, removeEvent, addEvent, addTask, calendarizeTask, refreshContratos, markTransactionReceived, clienteItems, orcamentos, activatedPlugins, addAtendimento, concludeAtendimento, updateAtendimento, removeAtendimento } = useAppStore();
   const { transactions, fornecedorItems, markSupplierTransactionPaid } = useAppStore();
   const [sheetVisible, setSheetVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -129,10 +131,28 @@ export default function CalendarioScreen() {
 
   const handleSave = useCallback(
     (data: Omit<CalendarEvent, 'id' | 'done'>) => {
-      addEvent(data);
+      if (data.type === 'task') {
+        const taskId = addTask({
+          description: data.description,
+          done: false,
+          dueDate: data.date,
+          dueDateLabel: null,
+          priority: 'media',
+          subtasks: [],
+          tags: [],
+          createdAt: new Date().toISOString(),
+        });
+        calendarizeTask(taskId, {
+          date: data.date,
+          time: data.time,
+          eventType: data.eventType,
+        });
+      } else {
+        addEvent(data);
+      }
       setSheetVisible(false);
     },
-    [addEvent]
+    [addEvent, addTask, calendarizeTask]
   );
 
   const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => {
@@ -179,7 +199,7 @@ export default function CalendarioScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendário</Text>
         <View style={styles.headerActions}>
@@ -244,6 +264,8 @@ export default function CalendarioScreen() {
         </View>
       </ScrollView>
 
+      <BottomFade />
+
       <FAB onPress={() => setSheetVisible(true)} />
 
       <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)}>
@@ -293,7 +315,7 @@ const styles = StyleSheet.create({
   },
   eventsSection: {
     paddingTop: Spacing.xl,
-    paddingBottom: 100,
+    paddingBottom: 12,
   },
   eventsHeader: {
     flexDirection: 'row',

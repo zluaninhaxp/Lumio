@@ -5,20 +5,23 @@ import {
   StyleSheet,
   Animated,
   SectionList,
-  TouchableOpacity,
   Pressable,
-  SafeAreaView,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
 import { useAppStore, type Transaction } from '../../src/store';
 import { CollapsingHeader } from '../components/Finance/CollapsingHeader';
 import { TransactionItem } from '../components/Finance/TransactionItem';
-import { QuickAddForm } from '../components/Finance/QuickAddForm';
+import {
+  QuickAddForm,
+  clearPendingTransactionDraft,
+  consumeDraftClosePreservation,
+  setPendingTransactionRelation,
+} from '../components/Finance/QuickAddForm';
 import { MonthSelector } from '../components/Finance/MonthSelector';
 import { FinanceSkeleton } from '../components/Finance/FinanceSkeleton';
 import { FinanceEmptyState } from '../components/Finance/FinanceEmptyState';
@@ -26,16 +29,30 @@ import { UndoSnackbar } from '../components/Finance/UndoSnackbar';
 import { SelectionBar } from '../components/Finance/SelectionBar';
 import { FAB } from '../components/Calendar/FAB';
 import { BottomSheet } from '../components/Calendar/BottomSheet';
+import { UserAvatar } from '../components/account/UserAvatar';
+import { AccountSheet } from '../components/account/AccountSheet';
+import { BottomFade } from '../components/BottomFade';
 
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
+const AnimatedSectionList = Animated.createAnimatedComponent(
+  SectionList<Transaction, TransactionSection>
+);
 
 export default function FinanceiroScreen() {
   const router = useRouter();
-  const { logout } = useAuth();
+  const { returnToFinance, createdId, relation } = useLocalSearchParams<{
+    returnToFinance?: string;
+    createdId?: string;
+    relation?: 'client' | 'supplier';
+  }>();
+  const { currentUser } = useAuth();
+  const [accountVisible, setAccountVisible] = useState(false);
+  const handledReturnRef = useRef<string | null>(null);
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
+  const financialIncomeCategories = useAppStore((state) => state.financialIncomeCategories);
 
   const {
     sections,
@@ -86,20 +103,27 @@ export default function FinanceiroScreen() {
     return () => clearTimeout(timer);
   }, [refreshContratos]);
 
-  const handleLogout = useCallback(() => {
-    logout();
-    router.replace('/login');
-  }, [logout, router]);
-
   const openAddSheet = useCallback(() => {
     setEditingItem(null);
     setSheetVisible(true);
   }, []);
 
   const closeSheet = useCallback(() => {
+    if (!consumeDraftClosePreservation()) clearPendingTransactionDraft();
     setSheetVisible(false);
     setEditingItem(null);
   }, []);
+
+  useEffect(() => {
+    if (returnToFinance !== '1' || !createdId || !relation) return;
+    const key = `${relation}:${createdId}`;
+    if (handledReturnRef.current === key) return;
+    handledReturnRef.current = key;
+    setPendingTransactionRelation(relation, createdId);
+    setEditingItem(null);
+    setSheetVisible(true);
+    router.setParams({ returnToFinance: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToFinance, router]);
 
   const handleSaveTransaction = useCallback(
     (data: Omit<Transaction, 'id'>) => {
@@ -169,6 +193,14 @@ export default function FinanceiroScreen() {
     [financialExpenseCategories]
   );
 
+  const quickAddIncomeCategories = useMemo(
+    () => {
+      const fromOnboarding = financialIncomeCategories.map((c) => c.label);
+      return fromOnboarding.length > 0 ? fromOnboarding : ['Receita'];
+    },
+    [financialIncomeCategories]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Transaction }) => (
       <TransactionItem
@@ -235,13 +267,11 @@ export default function FinanceiroScreen() {
   const isEmpty = sections.length === 0 && !loading;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
         <Text style={styles.title}>Financeiro</Text>
         <View style={styles.topActions}>
-          <TouchableOpacity onPress={handleLogout} hitSlop={12} accessibilityLabel="Sair">
-            <Ionicons name="log-out-outline" size={20} color={Colors.textSecondary} />
-          </TouchableOpacity>
+          <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
       </View>
 
@@ -270,7 +300,7 @@ export default function FinanceiroScreen() {
           onSearchToggle={() => setSearchVisible((visible) => !visible)}
         />
 
-        <SectionList
+        <AnimatedSectionList
           sections={sections}
           renderItem={renderItem}
           renderSectionHeader={renderSectionHeader}
@@ -294,6 +324,8 @@ export default function FinanceiroScreen() {
           keyboardDismissMode="on-drag"
         />
 
+        <BottomFade />
+
         {!selectionMode && <FAB onPress={openAddSheet} />}
 
         <BottomSheet visible={sheetVisible} onClose={closeSheet}>
@@ -302,6 +334,7 @@ export default function FinanceiroScreen() {
             onCancel={closeSheet}
             editData={editingItem}
             categories={quickAddCategories}
+            incomeCategories={quickAddIncomeCategories}
           />
         </BottomSheet>
 
@@ -318,6 +351,8 @@ export default function FinanceiroScreen() {
         )}
 
         <UndoSnackbar ref={snackbarRef} onUndo={handleUndo} />
+
+        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
       </View>
     </SafeAreaView>
   );
@@ -355,7 +390,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 12,
     paddingHorizontal: Spacing.xl,
   },
   listContentEmpty: {

@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore, ClienteItem } from '../../src/store';
 
@@ -13,6 +13,7 @@ const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
 export default function ClientesScreen() {
   const router = useRouter();
+  const { returnToFinance, relation } = useLocalSearchParams<{ returnToFinance?: string; relation?: string }>();
   const { clienteItems, transactions, addClienteItem, updateClienteItem, removeClienteItem, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -34,9 +35,13 @@ export default function ClientesScreen() {
   const handleSave = () => {
     if (!form.name.trim()) return;
     const payload = { name: form.name.trim(), contact: form.contact.trim(), notes: form.notes.trim(), createdAt: editingId ? clienteItems.find((item) => item.id === editingId)?.createdAt ?? new Date().toISOString() : new Date().toISOString() };
+    let createdId: string | undefined;
     if (editingId) updateClienteItem(editingId, payload);
-    else addClienteItem(payload);
+    else createdId = addClienteItem(payload);
     setModalVisible(false);
+    if (!editingId && createdId && returnToFinance === '1' && relation === 'client') {
+      router.replace({ pathname: '/(tabs)/financeiro', params: { returnToFinance: '1', createdId, relation: 'client' } });
+    }
   };
   const handleDelete = (id: string) => Alert.alert('Excluir cliente', 'As receitas vinculadas ficam sem cliente, mas não são excluídas.', [
     { text: 'Cancelar', style: 'cancel' },
