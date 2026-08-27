@@ -1,9 +1,11 @@
 ﻿import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, Image,
-  TouchableOpacity, KeyboardAvoidingView, Platform, SafeAreaView,
+  TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
@@ -671,7 +673,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -696,8 +698,14 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           onContentSizeChange={scrollToBottom}
         />
 
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(239,239,237,0)', Colors.bg]}
+          style={styles.messageFade}
+        />
+
         {/* Input bar */}
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { marginBottom: Spacing.sm }]}>
           <View style={styles.inputWrapper}>
             {!input && (
               <Text
@@ -771,7 +779,15 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
+    paddingBottom: 12,
     gap: Spacing.md,
+  },
+  messageFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 76,
+    height: 10,
   },
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
@@ -872,8 +888,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     gap: Spacing.sm,
     backgroundColor: Colors.bg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   inputWrapper: {
     flex: 1,

@@ -17,6 +17,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 import { ChatIndicator } from '../components/ChatIndicator';
+import { BottomFade } from '../components/BottomFade';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -1106,7 +1107,7 @@ export default function TarefasScreen() {
   // ─────── Loading State ───────
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Tarefas</Text>
           <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
@@ -1297,6 +1298,8 @@ export default function TarefasScreen() {
               onScrollBeginDrag={closeOpenSwipeable}
             />
           )}
+
+          <BottomFade />
 
           <FAB onPress={() => setSheetVisible(true)} />
 

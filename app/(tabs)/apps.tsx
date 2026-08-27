@@ -45,7 +45,7 @@ export default function AppsScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Apps</Text>
@@ -128,7 +128,7 @@ export default function AppsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
-  content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
+  content: { paddingHorizontal: Spacing.xl, paddingBottom: 12 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

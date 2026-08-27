@@ -5,6 +5,7 @@ import { AuthProvider } from '@/src/contexts/AuthContext';
 import { useEffect } from 'react';
 import { useAppStore } from '@/src/store';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 export default function RootLayout() {
   const [loaded] = useFonts({
@@ -24,31 +25,33 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <AuthProvider>
-        <StatusBar style="dark" />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="register" />
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="celebration" />
-          <Stack.Screen name="onboarding-summary" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="plugins/store" />
-          <Stack.Screen name="plugins/estoque" />
-          <Stack.Screen name="plugins/clientes" />
-          <Stack.Screen name="plugins/fornecedores" />
-          <Stack.Screen name="plugins/vendas" />
-          <Stack.Screen name="plugins/orcamentos" />
-          <Stack.Screen name="plugins/contratos" />
-          <Stack.Screen name="plugins/entregas" />
-          <Stack.Screen name="plugins/[id]" />
-          <Stack.Screen name="profile" />
-          <Stack.Screen name="account" />
-          <Stack.Screen name="preferences" />
-          <Stack.Screen name="ai-settings" />
-        </Stack>
-      </AuthProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <AuthProvider>
+          <StatusBar style="dark" />
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="login" />
+            <Stack.Screen name="register" />
+            <Stack.Screen name="onboarding" />
+            <Stack.Screen name="celebration" />
+            <Stack.Screen name="onboarding-summary" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="plugins/store" />
+            <Stack.Screen name="plugins/estoque" />
+            <Stack.Screen name="plugins/clientes" />
+            <Stack.Screen name="plugins/fornecedores" />
+            <Stack.Screen name="plugins/vendas" />
+            <Stack.Screen name="plugins/orcamentos" />
+            <Stack.Screen name="plugins/contratos" />
+            <Stack.Screen name="plugins/entregas" />
+            <Stack.Screen name="plugins/[id]" />
+            <Stack.Screen name="profile" />
+            <Stack.Screen name="account" />
+            <Stack.Screen name="preferences" />
+            <Stack.Screen name="ai-settings" />
+          </Stack>
+        </AuthProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }

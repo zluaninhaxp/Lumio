@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../src/constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 function TabIcon({ name, focused, label }: { name: any; focused: boolean; label: string }) {
   return (
@@ -11,7 +12,11 @@ function TabIcon({ name, focused, label }: { name: any; focused: boolean; label:
         size={22}
         color={focused ? Colors.accent : Colors.textMuted}
       />
-      <Text style={[styles.tabLabel, focused && styles.tabLabelActive]}>
+      <Text
+        style={[styles.tabLabel, focused && styles.tabLabelActive]}
+        numberOfLines={1}
+        ellipsizeMode="clip"
+      >
         {label}
       </Text>
     </View>
@@ -19,11 +24,29 @@ function TabIcon({ name, focused, label }: { name: any; focused: boolean; label:
 }
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: styles.tabBar,
+        tabBarStyle: [
+          styles.tabBar,
+          {
+            height: 48 + insets.bottom,
+            paddingBottom: insets.bottom + 4,
+          },
+        ],
+        tabBarItemStyle: {
+          flex: 1,
+          minWidth: 0,
+          paddingHorizontal: 0,
+          transform: [{ translateY: 4 }],
+        },
+        tabBarIconStyle: {
+          flex: 1,
+          width: '100%',
+        },
         tabBarShowLabel: false,
       }}
     >
@@ -55,7 +78,7 @@ export default function TabLayout() {
         name="financeiro"
         options={{
           tabBarIcon: ({ focused }) => (
-            <TabIcon name="grid" focused={focused} label="Financeiro" />
+            <TabIcon name="wallet" focused={focused} label="Financeiro" />
           ),
         }}
       />
@@ -74,20 +97,26 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E5E3',
-    height: 72,
-    paddingBottom: 8,
-    paddingTop: 8,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 10,
+    paddingTop: 4,
   },
   tabItem: {
+    flex: 1,
     alignItems: 'center',
     gap: 4,
+    width: '100%',
+    alignSelf: 'stretch',
   },
   tabLabel: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 10,
     color: '#AAAAAA',
+    textAlign: 'center',
+    letterSpacing: 0.2,
   },
   tabLabelActive: {
     color: '#00A878',

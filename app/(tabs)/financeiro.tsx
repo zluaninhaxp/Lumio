@@ -6,9 +6,9 @@ import {
   Animated,
   SectionList,
   Pressable,
-  SafeAreaView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -31,6 +31,7 @@ import { FAB } from '../components/Calendar/FAB';
 import { BottomSheet } from '../components/Calendar/BottomSheet';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
+import { BottomFade } from '../components/BottomFade';
 
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
@@ -266,7 +267,7 @@ export default function FinanceiroScreen() {
   const isEmpty = sections.length === 0 && !loading;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.topBar}>
         <Text style={styles.title}>Financeiro</Text>
         <View style={styles.topActions}>
@@ -322,6 +323,8 @@ export default function FinanceiroScreen() {
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
         />
+
+        <BottomFade />
 
         {!selectionMode && <FAB onPress={openAddSheet} />}
 
@@ -387,7 +390,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 12,
     paddingHorizontal: Spacing.xl,
   },
   listContentEmpty: {

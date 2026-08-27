@@ -171,11 +171,6 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled }: Voi
           Preciso de acesso ao microfone/reconhecimento de fala para ouvir sua resposta.
         </Text>
       )}
-      {speechUnavailable && (
-        <Text style={styles.permissionText}>
-          Voz indisponível neste APK. Digite sua resposta ou instale um development build com o módulo nativo.
-        </Text>
-      )}
     </View>
   );
 }
