@@ -135,7 +135,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chip: {
-    paddingHorizontal: Spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.md + 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
     borderWidth: 1,
@@ -147,7 +150,7 @@ const styles = StyleSheet.create({
   chipExpense: { backgroundColor: Colors.danger, borderColor: Colors.danger },
   chipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
   chipTextActive: { color: '#FFF' },

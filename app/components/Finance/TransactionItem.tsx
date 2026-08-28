@@ -41,20 +41,18 @@ export function TransactionItem({
   const renderRightActions = useCallback(
     () => {
       return (
-        <View style={styles.rightActions}>
-          <TouchableOpacity
-            style={styles.deleteAction}
-            accessibilityRole="button"
-            accessibilityLabel="Excluir transação"
-            onPress={() => {
-              swipeableRef.current?.close();
-              onDelete(item.id);
-            }}
-          >
-            <Ionicons name="trash-outline" size={19} color={Colors.danger} />
-            <Text style={[styles.actionText, styles.deleteActionText]}>Excluir</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.deleteAction}
+          accessibilityRole="button"
+          accessibilityLabel="Excluir transação"
+          onPress={() => {
+            swipeableRef.current?.close();
+            onDelete(item.id);
+          }}
+        >
+          <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.actionText}>Excluir</Text>
+        </TouchableOpacity>
       );
     },
     [item.id, onDelete]
@@ -63,20 +61,18 @@ export function TransactionItem({
   const renderLeftActions = useCallback(
     () => {
       return (
-        <View style={styles.leftActions}>
-          <TouchableOpacity
-            style={styles.editAction}
-            accessibilityRole="button"
-            accessibilityLabel="Editar transação"
-            onPress={() => {
-              swipeableRef.current?.close();
-              onEdit(item);
-            }}
-          >
-            <Ionicons name="pencil-outline" size={19} color={Colors.accent} />
-            <Text style={[styles.actionText, styles.editActionText]}>Editar</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={styles.editAction}
+          accessibilityRole="button"
+          accessibilityLabel="Editar transação"
+          onPress={() => {
+            swipeableRef.current?.close();
+            onEdit(item);
+          }}
+        >
+          <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+          <Text style={styles.actionText}>Editar</Text>
+        </TouchableOpacity>
       );
     },
     [item, onEdit]
@@ -205,41 +201,29 @@ const styles = StyleSheet.create({
   amountIn: { color: Colors.accent },
   amountOut: { color: Colors.primary },
 
-  rightActions: {
-    justifyContent: 'center',
-    paddingRight: Spacing.xs,
-  },
   deleteAction: {
-    backgroundColor: Colors.dangerLight,
+    backgroundColor: Colors.danger,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 68,
-    minHeight: 56,
-    borderRadius: Radius.md,
-    gap: 3,
-  },
-  leftActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingLeft: Spacing.xs,
+    width: 80,
+    borderTopRightRadius: Radius.lg,
+    borderBottomRightRadius: Radius.lg,
+    marginBottom: Spacing.sm,
+    gap: 4,
   },
   editAction: {
-    backgroundColor: Colors.accentLight,
+    backgroundColor: Colors.warning,
     justifyContent: 'center',
     alignItems: 'center',
-    width: 68,
-    minHeight: 56,
-    borderRadius: Radius.md,
-    gap: 3,
+    width: 80,
+    borderTopLeftRadius: Radius.lg,
+    borderBottomLeftRadius: Radius.lg,
+    marginBottom: Spacing.sm,
+    gap: 4,
   },
   actionText: {
-    fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.xs,
-  },
-  editActionText: {
-    color: Colors.accent,
-  },
-  deleteActionText: {
-    color: Colors.danger,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 11,
+    color: '#FFFFFF',
   },
 });

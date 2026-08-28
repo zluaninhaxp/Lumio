@@ -13,7 +13,7 @@ const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
 export default function ClientesScreen() {
   const router = useRouter();
-  const { returnToFinance, relation } = useLocalSearchParams<{ returnToFinance?: string; relation?: string }>();
+  const { returnToFinance, returnToTasks, returnToCalendar, relation } = useLocalSearchParams<{ returnToFinance?: string; returnToTasks?: string; returnToCalendar?: string; relation?: string }>();
   const { clienteItems, transactions, addClienteItem, updateClienteItem, removeClienteItem, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
@@ -41,6 +41,8 @@ export default function ClientesScreen() {
     setModalVisible(false);
     if (!editingId && createdId && returnToFinance === '1' && relation === 'client') {
       router.replace({ pathname: '/(tabs)/financeiro', params: { returnToFinance: '1', createdId, relation: 'client' } });
+    } else if (!editingId && createdId && (returnToTasks === '1' || returnToCalendar === '1') && relation === 'client') {
+      router.replace({ pathname: returnToTasks === '1' ? '/(tabs)/tarefas' : '/(tabs)/calendario', params: { [returnToTasks === '1' ? 'returnToTasks' : 'returnToCalendar']: '1', createdId, relation: 'client' } });
     }
   };
   const handleDelete = (id: string) => Alert.alert('Excluir cliente', 'As receitas vinculadas ficam sem cliente, mas não são excluídas.', [

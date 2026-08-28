@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { useAppStore } from '../../../src/store';
 import { suggestedDueDate } from '../../../src/utils/supplier';
 import { getPluginDefinition } from '../../../src/plugins/registry';
 import { TagSelector } from '../TagSelector';
+import { taskFormStyles } from '../Tasks/taskFormStyles';
 
 function formatTransactionDateInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 4);
@@ -30,6 +31,20 @@ interface QuickAddFormProps {
   incomeCategories: string[];
 }
 
+function formatCurrencyValue(value: number): string {
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function formatCurrencyInput(value: string): string {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  return formatCurrencyValue(Number(digits) / 100);
+}
+
+function parseCurrency(value: string): number {
+  return Number(value.replace(/\D/g, '')) / 100;
+}
+
 type TransactionDraft = {
   amount: string;
   type: 'saida' | 'entrada';
@@ -39,6 +54,7 @@ type TransactionDraft = {
   transactionDate: string;
   clientId?: string;
   supplierId?: string;
+  employeeId?: string;
   supplierDueDate: string;
   supplierPaid: boolean;
   stockItemId?: string;
@@ -60,17 +76,20 @@ export function consumeDraftClosePreservation() {
   return shouldPreserve;
 }
 
-export function setPendingTransactionRelation(relation: 'client' | 'supplier', id: string) {
+export function setPendingTransactionRelation(relation: 'client' | 'supplier' | 'employee', id: string) {
   if (!pendingTransactionDraft) return;
   if (relation === 'client') pendingTransactionDraft.clientId = id;
-  else pendingTransactionDraft.supplierId = id;
+  else if (relation === 'supplier') pendingTransactionDraft.supplierId = id;
+  else pendingTransactionDraft.employeeId = id;
 }
 
 export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCategories }: QuickAddFormProps) {
   const router = useRouter();
   const isEditing = !!editData;
   const draft = !editData ? pendingTransactionDraft : null;
-  const initialAmount = editData ? String(Math.abs(editData.amount)).replace('.', ',') : draft?.amount ?? '';
+  const initialAmount = editData
+    ? formatCurrencyValue(Math.abs(editData.amount))
+    : draft?.amount ?? '';
   const initialType: 'saida' | 'entrada' = editData
     ? editData.amount > 0
       ? 'entrada'
@@ -94,26 +113,22 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
     ? editData.date
     : draft?.transactionDate ?? today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   const [transactionDate, setTransactionDate] = useState(initialDateStr);
-  const { clienteItems, fornecedorItems, estoqueItems, activatedPlugins, receiveStockFromPurchase, addFinancialExpenseCategory, addFinancialIncomeCategory } = useAppStore();
+  const { clienteItems, fornecedorItems, employeeItems, estoqueItems, activatedPlugins, receiveStockFromPurchase, addFinancialExpenseCategory, addFinancialIncomeCategory } = useAppStore();
   const [clientId, setClientId] = useState(editData?.clientId ?? draft?.clientId);
   const [clientSearch, setClientSearch] = useState('');
   const [supplierId, setSupplierId] = useState(editData?.supplierId ?? draft?.supplierId);
+  const [employeeId, setEmployeeId] = useState(editData?.employeeId ?? draft?.employeeId);
+  const [employeeSearch, setEmployeeSearch] = useState('');
   const [supplierSearch, setSupplierSearch] = useState('');
+  const [activeRelation, setActiveRelation] = useState<'client' | 'supplier' | 'employee' | null>(null);
   const [supplierDueDate, setSupplierDueDate] = useState(editData?.supplierDueDate ?? draft?.supplierDueDate ?? '');
   const [supplierPaid, setSupplierPaid] = useState(editData?.supplierPaid ?? draft?.supplierPaid ?? false);
   const [stockItemId, setStockItemId] = useState(editData?.stockItemId ?? draft?.stockItemId);
   const [stockQuantity, setStockQuantity] = useState(editData?.stockQuantity ? String(editData.stockQuantity) : draft?.stockQuantity ?? '');
   const [stockReceived, setStockReceived] = useState(editData?.stockReceived ?? draft?.stockReceived ?? false);
 
-  const amountRef = useRef<TextInput>(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => amountRef.current?.focus(), 350);
-    return () => clearTimeout(t);
-  }, []);
-
   const handleSave = () => {
-    const num = parseFloat(amount.replace(',', '.'));
+    const num = parseCurrency(amount);
     if (!amount.trim() || isNaN(num) || num <= 0) return;
     if (!/^\d{2}\/\d{2}$/.test(transactionDate.trim())) return;
     if (!description.trim()) return;
@@ -132,13 +147,14 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
       description: description.trim() || (type === 'entrada' ? 'Receita' : 'Despesa'),
       amount: type === 'entrada' ? num : -num,
       category: category.trim(),
-      clientId: type === 'entrada' ? selectedClientId : undefined,
-      supplierId: type === 'saida' ? selectedSupplierId : undefined,
-      supplierDueDate: finalSupplierDueDate,
-      supplierPaid: type === 'saida' && selectedSupplierId ? supplierPaid : undefined,
-      stockItemId: type === 'saida' ? stockItemId : undefined,
-      stockQuantity: type === 'saida' && stockItemId ? Number(stockQuantity.replace(',', '.')) || undefined : undefined,
-      stockReceived: type === 'saida' && stockItemId ? (editData?.stockReceived ?? false) : undefined,
+      clientId: selectedClientId,
+      supplierId: selectedSupplierId,
+      employeeId,
+      supplierDueDate: selectedSupplierId ? finalSupplierDueDate : undefined,
+      supplierPaid: selectedSupplierId ? supplierPaid : undefined,
+      stockItemId,
+      stockQuantity: stockItemId ? Number(stockQuantity.replace(',', '.')) || undefined : undefined,
+      stockReceived: stockItemId ? (editData?.stockReceived ?? false) : undefined,
     };
     const transactionId = onSave(data);
     clearPendingTransactionDraft();
@@ -149,8 +165,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
 
   const canSave =
     amount.trim().length > 0 &&
-    !isNaN(parseFloat(amount.replace(',', '.'))) &&
-    parseFloat(amount.replace(',', '.')) > 0 &&
+    parseCurrency(amount) > 0 &&
     /^\d{2}\/\d{2}$/.test(transactionDate.trim()) &&
     description.trim().length > 0;
 
@@ -171,6 +186,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
       transactionDate,
       clientId,
       supplierId,
+      employeeId,
       supplierDueDate,
       supplierPaid,
       stockItemId,
@@ -180,21 +196,23 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
     preserveDraftOnClose = true;
   };
 
-  const goToPluginStore = (pluginId: 'clientes' | 'fornecedores') => {
+  const goToPluginStore = (pluginId: 'clientes' | 'fornecedores' | 'equipe') => {
     saveDraftBeforeNavigation();
     onCancel();
-    router.push(`/plugins/store?highlight=${pluginId}&returnToFinance=1&relation=${pluginId === 'clientes' ? 'client' : 'supplier'}` as any);
+    const relation = pluginId === 'clientes' ? 'client' : pluginId === 'fornecedores' ? 'supplier' : 'employee';
+    router.push(`/plugins/store?highlight=${pluginId}&returnToFinance=1&relation=${relation}` as any);
   };
-  const goToPlugin = (pluginId: 'clientes' | 'fornecedores') => {
+  const goToPlugin = (pluginId: 'clientes' | 'fornecedores' | 'equipe') => {
     const route = getPluginDefinition(pluginId)?.route;
     if (route) {
       saveDraftBeforeNavigation();
       onCancel();
-      router.push(`${route}?returnToFinance=1&relation=${pluginId === 'clientes' ? 'client' : 'supplier'}` as any);
+      const relation = pluginId === 'clientes' ? 'client' : pluginId === 'fornecedores' ? 'supplier' : 'employee';
+      router.push(`${route}?returnToFinance=1&relation=${relation}` as any);
     }
   };
 
-  const goToRelationPlugin = (pluginId: 'clientes' | 'fornecedores') => {
+  const goToRelationPlugin = (pluginId: 'clientes' | 'fornecedores' | 'equipe') => {
     if (activatedPlugins.includes(pluginId)) goToPlugin(pluginId);
     else goToPluginStore(pluginId);
   };
@@ -204,7 +222,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
 
     return (
       <TagSelector
-        title="Categoria"
+        title="Tag"
         hint={type === 'entrada' ? 'Como você identifica esse recebimento?' : 'Organize essa saída'}
         tags={categoryOptions}
         selected={category}
@@ -214,83 +232,96 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
     );
   };
 
-  const renderRelationSelector = (relation: 'client' | 'supplier') => {
+  const renderRelationSelector = (relation: 'client' | 'supplier' | 'employee') => {
     const isClient = relation === 'client';
-    const items = isClient ? clienteItems : fornecedorItems;
-    const selectedId = isClient ? clientId : supplierId;
-    const pluginId = isClient ? 'clientes' : 'fornecedores';
-    const label = isClient ? 'Cliente' : 'Fornecedor';
-    const search = isClient ? clientSearch : supplierSearch;
-    const setSearch = isClient ? setClientSearch : setSupplierSearch;
+    const isSupplier = relation === 'supplier';
+    const items = isClient ? clienteItems : isSupplier ? fornecedorItems : employeeItems;
+    const selectedId = isClient ? clientId : isSupplier ? supplierId : employeeId;
+    const pluginId = isClient ? 'clientes' : isSupplier ? 'fornecedores' : 'equipe';
+    const label = isClient ? 'Cliente' : isSupplier ? 'Fornecedor' : 'Funcionário';
+    const search = isClient ? clientSearch : isSupplier ? supplierSearch : employeeSearch;
+    const setSearch = isClient ? setClientSearch : isSupplier ? setSupplierSearch : setEmployeeSearch;
     const visibleItems = search.trim()
       ? items.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
       : items;
     const clear = () => {
       if (isClient) setClientId(undefined);
-      else {
+      else if (isSupplier) {
         setSupplierId(undefined);
         setSupplierDueDate('');
-      }
+      } else setEmployeeId(undefined);
     };
 
     return (
       <>
-        <View style={styles.relationHeader}>
-          <Text style={styles.label}>{label}</Text>
-        </View>
-        <View style={styles.relationActions}>
-          <TouchableOpacity
-            style={[styles.categoryChip, !selectedId && styles.categoryChipActive]}
-            onPress={clear}
-          >
-            <Text style={[styles.categoryChipText, !selectedId && styles.categoryChipTextActive]}>
-              Não atribuir
+        <TouchableOpacity
+          style={styles.relationSummary}
+          onPress={() => setActiveRelation((current) => current === relation ? null : relation)}
+        >
+          <View style={styles.relationSummaryText}>
+            <Text style={styles.relationSummaryLabel}>{label}</Text>
+            <Text style={styles.relationSummaryValue} numberOfLines={1}>
+              {items.find((item) => item.id === selectedId)?.name ?? 'Não atribuído'}
             </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addRelationChip}
-            onPress={() => goToRelationPlugin(pluginId)}
-          >
-            <Ionicons name="add-circle-outline" size={15} color={Colors.textSecondary} />
-            <Text style={styles.categoryChipText}>Adicionar</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-          {items.length > 3 && (
-            <View style={styles.relationSearch}>
-              <Ionicons name="search-outline" size={14} color={Colors.textMuted} />
-              <TextInput
-                value={search}
-                onChangeText={setSearch}
-                placeholder={`Buscar ${label.toLowerCase()}`}
-                placeholderTextColor={Colors.textMuted}
-                style={styles.relationSearchInput}
-                returnKeyType="search"
-              />
-            </View>
-          )}
-          {visibleItems.map((item) => {
-            const active = selectedId === item.id;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.categoryChip, active && styles.categoryChipActive]}
-                onPress={() => {
-                  if (isClient) setClientId(item.id);
-                  else {
-                    setSupplierId(item.id);
-                    const supplier = fornecedorItems.find((candidate) => candidate.id === item.id);
-                    setSupplierDueDate(supplierDueDate || suggestedDueDate(transactionDate, supplier?.paymentTerm ?? '') || '');
-                  }
-                }}
-              >
-                <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>
-                  {item.name}
-                </Text>
+          </View>
+          <Ionicons
+            name={activeRelation === relation ? 'chevron-up' : 'chevron-down'}
+            size={17}
+            color={Colors.textMuted}
+          />
+        </TouchableOpacity>
+        {activeRelation === relation && (
+          <View style={styles.relationPanel}>
+            <View style={styles.relationPanelHeader}>
+              <Text style={styles.relationPanelTitle}>Vincular {label.toLowerCase()}</Text>
+              <TouchableOpacity style={styles.addRelationChip} onPress={() => goToRelationPlugin(pluginId)}>
+                <Ionicons name="add" size={15} color={Colors.accent} />
+                <Text style={styles.addRelationText}>Novo</Text>
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+            </View>
+            {items.length > 3 && (
+              <View style={styles.relationSearch}>
+                <Ionicons name="search-outline" size={14} color={Colors.textMuted} />
+                <TextInput
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder={`Buscar ${label.toLowerCase()}`}
+                  placeholderTextColor={Colors.textMuted}
+                  style={styles.relationSearchInput}
+                  returnKeyType="search"
+                />
+              </View>
+            )}
+            <View style={styles.relationOptions}>
+              <TouchableOpacity
+                style={[styles.categoryChip, !selectedId && styles.categoryChipActive]}
+                onPress={clear}
+              >
+                <Text style={[styles.categoryChipText, !selectedId && styles.categoryChipTextActive]}>Não atribuir</Text>
+              </TouchableOpacity>
+              {visibleItems.map((item) => {
+                const active = selectedId === item.id;
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.categoryChip, active && styles.categoryChipActive]}
+                    onPress={() => {
+                      if (isClient) setClientId(item.id);
+                      else if (isSupplier) {
+                        setSupplierId(item.id);
+                        const supplier = fornecedorItems.find((candidate) => candidate.id === item.id);
+                        setSupplierDueDate(supplierDueDate || suggestedDueDate(transactionDate, supplier?.paymentTerm ?? '') || '');
+                      } else setEmployeeId(item.id);
+                      setActiveRelation(null);
+                    }}
+                  >
+                    <Text style={[styles.categoryChipText, active && styles.categoryChipTextActive]}>{item.name}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </>
     );
   };
@@ -320,11 +351,10 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
 
       <Text style={styles.label}>Valor *</Text>
       <TextInput
-        ref={amountRef}
         style={styles.amountInput}
         value={amount}
-        onChangeText={setAmount}
-        placeholder="0,00"
+             onChangeText={(value) => setAmount(formatCurrencyInput(value))}
+        placeholder="R$ 0,00"
         placeholderTextColor={Colors.textMuted}
         keyboardType="decimal-pad"
       />
@@ -334,7 +364,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
           <TouchableOpacity
             key={v}
             style={styles.presetBtn}
-            onPress={() => setAmount(v)}
+             onPress={() => setAmount(formatCurrencyValue(Number(v)))}
           >
             <Text style={styles.presetText}>{v}</Text>
           </TouchableOpacity>
@@ -361,6 +391,8 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         placeholderTextColor={Colors.textMuted}
       />
 
+      {renderCategorySelector()}
+
       <TouchableOpacity
         style={styles.expandBtn}
         onPress={() => setExpanded(!expanded)}
@@ -372,29 +404,21 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
 
       {expanded && (
         <>
-          {type === 'entrada' && <>
-            {renderCategorySelector()}
-            {renderRelationSelector('client')}
+          {renderRelationSelector('client')}
+          {renderRelationSelector('supplier')}
+          {renderRelationSelector('employee')}
+          {!!supplierId && <>
+            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
+            <TouchableOpacity style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
           </>}
-          {type === 'saida' && (
-            <>
-              {renderCategorySelector()}
-
-              {renderRelationSelector('supplier')}
-              {!!supplierId && <>
-                <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
-                <TouchableOpacity style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
-              </>}
-              {activatedPlugins.includes('estoque') && !!supplierId && <>
-                <Text style={styles.label}>Receber no estoque</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-                  <TouchableOpacity style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
-                  {estoqueItems.map((item) => <TouchableOpacity key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
-                </ScrollView>
-                {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" /><TouchableOpacity style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
-              </>}
-            </>
-          )}
+          {type === 'saida' && activatedPlugins.includes('estoque') && !!supplierId && <>
+            <Text style={styles.label}>Receber no estoque</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+              <TouchableOpacity style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
+              {estoqueItems.map((item) => <TouchableOpacity key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
+            </ScrollView>
+            {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" /><TouchableOpacity style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
+          </>}
         </>
       )}
 
@@ -417,7 +441,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
 }
 
 const styles = StyleSheet.create({
-  container: { gap: Spacing.sm },
+  ...taskFormStyles,
   title: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.xl,
@@ -427,7 +451,7 @@ const styles = StyleSheet.create({
   typeRow: { flexDirection: 'row', gap: Spacing.sm },
   typeBtn: {
     flex: 1,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 6,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -438,16 +462,10 @@ const styles = StyleSheet.create({
   typeBtnIn: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   typeBtnText: {
     fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
   typeBtnTextActive: { color: '#FFF' },
-  label: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
-  },
   amountInput: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.display,
@@ -458,12 +476,12 @@ const styles = StyleSheet.create({
   presetRow: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: Spacing.sm,
+    gap: 6,
     flexWrap: 'wrap',
   },
   presetBtn: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: Radius.full,
     backgroundColor: Colors.bg,
     borderWidth: 1,
@@ -471,27 +489,73 @@ const styles = StyleSheet.create({
   },
   presetText: {
     fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
   categoryRow: {
-    gap: Spacing.sm,
-    paddingVertical: Spacing.xs,
+    gap: 6,
+    paddingVertical: 2,
   },
   relationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  relationActions: {
+  relationSummary: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingVertical: Spacing.xs,
+    justifyContent: 'space-between',
+    minHeight: 42,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.bgCard,
+  },
+  relationSummaryText: { flex: 1, gap: 1 },
+  relationSummaryLabel: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  relationSummaryValue: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+  },
+  relationPanel: {
+    marginTop: 2,
+    padding: Spacing.sm,
+    gap: Spacing.sm,
+    borderRadius: Radius.md,
+    backgroundColor: Colors.bg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  relationPanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  relationPanelTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+  },
+  addRelationText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.xs,
+    color: Colors.accent,
+  },
+  relationOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   categoryChip: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: Radius.full,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -503,14 +567,14 @@ const styles = StyleSheet.create({
   },
   categoryChipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
   relationSearch: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    width: 150,
+    width: '100%',
     paddingHorizontal: Spacing.md,
     borderRadius: Radius.full,
     borderWidth: 1,
@@ -530,12 +594,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bg,
+    borderColor: Colors.accent,
+    backgroundColor: '#FFFFFF',
   },
   expandBtn: {
     paddingVertical: Spacing.sm,
@@ -546,54 +610,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.accent,
   },
-  input: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
   supplierMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   supplierMetaLabel: { flex: 1, fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.sm, color: Colors.textSecondary },
-  dueDateInput: { width: 130, backgroundColor: Colors.bg, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontFamily: 'PlusJakartaSans_400Regular', color: Colors.primary, borderWidth: 1, borderColor: Colors.border },
+  dueDateInput: { ...taskFormStyles.input, width: 130 },
   paidRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
   checkBox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: Colors.border, alignItems: 'center', justifyContent: 'center' },
   checkBoxActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   checkMark: { color: '#FFFFFF', fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs },
   paidText: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.sm, color: Colors.textSecondary },
-  actions: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    marginTop: Spacing.lg,
-  },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-  },
-  cancelBtnText: {
-    fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
-  saveBtn: {
-    flex: 1,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-  },
-  saveBtnDisabled: { opacity: 0.5 },
-  saveBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.md,
-    color: '#FFF',
-  },
 });

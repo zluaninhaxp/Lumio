@@ -8,10 +8,12 @@ import { PLUGIN_LIST, canActivatePlugin, getPluginDefinition, PluginId } from '.
 
 export default function PluginStoreScreen() {
   const router = useRouter();
-  const { highlight, returnToFinance, relation } = useLocalSearchParams<{
+  const { highlight, returnToFinance, returnToTasks, returnToCalendar, relation } = useLocalSearchParams<{
     highlight?: PluginId;
     returnToFinance?: string;
-    relation?: 'client' | 'supplier';
+    returnToTasks?: string;
+    returnToCalendar?: string;
+    relation?: 'client' | 'supplier' | 'employee';
   }>();
   const { activatedPlugins, setPluginActivation } = useAppStore();
   const orderedPlugins = [...PLUGIN_LIST].sort((a, b) => {
@@ -34,8 +36,8 @@ export default function PluginStoreScreen() {
     setPluginActivation(pluginId, true);
     const route = getPluginDefinition(pluginId)?.route;
     if (route) {
-      const returnParams = returnToFinance === '1' && relation
-        ? `?returnToFinance=1&relation=${relation}`
+      const returnParams = relation && (returnToFinance === '1' || returnToTasks === '1' || returnToCalendar === '1')
+        ? `?${returnToFinance === '1' ? 'returnToFinance' : returnToTasks === '1' ? 'returnToTasks' : 'returnToCalendar'}=1&relation=${relation}`
         : '';
       router.push(`${route}${returnParams}` as any);
     }

@@ -48,14 +48,15 @@ export function FilterChips({ selected, onSelect, counts }: FilterChipsProps) {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing.md,
+    paddingTop: Spacing.sm + 2,
+    paddingBottom: Spacing.xs,
     gap: Spacing.sm,
   },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.lg,
+    gap: 5,
+    paddingHorizontal: Spacing.md + 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
     borderWidth: 1,
@@ -65,12 +66,13 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
+    fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
   chipTextActive: { color: '#FFF' },
   badge: {
-    minWidth: 20,
+    minWidth: 18,
+    height: 18,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: Radius.full,

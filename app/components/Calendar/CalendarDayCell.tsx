@@ -70,8 +70,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dayCircleSelected: { backgroundColor: Colors.accent },
-  dayCircleToday: { borderWidth: 1.5, borderColor: Colors.accent },
+  dayCircleSelected: {
+    backgroundColor: Colors.accent,
+    borderRadius: 17,
+    overflow: 'hidden',
+  },
+  dayCircleToday: {
+    borderWidth: 1.5,
+    borderColor: Colors.accent,
+    borderRadius: 17,
+    overflow: 'hidden',
+  },
   dayText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,

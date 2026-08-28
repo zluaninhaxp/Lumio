@@ -52,6 +52,8 @@ export interface Task {
   subtasks: { id: string; text: string; done: boolean }[];
   tags: string[];
   createdAt: string;
+  clientId?: string;
+  supplierId?: string;
   employeeId?: string;
   /**
    * Id do `CalendarEvent` que representa esta tarefa no calendário, quando
@@ -89,6 +91,9 @@ export interface CalendarEvent {
    * sem ele. Não confundir com `type` (distinção estrutural event/task).
    */
   eventType?: string;
+  clientId?: string;
+  supplierId?: string;
+  employeeId?: string;
   /**
    * Id da `Task` que originou este evento, quando `source === 'task'`.
    * Permite a sincronização bidirecional (conclusão/edição/exclusão) entre

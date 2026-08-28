@@ -6,7 +6,6 @@ import {
   Animated,
   SectionList,
   Pressable,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -44,7 +43,7 @@ export default function FinanceiroScreen() {
   const { returnToFinance, createdId, relation } = useLocalSearchParams<{
     returnToFinance?: string;
     createdId?: string;
-    relation?: 'client' | 'supplier';
+    relation?: 'client' | 'supplier' | 'employee';
   }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
@@ -243,7 +242,7 @@ export default function FinanceiroScreen() {
 
   const ListHeader = useMemo(
     () => (
-      <View style={{ paddingTop: dynamicHeaderHeight }} />
+      <View style={{ height: dynamicHeaderHeight }} />
     ),
     [dynamicHeaderHeight]
   );
@@ -316,7 +315,7 @@ export default function FinanceiroScreen() {
             styles.listContent,
             isEmpty && styles.listContentEmpty,
           ]}
-          removeClippedSubviews={Platform.OS === 'android'}
+           removeClippedSubviews={false}
           maxToRenderPerBatch={10}
           windowSize={10}
           initialNumToRender={15}
