@@ -21,6 +21,7 @@ import { AccountSheet } from '../components/account/AccountSheet';
 import { ChatIndicator } from '../components/ChatIndicator';
 import { BottomFade } from '../components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -132,7 +133,7 @@ export default function TarefasScreen() {
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [pendingTaskDraft, setPendingTaskDraft] = useState<TaskFormData | null>(null);
+  const [pendingTaskDraft, setPendingTaskDraft] = useState<TaskFormData | null>(() => getRelationDraft<TaskFormData>('task'));
   const [sheetVisible, setSheetVisible] = useState(false);
   const [priorityPicker, setPriorityPicker] = useState<{
     taskId?: string;
@@ -248,10 +249,8 @@ export default function TarefasScreen() {
 
   useEffect(() => {
     if (returnToTasks !== '1' || !createdId || !relation) return;
-    setPendingTaskDraft((draft) => draft ? {
-      ...draft,
-      [`${relation}Id`]: createdId,
-    } : draft);
+    const draft = setPendingRelation('task', relation, createdId);
+    setPendingTaskDraft((draftState) => draft ? { ...draftState, ...draft } as TaskFormData : draftState);
     setSheetVisible(true);
     router.setParams({ returnToTasks: undefined, createdId: undefined, relation: undefined });
   }, [createdId, relation, returnToTasks, router]);
@@ -314,10 +313,14 @@ export default function TarefasScreen() {
     if (editingTask) {
       updateTask(editingTask.id, data);
       setEditingTask(null);
+      clearRelationDraft('task');
+      setPendingTaskDraft(null);
       setSheetVisible(false);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       return;
     }
+    clearRelationDraft('task');
+    setPendingTaskDraft(null);
     handleAddTask(data);
   }, [editingTask, handleAddTask, updateTask]);
 
@@ -1082,17 +1085,19 @@ export default function TarefasScreen() {
 
           <FAB onPress={() => setSheetVisible(true)} />
 
-          <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)} height={620}>
+          <BottomSheet visible={sheetVisible} onClose={() => { clearRelationDraft('task'); setPendingTaskDraft(null); setSheetVisible(false); }} height={620}>
             <TaskForm
-              key={editingTask?.id ?? 'new-task'}
+              key={editingTask?.id ?? (pendingTaskDraft ? `task-draft-${pendingTaskDraft.clientId ?? ''}-${pendingTaskDraft.supplierId ?? ''}-${pendingTaskDraft.employeeId ?? ''}` : 'new-task')}
               initialData={editingTask ?? pendingTaskDraft ?? undefined}
               onSave={handleSaveTask}
               onCancel={() => {
                 setEditingTask(null);
+                clearRelationDraft('task');
                 setPendingTaskDraft(null);
                 setSheetVisible(false);
               }}
               onBeforeNavigate={(relation, data) => {
+                saveRelationDraft('task', data);
                 setPendingTaskDraft(data);
                 setEditingTask(null);
                 setSheetVisible(false);

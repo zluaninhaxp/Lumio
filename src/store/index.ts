@@ -474,6 +474,9 @@ employeeItems: EmployeeItem[];
     time?: string | null;
     deadline?: boolean;
     eventType?: string;
+    clientId?: string;
+    supplierId?: string;
+    employeeId?: string;
   }) => boolean;
   /**
    * Vincula bidirecionalmente uma tarefa a uma transação financeira
@@ -1203,6 +1206,9 @@ updateEmployeeItem: (id, item) =>
         done: task.done,
         type: 'task',
         eventType: opts.eventType,
+        clientId: opts.clientId,
+        supplierId: opts.supplierId,
+        employeeId: opts.employeeId,
         taskId,
         source: 'task',
         origin: task.source === 'chat' ? 'chat' : undefined,

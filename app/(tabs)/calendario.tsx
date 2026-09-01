@@ -23,6 +23,7 @@ import { BottomFade } from '../components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { EventFormData } from '../components/Calendar/EventForm';
 import type { Relation } from '../components/Tasks/TaskPeopleSelector';
+import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
 
 export default function CalendarioScreen() {
   const router = useRouter();
@@ -61,13 +62,14 @@ export default function CalendarioScreen() {
   const [loading, setLoading] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [appointmentSheetVisible, setAppointmentSheetVisible] = useState(false);
-  const [pendingEventDraft, setPendingEventDraft] = useState<EventFormData | null>(null);
+  const [pendingEventDraft, setPendingEventDraft] = useState<EventFormData | null>(() => getRelationDraft<EventFormData>('calendar'));
 
   useEffect(() => { refreshContratos(); }, [refreshContratos]);
 
   useEffect(() => {
     if (returnToCalendar !== '1' || !createdId || !relation) return;
-    setPendingEventDraft((draft) => draft ? { ...draft, [`${relation}Id`]: createdId } : draft);
+    const draft = setPendingRelation('calendar', relation, createdId);
+    setPendingEventDraft((draftState) => draft ? { ...draftState, ...draft } as EventFormData : draftState);
     setSheetVisible(true);
     router.setParams({ returnToCalendar: undefined, createdId: undefined, relation: undefined });
   }, [createdId, relation, returnToCalendar, router]);
@@ -157,16 +159,23 @@ export default function CalendarioScreen() {
           priority: 'media',
           subtasks: [],
           tags: [],
+          clientId: data.clientId,
+          supplierId: data.supplierId,
+          employeeId: data.employeeId,
           createdAt: new Date().toISOString(),
         });
         calendarizeTask(taskId, {
           date: data.date,
           time: data.time,
           eventType: data.eventType,
+          clientId: data.clientId,
+          supplierId: data.supplierId,
+          employeeId: data.employeeId,
         });
       } else {
         addEvent(data);
       }
+      clearRelationDraft('calendar');
       setPendingEventDraft(null);
       setSheetVisible(false);
     },
@@ -286,14 +295,15 @@ export default function CalendarioScreen() {
 
       <FAB onPress={() => setSheetVisible(true)} />
 
-      <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)} height={620}>
+      <BottomSheet visible={sheetVisible} onClose={() => { clearRelationDraft('calendar'); setPendingEventDraft(null); setSheetVisible(false); }} height={620}>
         <EventForm
-          key={pendingEventDraft ? 'calendar-draft' : 'calendar-new'}
+          key={pendingEventDraft ? `calendar-draft-${pendingEventDraft.clientId ?? ''}-${pendingEventDraft.supplierId ?? ''}-${pendingEventDraft.employeeId ?? ''}` : 'calendar-new'}
           initialDate={selectedDate}
           initialData={pendingEventDraft ?? undefined}
           onSave={handleSave}
-          onCancel={() => { setPendingEventDraft(null); setSheetVisible(false); }}
+          onCancel={() => { clearRelationDraft('calendar'); setPendingEventDraft(null); setSheetVisible(false); }}
           onBeforeNavigate={(relation, data) => {
+            saveRelationDraft('calendar', data);
             setPendingEventDraft(data);
             setSheetVisible(false);
             setTimeout(() => {

@@ -10,7 +10,7 @@ const EMPTY = { name: '', role: '', contact: '', commissionRate: '' };
 
 export default function EquipeScreen() {
   const router = useRouter();
-  const { returnToTasks, returnToCalendar, relation } = useLocalSearchParams<{ returnToTasks?: string; returnToCalendar?: string; relation?: string }>();
+  const { returnToFinance, returnToTasks, returnToCalendar, relation } = useLocalSearchParams<{ returnToFinance?: string; returnToTasks?: string; returnToCalendar?: string; relation?: string }>();
   const { employeeItems, addEmployeeItem, updateEmployeeItem, removeEmployeeItem, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(EMPTY);
@@ -29,7 +29,9 @@ export default function EquipeScreen() {
      let createdId: string | undefined;
      if (editingId) updateEmployeeItem(editingId, payload); else createdId = addEmployeeItem(payload);
      setModalVisible(false);
-     if (!editingId && createdId && (returnToTasks === '1' || returnToCalendar === '1') && relation === 'employee') {
+      if (!editingId && createdId && returnToFinance === '1' && relation === 'employee') {
+        router.replace({ pathname: '/(tabs)/financeiro', params: { returnToFinance: '1', createdId, relation: 'employee' } });
+      } else if (!editingId && createdId && (returnToTasks === '1' || returnToCalendar === '1') && relation === 'employee') {
        router.replace({ pathname: returnToTasks === '1' ? '/(tabs)/tarefas' : '/(tabs)/calendario', params: { [returnToTasks === '1' ? 'returnToTasks' : 'returnToCalendar']: '1', createdId, relation: 'employee' } });
      }
   };
