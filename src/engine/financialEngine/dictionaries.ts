@@ -24,8 +24,7 @@ export const OUT_REALIZED_MARKERS = [
   'terminei de pagar', 'acabei de pagar', 'acabei de comprar',
   'paguei a conta', 'quitei', ' quitei ',
   // hábito presente ("todo mês pago...") — reconhecido, sem duplicar
-  ' pago ', ' eu pago ',
-];
+  ' pago ', ' eu pago ', "gastei pacas", "din din saiu", "pagamentozinho", "desembolsei uma grana", "saiu uma grana", "saiu do caixa", "passei no cartão", "passei o cartão", "torrei uma grana", "foi embora da conta", "já quitei isso", "quitei a parada", "paguei tudinho", "gastei uma nota", "saiu uns reais"];
 
 // ─── SAÍDA — FUTURO / OBRIGAÇÃO ─────────────────────────────────────
 export const OUT_FUTURE_MARKERS = [

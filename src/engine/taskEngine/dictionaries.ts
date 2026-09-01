@@ -17,7 +17,7 @@
  * desinências do imperativo/gerúndio.
  */
 export const ACTION_DICTIONARY: Record<string, string[]> = {
-  comprar: ['comprar', 'compra', 'compre', 'comprarem', 'adquirir', 'adquira', 'adquire', 'pegar', 'pegue', 'buscar', 'busque', 'providenciar', 'providencie', 'arrumar', 'arrume'],
+  comprar: ['comprar', 'compra', 'compre', 'comprarem', 'adquirir', 'adquira', 'adquire', 'pegar', 'pegue', 'buscar', 'busque', 'providenciar', 'providencie', 'arrumar', 'arrume', "comprinhas", "comprar rapidinho", "ir às compras", "pegar pra mim", "buscar pra mim", "providenciar pra ontem", "dar um pulo pra comprar", "passar no mercado", "fazer a compra", "faze a compra", "compra ai", "compra pra nós", "cata pra mim", "descola pra mim"],
   pagar: ['pagar', 'pague', 'paga', 'liquidar', 'quitei', 'saldar'],
   cobrar: ['cobrar', 'cobre', 'cobrança', 'cobranca'],
   ligar: ['ligar', 'ligue', 'liga', 'ligue', 'telefonar', 'telefone', 'chamar', 'chame', 'liga pra', 'liga pro'],

@@ -1,0 +1,42 @@
+[
+  {
+    "label": "ACTION_DICTIONARY.comprar",
+    "terms": [
+      "comprinhas",
+      "comprar rapidinho",
+      "ir às compras",
+      "pegar pra mim",
+      "buscar pra mim",
+      "providenciar pra ontem",
+      "dar um pulo pra comprar",
+      "passar no mercado",
+      "fazer a compra",
+      "faze a compra",
+      "compra ai",
+      "compra aí",
+      "compra pra nós",
+      "cata pra mim",
+      "descola pra mim"
+    ]
+  },
+  {
+    "label": "OUT_REALIZED_MARKERS",
+    "terms": [
+      "gastei pacas",
+      "din din saiu",
+      "pagamentozinho",
+      "desembolsei uma grana",
+      "saiu uma grana",
+      "saiu do caixa",
+      "passei no cartão",
+      "passei o cartão",
+      "torrei uma grana",
+      "foi embora da conta",
+      "já quitei isso",
+      "quitei a parada",
+      "paguei tudinho",
+      "gastei uma nota",
+      "saiu uns reais"
+    ]
+  }
+]
