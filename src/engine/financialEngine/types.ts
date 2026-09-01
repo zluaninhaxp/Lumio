@@ -85,6 +85,8 @@ export interface ParsedFinancialEntry {
   counterpartyEmployeeId: string | null;
   /** Categoria resolvida contra o onboarding, ou null = sem categoria. */
   category: string | null;
+  /** Termo extraído que não foi resolvido pela taxonomy, quando disponível. */
+  unresolvedTaxonomyTerm?: string | null;
   categoryId?: string | null;
   subcategory?: string | null;
   subcategoryId?: string | null;

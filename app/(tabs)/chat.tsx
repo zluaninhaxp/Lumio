@@ -18,6 +18,9 @@ import {
 } from '../../src/engine/financialEngine';
 import type { FinancialParserContext } from '../../src/engine/financialEngine';
 import { useAppStore } from '../../src/store';
+import { recordLearnedTerm } from '../../src/engine/taxonomy/entityResolver';
+import type { TaxonomyDomain } from '../../src/engine/taxonomy/types';
+import { onboardingService } from '../../src/services/onboardingService';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -50,7 +53,24 @@ export default function ChatScreen() {
   const [accountVisible, setAccountVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 const { currentUser } = useAuth();
-  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes } = useAppStore();
+  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy } = useAppStore();
+
+  const learnTaxonomyTerm = useCallback((domain: TaxonomyDomain, rawTerm: string | null | undefined) => {
+    if (!rawTerm) return;
+    const current = useAppStore.getState().taxonomy;
+    if (!current) return;
+    const taxonomy = {
+      ...current,
+      learnedTerms: (current.learnedTerms ?? []).map((term) => ({ ...term })),
+    };
+    recordLearnedTerm(taxonomy, domain, rawTerm);
+    updateTaxonomy(taxonomy);
+    if (currentUser) {
+      void onboardingService.saveStructuredProfile(currentUser.id, taxonomy).catch((error) => {
+        console.warn('Falha ao salvar termo aprendido:', error);
+      });
+    }
+  }, [currentUser, updateTaxonomy]);
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:o|a|do|da|de)\s+/i, '');
@@ -169,9 +189,12 @@ return date.toISOString().split('T')[0];
 
     if (result.intent === 'create_transaction' || result.intent === 'create_obligation') {
       const store = useAppStore.getState();
-      const applied = applyFinancialResult(result, store);
-      if (applied.created === 'nothing') return { handled: false };
-      const cards = buildFinanceCards(result.entries);
+       const applied = applyFinancialResult(result, store);
+       if (applied.created === 'nothing') return { handled: false };
+       for (const entry of result.entries) {
+         learnTaxonomyTerm(`financial.${entry.direction}`, entry.unresolvedTaxonomyTerm);
+       }
+       const cards = buildFinanceCards(result.entries);
       let extra = '';
       if (applied.created === 'obligation' && applied.taskId) {
         const task = store.tasks.find((t) => t.id === applied.taskId);
@@ -181,7 +204,7 @@ return date.toISOString().split('T')[0];
     }
 
     return { handled: false };
-  }, [buildFinancialContext]);
+  }, [buildFinancialContext, learnTaxonomyTerm]);
 
   type TaskOutcome = {
     handled: boolean;
@@ -219,14 +242,15 @@ return date.toISOString().split('T')[0];
     if (cal.intent === 'create_event' && cal.confidence >= 0.45 && cal.events.length > 0) {
       const cards: BotCard[] = [];
       for (const ev of cal.events) {
-        addEvent({
+         addEvent({
           date: ev.date,
           time: ev.time,
           description: ev.title + (ev.context ? ` — ${ev.context}` : ''),
           type: 'event',
           eventType: ev.eventType ?? undefined,
-          source: 'chat',
-        });
+           source: 'chat',
+         });
+         learnTaxonomyTerm('calendar', ev.unresolvedTaxonomyTerm);
         cards.push({
           kind: 'event',
           title: ev.title,
@@ -260,14 +284,15 @@ return date.toISOString().split('T')[0];
     const eventCards: BotCard[] = [];
     if (decision.shouldCreateInCalendar && decision.events.length > 0) {
       for (const ev of decision.events) {
-        addEvent({
+         addEvent({
           date: ev.date,
           time: ev.time,
           description: ev.title + (ev.context ? ` — ${ev.context}` : ''),
           type: 'event',
           eventType: ev.eventType ?? undefined,
-          source: 'chat',
-        });
+           source: 'chat',
+         });
+         learnTaxonomyTerm('calendar', ev.unresolvedTaxonomyTerm);
         eventCards.push({
           kind: 'event',
           title: ev.title,
@@ -284,7 +309,7 @@ return date.toISOString().split('T')[0];
     const taskCards: BotCard[] = [];
     for (const t of result.tasks) {
       if (t.confidence < minconf) continue;
-      const taskId = addTask({
+       const taskId = addTask({
         description: t.title,
         source: 'chat',
         done: false,
@@ -294,8 +319,9 @@ return date.toISOString().split('T')[0];
         subtasks: [],
         tags: t.tags,
         createdAt: new Date().toISOString(),
-        employeeId: t.assigneeId || undefined,
-      });
+         employeeId: t.assigneeId || undefined,
+       });
+       if (taskId) learnTaxonomyTerm('task', t.unresolvedTaxonomyTerm);
       // Calendariozação: se a tarefa tem data relevante (execução OU prazo)
       // criamos um evento derivado (source='task') com deadline marcado
       // quando aplicável (especificação seções 4/6/14/22).
@@ -324,7 +350,7 @@ return date.toISOString().split('T')[0];
     if (taskCards.length === 0 && eventCards.length === 0) return { handled: false };
     const allCards = [...taskCards, ...eventCards];
     return { handled: true, botText: '', cards: allCards, actions: ['Concluir'], botType: 'bot' };
-  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask]);
+  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);

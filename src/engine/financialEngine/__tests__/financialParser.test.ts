@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFinancialMessage, detectDirectionAndTense } from '../financialParser.ts';
 import type { FinancialParserContext } from '../types.ts';
+import type { GenericNode } from '../../taxonomy/types.ts';
 
 const NOW = new Date(2026, 7, 13, 10, 0, 0, 0); // 2026-08-13 quinta
 
@@ -29,6 +30,20 @@ function ctx(overrides: Partial<FinancialParserContext> = {}): FinancialParserCo
 function parse(msg: string, overrides: Partial<FinancialParserContext> = {}) {
   return parseFinancialMessage(msg, ctx(overrides));
 }
+
+const financialTaxonomy: GenericNode[] = [{
+  id: 'material',
+  generic: { label: 'Material', synonyms: ['materiais'] },
+  specifics: [],
+}];
+
+test('marca categoria financeira não resolvida apenas com taxonomy', () => {
+  const unresolved = parse('gastei 300 de gizmo', { taxonomy: financialTaxonomy });
+  assert.match(unresolved.entries[0].unresolvedTaxonomyTerm ?? '', /gastei 300 de gizmo/);
+  const resolved = parse('gastei 300 de material', { taxonomy: financialTaxonomy });
+  assert.equal(resolved.entries[0].unresolvedTaxonomyTerm, null);
+  assert.equal(parse('gastei 300 de gizmo').entries[0].unresolvedTaxonomyTerm, null);
+});
 
 // ═══ ENTRADAS (seção 28) ═══════════════════════════════════════════
 test('"recebi 500" -> entrada realizada', () => {

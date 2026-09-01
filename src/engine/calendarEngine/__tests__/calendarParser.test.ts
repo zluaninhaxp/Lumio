@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseCalendarMessage, decideHybrid, buildEventTypeAliases } from '../calendarParser.ts';
 import type { CalendarParserContext } from '../types.ts';
+import type { GenericNode } from '../../taxonomy/types.ts';
 
 // Fixa "hoje" = 2026-08-13 (quinta-feira) — mesma base do taskEngine.
 const NOW = new Date(2026, 7, 13, 10, 0, 0, 0); // mês 7 = agosto
@@ -26,6 +27,20 @@ function ctx(): CalendarParserContext {
 function parse(msg: string) {
   return parseCalendarMessage(msg, ctx());
 }
+
+const calendarTaxonomy: GenericNode[] = [{
+  id: 'reunioes',
+  generic: { label: 'Reuniões', synonyms: ['reunião'] },
+  specifics: [],
+}];
+
+test('marca tipo de evento não resolvido apenas com taxonomy', () => {
+  const unresolved = parseCalendarMessage('dia 20 tenho encontro gizmo', { ...ctx(), taxonomy: calendarTaxonomy });
+  assert.match(unresolved.events[0].unresolvedTaxonomyTerm ?? '', /encontro gizmo/);
+  const resolved = parseCalendarMessage('dia 20 tenho reunião', { ...ctx(), taxonomy: calendarTaxonomy });
+  assert.equal(resolved.events[0].unresolvedTaxonomyTerm, null);
+  assert.equal(parse('dia 20 tenho encontro gizmo').events[0].unresolvedTaxonomyTerm, null);
+});
 
 // ─── SITUATION A: compromisso/evento puro ────────────────────────────
 test('"tenho um compromisso dia 20" -> create_event', () => {

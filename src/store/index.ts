@@ -312,6 +312,7 @@ export interface AppStore {
    */
   onboardingExtraction: OnboardingExtractionResult | null;
   taxonomy: BusinessTaxonomy | null;
+  updateTaxonomy: (taxonomy: BusinessTaxonomy) => void;
 
   /**
    * Resultado calculado na tela de celebração (`app/celebration.tsx`),
@@ -624,6 +625,7 @@ export const useAppStore = create<AppStore>((set) => ({
 
   onboardingExtraction: null,
   taxonomy: null,
+  updateTaxonomy: (taxonomy) => set((s) => ({ taxonomy, onboardingExtraction: s.onboardingExtraction ? { ...s.onboardingExtraction, taxonomy } : null })),
   pendingOnboardingExtraction: null,
   pendingOnboardingExtractionIsSimulation: false,
   setPendingOnboardingExtraction: (result, isSimulation = false) =>

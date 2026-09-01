@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveEntity } from '../entityResolver.ts';
+import { recordLearnedTerm, resolveEntity } from '../entityResolver.ts';
 import type { GenericNode } from '../types.ts';
 
 const nodes: GenericNode[] = [{ id: 'material', generic: { label: 'Material', synonyms: ['materiais'] }, specifics: [
@@ -23,4 +23,12 @@ test('normalizes accents and returns candidates for generic-only evidence', () =
 
 test('does not invent a specific on a miss', () => {
   assert.equal(resolveEntity('cimento', 'task', nodes).specificId, null);
+});
+
+test('recordLearnedTerm deduplicates by domain and normalized text', () => {
+  const profile = { learnedTerms: [] as { text: string; domain: 'task'; resolvedTo: null; seenAt: string; occurrences: number }[] };
+  recordLearnedTerm(profile, 'task', 'Gizmo');
+  recordLearnedTerm(profile, 'task', ' gizmo ');
+  assert.equal(profile.learnedTerms.length, 1);
+  assert.equal(profile.learnedTerms[0].occurrences, 2);
 });

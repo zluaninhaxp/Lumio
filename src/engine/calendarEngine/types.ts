@@ -69,6 +69,8 @@ export interface ParsedCalendarEvent {
   personId: string | null;
   /** Classificação via `calendarEventTypes` do onboarding, se casar. */
   eventType: string | null;
+  /** Termo extraído que não foi resolvido pela taxonomy, quando disponível. */
+  unresolvedTaxonomyTerm?: string | null;
   /** Contexto extra preservado (ex.: "para falar do orçamento da obra"). */
   context: string | null;
   /** True quando horário fornecido explicitamente (não inventado). */

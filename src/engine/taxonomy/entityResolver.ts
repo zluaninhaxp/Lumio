@@ -1,4 +1,4 @@
-import type { EntityResolution, GenericNode, SpecificNode, TaxonomyDomain } from './types.ts';
+import type { EntityResolution, GenericNode, LearnedTerm, SpecificNode, TaxonomyDomain } from './types.ts';
 import { normalizeTaxonomyText, taxonomyTokens } from './normalize.ts';
 
 const EMPTY: EntityResolution = { genericId: null, genericLabel: null, specificId: null, specificLabel: null, specificCandidates: [], genericConfidence: 0, specificConfidence: null, matchedTerm: null };
@@ -75,7 +75,7 @@ function editSimilarity(a: string, b: string): number {
   return 1 - rows[a.length] / Math.max(a.length, b.length, 1);
 }
 
-export function recordLearnedTerm(profile: { learnedTerms: { text: string; domain: TaxonomyDomain; resolvedTo: null; seenAt: string; occurrences: number }[] }, domain: TaxonomyDomain, rawTermExtracted: string): void {
+export function recordLearnedTerm(profile: { learnedTerms: LearnedTerm[] }, domain: TaxonomyDomain, rawTermExtracted: string): void {
   const text = rawTermExtracted.trim();
   if (!text) return;
   const existing = profile.learnedTerms.find((term) => term.domain === domain && normalizeTaxonomyText(term.text) === normalizeTaxonomyText(text));

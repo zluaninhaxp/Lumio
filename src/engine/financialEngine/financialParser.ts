@@ -116,6 +116,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
         direction, tense: tense!, amount: null, amountComputed: false,
         counterpartyName: null, counterpartyClientId: null, counterpartySupplierId: null,
         counterpartyEmployeeId: null, category: null, item: null,
+        unresolvedTaxonomyTerm: null,
         transactionDate: null, dueDate: null, status: 'pending',
         installments: fragScan.installments, quantity: picked.quantity,
         confidence: 0.4, confidenceLevel: 'baixa', originalText: frag,
@@ -124,8 +125,10 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     }
 
     const counterparty = extractCounterparty(normalized.original, fn, context);
-     const categoryResolution = resolveFinancialCategory(fn.text, direction, context);
-     const category = categoryResolution.genericLabel;
+    const categoryResolution = resolveFinancialCategory(fn.text, direction, context);
+    const category = categoryResolution.genericLabel;
+    const taxonomy = direction === 'expense' ? (context.expenseTaxonomy ?? context.taxonomy) : (context.incomeTaxonomy ?? context.taxonomy);
+    const unresolvedTaxonomyTerm = taxonomy ? (taxonomy.length > 0 && !categoryResolution.genericLabel ? fn.text.trim() : null) : null;
     const item = extractItem(fragTokens, direction);
      const confidence = computeConfidence(signal, fragSignal, picked, category, dateISO);
 
@@ -133,7 +136,8 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
       direction, tense,
       amount, amountComputed: picked.computed,
       ...counterparty,
-       category,
+      category,
+      unresolvedTaxonomyTerm,
        categoryId: categoryResolution.genericId,
        subcategory: categoryResolution.specificLabel,
        subcategoryId: categoryResolution.specificId,
