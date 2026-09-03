@@ -1,4 +1,5 @@
 // Motor de Regex mínimo para testes — será expandido via onboarding generativo
+import { normalizeMessage, stripAccents } from './taskEngine/normalize.ts';
 
 export type Intent =
   | 'EXPENSE_RECORD'
@@ -27,10 +28,11 @@ export type Intent =
   | 'DELIVERY_PENDING_QUERY'
   | 'CONTRACT_DUE_QUERY'
   | 'CONTRACT_STATUS_QUERY'
-  | 'FREE_SLOT_QUERY'
-  | 'APPOINTMENT_CREATE'
-  | 'APPOINTMENT_TODAY_QUERY'
-  | 'UNKNOWN';
+   | 'FREE_SLOT_QUERY'
+   | 'APPOINTMENT_CREATE'
+   | 'APPOINTMENT_TODAY_QUERY'
+   | 'CHAT_PROMPT'
+   | 'UNKNOWN';
 
 export interface ParsedMessage {
   intent: Intent;
@@ -93,6 +95,15 @@ const CONTRACT_STATUS_QUERY_PATTERN = /o\s+contrato\s+do\s+(.+?)\s+est[aá]\s+em
 const FREE_SLOT_QUERY_PATTERN = /tenho\s+hor[aá]rio\s+livre\s+(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)\s+[`aà]s?\s+(\d{1,2})(?::(\d{2}))?\s*h?\??$/i;
 const APPOINTMENT_CREATE_PATTERN = /marca\s+(?:o|a)?\s*(.+?)\s+para\s+(hoje|amanh[ãa]|segunda|ter[cç]a|quarta|quinta|sexta|s[áa]bado|domingo)\s+[`aà]s?\s+(\d{1,2})(?::(\d{2}))?\s*h?\??$/i;
 const APPOINTMENT_TODAY_QUERY_PATTERN = /quais\s+atendimentos\s+tenho\s+hoje\??$/i;
+const CHAT_PROMPT_PATTERN = /^(?:(?:oi|ola|oie|e ai|ei)(?:[\s,!?.]+(?:tudo bem|tudo certo)(?:\s+com\s+voce)?|[\s,!?.]+como voce esta)?|(?:bom dia|boa tarde|boa noite)(?:[\s,!?.]+(?:tudo bem|tudo certo)(?:\s+com\s+voce)?)?|(?:tudo bem|tudo certo)(?:\s+com\s+voce)?|como voce esta|obrigad[oa]|valeu|tchau|ate mais)[\s,!?.]*$/i;
+
+/** Normaliza apenas para matching do chit-chat, sem alterar a mensagem original. */
+function normalizeChatText(input: string): string {
+  let text = stripAccents(normalizeMessage(input).text);
+  text = text.replace(/\b(c[eê])\b/gi, 'voce');
+  // Alongamentos informais: "oiiii" -> "oi", "obrigadooo" -> "obrigado".
+  return text.replace(/([a-z])\1+/gi, '$1');
+}
 
 function parseValue(raw: string): number {
   return parseFloat(raw.replace(',', '.'));
@@ -100,6 +111,9 @@ function parseValue(raw: string): number {
 
 export function parseMessage(input: string): ParsedMessage {
   const text = input.trim();
+
+  const normalizedText = normalizeChatText(text);
+  if (CHAT_PROMPT_PATTERN.test(normalizedText)) return { intent: 'CHAT_PROMPT', entities: {}, raw: text };
 
   const employeeTasksMatch = text.match(EMPLOYEE_TASKS_QUERY_PATTERN);
   if (employeeTasksMatch) return { intent: 'EMPLOYEE_TASKS_QUERY', entities: { employeeName: employeeTasksMatch[1].trim() }, raw: text };
@@ -266,10 +280,21 @@ export function buildBotResponse(parsed: ParsedMessage): string {
     case 'CONTRACT_DUE_QUERY':
     case 'CONTRACT_STATUS_QUERY':
     case 'FREE_SLOT_QUERY':
-    case 'APPOINTMENT_CREATE':
-    case 'APPOINTMENT_TODAY_QUERY':
-      return '';
-    default:
-      return '';
+     case 'APPOINTMENT_CREATE':
+     case 'APPOINTMENT_TODAY_QUERY':
+       return '';
+     case 'CHAT_PROMPT':
+       const chatText = normalizeChatText(parsed.raw);
+       if (/tudo bem|tudo certo|como voce esta/i.test(chatText)) {
+         return 'Tudo bem por aqui! E com você? Se quiser, posso anotar alguma coisa.';
+       }
+       if (/^bom dia/i.test(parsed.raw)) return 'Bom dia! Que seu dia renda. Quer que eu anote algo?';
+       if (/^boa tarde/i.test(parsed.raw)) return 'Boa tarde! Como posso ajudar? Posso registrar algo para você.';
+       if (/^boa noite/i.test(parsed.raw)) return 'Boa noite! Se precisar, posso deixar algo anotado.';
+       if (/obrigad|valeu/i.test(parsed.raw)) return 'Por nada! Quer registrar mais alguma coisa?';
+       if (/tchau|ate mais/i.test(chatText)) return 'Até mais! Estarei aqui quando precisar registrar mais algo.';
+       return 'Oi! Como posso ajudar? Posso anotar alguma coisa.';
+     default:
+       return '';
   }
 }

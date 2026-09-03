@@ -17,8 +17,8 @@
  * desinências do imperativo/gerúndio.
  */
 export const ACTION_DICTIONARY: Record<string, string[]> = {
-  comprar: ['comprar', 'compra', 'compre', 'comprarem', 'adquirir', 'adquira', 'adquire', 'pegar', 'pegue', 'buscar', 'busque', 'providenciar', 'providencie', 'arrumar', 'arrume', "comprinhas", "comprar rapidinho", "ir às compras", "pegar pra mim", "buscar pra mim", "providenciar pra ontem", "dar um pulo pra comprar", "passar no mercado", "fazer a compra", "faze a compra", "compra ai", "compra pra nós", "cata pra mim", "descola pra mim"],
-  pagar: ['pagar', 'pague', 'paga', 'liquidar', 'quitei', 'saldar'],
+  comprar: ['comprar', 'compra', 'compre', 'comprarem', 'adquirir', 'adquira', 'adquire', 'pegar', 'pegue', 'buscar', 'busque', 'providenciar', 'providencie', 'arrumar', 'arrume', "comprinhas", "comprar rapidinho", "ir às compras", "providenciar pra ontem", "dar um pulo pra comprar", "passar no mercado", "fazer a compra", "faze a compra", "compra ai", "compra pra nós", "pegar pra mim", "buscar pra mim", "cata pra mim", "descola pra mim"],
+  pagar: ['pagar', 'pague', 'paga', 'liquidar', 'quitei', 'saldar', "paga aí", "pagar aí", "pagar pra mim", "pagar pro fornecedor", "pagar a conta", "dar baixa no pagamento", "fazer o pagamento", "mandar o pagamento", "soltar o pagamento", "acertar a conta", "honrar a dívida", "quitar a conta", "fazer um pix", "pixar", "pixar o valor", "transferir o valor", "pagar no crédito", "pagar no débito", "pagar parcelado", "pagar de uma vez", "pagar na hora", "pago isso", "paga essa", "paga essa conta", "paga lá", "paga pra gente", "paguemo", "pagar logo", "pagar rapidinho", "desembolsar", "desembolsa", "quitar", "quita aí", "liquidar a conta", "liquida isso", "acerta esse débito", "mandar um pix", "passar o pix", "pagarr", "pagamemto"],
   cobrar: ['cobrar', 'cobre', 'cobrança', 'cobranca'],
   ligar: ['ligar', 'ligue', 'liga', 'ligue', 'telefonar', 'telefone', 'chamar', 'chame', 'liga pra', 'liga pro'],
   enviar: ['enviar', 'envie', 'envia', 'manda', 'mandar', 'mande', 'mandar', 'mandar mensagem', 'mandar msg', 'mandar whatsapp', 'mandar zap', 'encaminhar', 'encaminhe', 'remeter'],
@@ -31,7 +31,7 @@ export const ACTION_DICTIONARY: Record<string, string[]> = {
   preparar: ['preparar', 'prepare', 'prepara', 'deixar pronto', 'deixar prontin'],
   fazer: ['fazer', 'faz', 'faça', 'faca', 'faço', 'fezer', 'executar', 'execute'],
   organizar: ['organizar', 'organize', 'organiza', 'arrumar', 'arrume', 'reorganizar'],
-  agendar: ['agendar', 'agende', 'marca', 'marcar', 'marque'],
+  agendar: ["agenar", "agendá", "agenda pra mim", "agendaar", 'agendar', "agendar consulta", "agendar para amanhã", "agendar pra mim", "agendar um horáro", 'agende', "agende pra mim", "agendo", "agendrar", "agenndar", "anotar na agenda", "botar na agenda", "combina pra tal dia", "combinar horário", "deixar agendado", "deixar combinado", "deixar marcado", "encaixa aí", "encaixar na agenda", "encaixar um horário", "fechar horário", "fixar horário", 'marca', "marca aí", "marca consulta", "marcam pra mim", 'marcar', "marcar consulta", "marcar pra mim", "marcar um horário", "marco", 'marque', "marquemo", "põe na agenda", "pôr na agenda", "programa pra mim", "programar", "programe", "reservar horário", "reservar uma data", "separa um horário pra mim", "separar um horário"],
   confirmar: ['confirmar', 'confirme', 'confirma', 'confirmar'],
   solicitar: ['solicitar', 'solicite', 'solicita', 'pedir', 'peça', 'pede', 'peca'],
   visitar: ['visitar', 'visite', 'visita', 'passar em', 'passar na', 'passar no'],

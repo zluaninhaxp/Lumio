@@ -76,6 +76,14 @@ test('"o cliente pagou 800" -> entrada (3ª pessoa)', () => {
   assert.equal(r.entries[0].status, 'received');
 });
 
+test('"fizeram um pagamento de 30 reais" -> entrada realizada', () => {
+  const r = parse('fizeram um pagamento de 30 reais');
+  assert.equal(r.intent, 'create_transaction');
+  assert.equal(r.entries[0].direction, 'income');
+  assert.equal(r.entries[0].amount, 30);
+  assert.equal(r.entries[0].status, 'received');
+});
+
 test('"o cliente me pagou 800"', () => {
   const r = parse('o cliente me pagou 800');
   assert.equal(r.entries[0].direction, 'income');
@@ -85,6 +93,13 @@ test('"vendi por 2000"', () => {
   const r = parse('vendi por 2000');
   assert.equal(r.entries[0].direction, 'income');
   assert.equal(r.entries[0].amount, 2000);
+});
+
+test('"ganhei 30 reais" -> entrada realizada', () => {
+  const r = parse('ganhei 30 reais');
+  assert.equal(r.intent, 'create_transaction');
+  assert.equal(r.entries[0].direction, 'income');
+  assert.equal(r.entries[0].amount, 30);
 });
 
 test('"caiu 2 mil hoje"', () => {

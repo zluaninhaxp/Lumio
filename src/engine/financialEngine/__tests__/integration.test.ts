@@ -123,6 +123,17 @@ test('CHAT→FINANCEIRO: "recebi 500 do João" aparece correto na "tela"', () =>
   assert.equal(entradas, 500);
 });
 
+test('CHAT→FINANCEIRO: "fizeram um pagamento de 30 reais" cria entrada', () => {
+  const store = makeStore();
+  const r = parseFinancialMessage('fizeram um pagamento de 30 reais', ctx());
+  applyFinancialResult(r, store);
+
+  assert.equal(r.intent, 'create_transaction');
+  assert.equal(store.state.transactions.length, 1);
+  assert.equal(store.state.transactions[0].amount, 30);
+  assert.equal(store.state.transactions[0].date, '13/08');
+});
+
 test('CHAT→FINANCEIRO: "paguei 500 de gasolina" sai negativo com categoria', () => {
   const store = makeStore();
   const r = parseFinancialMessage('paguei 500 de gasolina', ctx());

@@ -45,7 +45,7 @@ export const IN_REALIZED_MARKERS = [
   'recebi', 'eu recebi', 'já recebi', 'recebemos',
   'entrou', 'entrou na conta', 'entrou na minha conta', 'entrou um',
   'caiu', 'caiu na conta', 'caiu na minha conta', 'caiu um',
-  'vendi', 'eu vendi', 'vendemos', 'a venda de', 'venda de',
+  'vendi', 'eu vendi', 'vendemos', 'ganhei', 'ganhamos', 'a venda de', 'venda de',
   'faturei', 'faturo', 'faturamento de', 'fechei uma venda', 'fechei a venda',
   'me pagou', 'me pagaram', 'me pagaste', 'nos pagou', 'nos pagaram',
   'me passou', 'me passaram', 'me mandou', 'me mandaram',
@@ -53,6 +53,8 @@ export const IN_REALIZED_MARKERS = [
   'pagou pra mim', 'pagou para mim', 'passou pra mim', 'passou para mim',
   'recebimento de', 'o cliente pagou', 'a cliente pagou', 'os clientes pagaram',
   'cliente me pagou', 'recebi o pagamento', 'recebi o pix',
+  // Forma impessoal usada quando o usuário informa que terceiros pagaram.
+  'fizeram um pagamento', 'fizeram o pagamento',
   // hábito presente ("recebo todo mês")
   ' eu recebo ', ' recebo ',
 ];
@@ -67,8 +69,7 @@ export const IN_FUTURE_MARKERS = [
   'ficou de me pagar', 'ficou de pagar', 'ficou de me passar',
   'vai me pagar em', 'cliente vai pagar', 'o cliente vai pagar',
   'vai me dar', 'me deve', 'está me devendo', 'esta me devendo',
-  'vou receber de', 'vou receber do',
-];
+  'vou receber de', 'vou receber do', "vou ganhar", "vou receber uma grana", "vai pingar", "vai cair um dinheiro", "vai entrar uma grana", "entra na conta amanhã", "deve cair", "deve entrar", "está pra cair", "tou pra receber", "vou buscar meu pagamento", "me paga depois", "me paga amanhã", "vai fazer o pix", "vai pixar", "vai transferir", "vai depositar", "vai mandar o pagamento", "fica de me pagar", "combinou de me pagar", "prometeu me pagar", "tem que me pagar", "tenho dinheiro pra entrar", "cair um pix", "receber uma bolada", "vou ter recebimento", "vou faturar", "vai entrar na minha conta", "vai cair na minha conta", "tá pra entrar", "tá pra receber", "to pra receber", "tô esperando cair", "esperando receber", "aguardo pagamento", "pagamento pendente", "tem um pix pra cair", "pix agendado pra cair", "vão depositar pra mim", "vai mandar o valor", "vai me repassar", "me repassa depois", "fica pra me pagar", "vai quitar comigo", "o pagamento vem", "dinheiro a caminho", "grana a caminho", "recebo semana que vem", "entra semana que vem"];
 
 /**
  * Sujeito de 3ª pessoa + "pagou/vai pagar" = o OUTRO paga o usuário
