@@ -10,4 +10,5 @@ export const StorageKeys = {
   SESSION: '@lumio/session',
   /** Prefixo — a chave real é `${ONBOARDING_PREFIX}${userId}`. */
   ONBOARDING_PREFIX: '@lumio/onboarding/',
+  LEARNED_INTENTS_PREFIX: '@lumio/learned-intents/',
 } as const;

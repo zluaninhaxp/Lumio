@@ -92,7 +92,8 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
 
   // Resolve tags contra o contexto do usuário.
   const tagSource = cleanedEntity.object ? `${cleanedEntity.action ?? ''} ${cleanedEntity.object} ${person.name ?? ''}` : `${cleanedEntity.action ?? ''} ${person.name ?? ''}`;
-   const taxonomyEntity = context.taxonomy ? resolveEntity(tagSource, 'task', context.taxonomy) : null;
+  const taxonomyEntity = context.taxonomy ? resolveEntity(tagSource, 'task', context.taxonomy) : null;
+  const unresolvedTaxonomyTerm = context.taxonomy ? (context.taxonomy.length > 0 && !taxonomyEntity?.genericLabel ? tagSource.trim() : null) : null;
    const tags = taxonomyEntity?.genericLabel ? [taxonomyEntity.genericLabel] : resolveTags(tagSource, { taskTags: context.taskTags, keywordMap: context.keywordMap });
 
   // Data: usa a resolução já calculada no extractor; herda data compartilhada
@@ -119,8 +120,9 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
     dueDateLabel,
     assigneeId: person.id,
     assigneeName: person.name,
-     tags,
-     category: taxonomyEntity?.genericLabel ?? null,
+    tags,
+    unresolvedTaxonomyTerm,
+      category: taxonomyEntity?.genericLabel ?? null,
      categoryId: taxonomyEntity?.genericId ?? null,
      subcategory: taxonomyEntity?.specificLabel ?? null,
      subcategoryId: taxonomyEntity?.specificId ?? null,

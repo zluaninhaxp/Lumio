@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseTaskMessage } from '../taskParser.ts';
 import type { TaskParserContext } from '../types.ts';
+import type { GenericNode } from '../../taxonomy/types.ts';
 
 // Fixa "hoje" = 2026-08-13 (quinta-feira) — todas as datas relativas são calculadas a partir daqui.
 const NOW = new Date(2026, 7, 13, 10, 0, 0, 0); // mês 7 = agosto
@@ -30,6 +31,20 @@ function ctx(): TaskParserContext {
 function parse(msg: string) {
   return parseTaskMessage(msg, ctx());
 }
+
+const taskTaxonomy: GenericNode[] = [{
+  id: 'compras',
+  generic: { label: 'Compras', synonyms: ['comprar'] },
+  specifics: [],
+}];
+
+test('marca termo de tarefa não resolvido apenas quando taxonomy existe', () => {
+  const unresolved = parseTaskMessage('preciso revisar gizmo', { ...ctx(), taxonomy: taskTaxonomy });
+  assert.match(unresolved.tasks[0].unresolvedTaxonomyTerm ?? '', /revisar gizmo/);
+  const resolved = parseTaskMessage('preciso comprar gizmo', { ...ctx(), taxonomy: taskTaxonomy });
+  assert.equal(resolved.tasks[0].unresolvedTaxonomyTerm, null);
+  assert.equal(parse('preciso revisar gizmo').tasks[0].unresolvedTaxonomyTerm, null);
+});
 
 // ─── INTENÇÃO: criação explícita/implícita ───────────────────────────
 test('preciso comprar material', () => {

@@ -14,10 +14,14 @@ import { parseCalendarMessage, decideHybrid } from '../../src/engine/calendarEng
 import type { CalendarParserContext } from '../../src/engine/calendarEngine/types';
 import {
   parseFinancialMessage, applyFinancialResult, buildFinanceCards,
-  buildFinancialBotText, answerFinancialQuery, formatBRL,
+  buildFinancialBotText, answerFinancialQuery, formatBRL, applyFinancialAmbiguity,
 } from '../../src/engine/financialEngine';
-import type { FinancialParserContext } from '../../src/engine/financialEngine';
+import type { FinancialDirectionAmbiguity, FinancialParserContext } from '../../src/engine/financialEngine';
 import { useAppStore } from '../../src/store';
+import { findLearnedIntentMarker, recordLearnedIntentMarker, recordLearnedTerm } from '../../src/engine/taxonomy/entityResolver';
+import type { TaxonomyDomain } from '../../src/engine/taxonomy/types';
+import { onboardingService } from '../../src/services/onboardingService';
+import { learnedIntentRepository } from '../../src/repositories/learnedIntentRepository';
 import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -30,10 +34,15 @@ interface Message {
   type: 'user' | 'bot' | 'fallback';
   text: string;
   actions?: string[];
+  quickActions?: { label: string; value: QuickActionValue }[];
+  ambiguity?: FinancialDirectionAmbiguity;
+  fallbackSourceText?: string;
   /** Cards visuais (substituem `text` quando presentes). */
   cards?: BotCard[];
   timestamp: Date;
 }
+
+type QuickActionValue = FinancialDirectionAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other';
 
 const INITIAL_MESSAGES: Message[] = [
   {
@@ -47,10 +56,30 @@ const INITIAL_MESSAGES: Message[] = [
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
+  const [pendingFinancialText, setPendingFinancialText] = useState<string | null>(null);
+  const [pendingIntentMarkerPhrase, setPendingIntentMarkerPhrase] = useState<string | null>(null);
   const [accountVisible, setAccountVisible] = useState(false);
   const flatListRef = useRef<FlatList>(null);
 const { currentUser } = useAuth();
-  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes } = useAppStore();
+  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy } = useAppStore();
+
+  const learnTaxonomyTerm = useCallback((domain: TaxonomyDomain, rawTerm: string | null | undefined) => {
+    if (!rawTerm) return;
+    const current = useAppStore.getState().taxonomy;
+    if (!current) return;
+    const taxonomy = {
+      ...current,
+      learnedTerms: (current.learnedTerms ?? []).map((term) => ({ ...term })),
+    };
+    recordLearnedTerm(taxonomy, domain, rawTerm);
+    updateTaxonomy(taxonomy);
+    if (currentUser) {
+      const extraction = useAppStore.getState().onboardingExtraction;
+      void onboardingService.saveStructuredProfile(currentUser.id, extraction ? { ...extraction, taxonomy } : taxonomy).catch((error) => {
+        console.warn('Falha ao salvar termo aprendido:', error);
+      });
+    }
+  }, [currentUser, updateTaxonomy]);
 
   const resolveClient = useCallback((name: string) => {
     const normalized = name.trim().toLowerCase().replace(/^(?:o|a|do|da|de)\s+/i, '');
@@ -141,22 +170,47 @@ return date.toISOString().split('T')[0];
       keywordMap: s.keywordMap || {},
       expenseTaxonomy: s.taxonomy?.domains['financial.expense'],
       incomeTaxonomy: s.taxonomy?.domains['financial.income'],
+      businessProfile: { learnedIntentMarkers: s.learnedIntentMarkers },
       clients: (s.clienteItems || []).map((c) => ({ id: c.id, name: c.name })),
       suppliers: (s.fornecedorItems || []).map((f) => ({ id: f.id, name: f.name, paymentTerm: f.paymentTerm })),
       employees: (s.employeeItems || []).map((e) => ({ id: e.id, name: e.name })),
     };
   }, []);
 
+  const persistIntentMarker = useCallback((phrase: string, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
+    const state = useAppStore.getState();
+    const markers = state.learnedIntentMarkers.map((marker) => ({ ...marker }));
+    recordLearnedIntentMarker({ learnedIntentMarkers: markers }, 'financial', phrase, resolution);
+    state.updateLearnedIntentMarkers(markers);
+    if (currentUser) {
+      void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
+        console.warn('Falha ao salvar intenção aprendida:', error);
+      });
+    }
+  }, [currentUser]);
+
   const applyFinancialEngine = useCallback((text: string): TaskOutcome => {
-    const result = parseFinancialMessage(text, buildFinancialContext());
+    const sourceText = pendingFinancialText ? `${pendingFinancialText} ${text}` : text;
+    const result = parseFinancialMessage(sourceText, buildFinancialContext());
 
     if (result.intent === 'query' && result.query) {
       const txs = useAppStore.getState().transactions;
       return { handled: true, botText: answerFinancialQuery(result.query, txs, new Date()), botType: 'bot' };
     }
 
+    if (result.ambiguity) {
+      return {
+        handled: true,
+        botText: 'Esse valor é uma entrada ou uma saída? Escolha uma opção:',
+        quickActions: result.ambiguity.options,
+        ambiguity: result.ambiguity,
+        botType: 'bot',
+      };
+    }
+
     if (result.intent === 'incomplete') {
-      return { handled: true, botText: 'Entendi que é um lançamento financeiro, mas não consegui identificar o valor com segurança. Quanto foi exatamente?', botType: 'bot' };
+      setPendingFinancialText(result.originalText);
+      return { handled: true, botText: 'Entendi o lançamento. Quanto foi?', botType: 'bot' };
     }
 
     if (result.intent === 'recurrence' && result.recurrence) {
@@ -168,10 +222,22 @@ return date.toISOString().split('T')[0];
     }
 
     if (result.intent === 'create_transaction' || result.intent === 'create_obligation') {
-      const store = useAppStore.getState();
-      const applied = applyFinancialResult(result, store);
-      if (applied.created === 'nothing') return { handled: false };
-      const cards = buildFinanceCards(result.entries);
+        const store = useAppStore.getState();
+        const learnedPhrase = pendingIntentMarkerPhrase ?? pendingFinancialText;
+        setPendingFinancialText(null);
+        setPendingIntentMarkerPhrase(null);
+        const applied = applyFinancialResult(result, store);
+        if (applied.created === 'nothing') return { handled: false };
+        if (learnedPhrase && result.entries[0]) {
+          const entry = result.entries[0];
+          const direction = entry.direction === 'income' ? 'IN' : 'OUT';
+          const tense = entry.tense === 'future' ? 'FUTURE' : 'REALIZED';
+          persistIntentMarker(learnedPhrase, `${direction}_${tense}` as FinancialDirectionAmbiguity['options'][number]['value']);
+        }
+       for (const entry of result.entries) {
+         learnTaxonomyTerm(`financial.${entry.direction}`, entry.unresolvedTaxonomyTerm);
+       }
+       const cards = buildFinanceCards(result.entries);
       let extra = '';
       if (applied.created === 'obligation' && applied.taskId) {
         const task = store.tasks.find((t) => t.id === applied.taskId);
@@ -181,7 +247,7 @@ return date.toISOString().split('T')[0];
     }
 
     return { handled: false };
-  }, [buildFinancialContext]);
+  }, [buildFinancialContext, learnTaxonomyTerm, pendingFinancialText, pendingIntentMarkerPhrase, persistIntentMarker]);
 
   type TaskOutcome = {
     handled: boolean;
@@ -189,7 +255,22 @@ return date.toISOString().split('T')[0];
     actions?: string[];
     botType?: 'bot' | 'fallback';
     cards?: BotCard[];
+    quickActions?: { label: string; value: QuickActionValue }[];
+    ambiguity?: FinancialDirectionAmbiguity;
+    fallbackSourceText?: string;
   };
+
+  const learnIntentMarker = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
+    if (!ambiguity.candidatePhrase) return;
+    persistIntentMarker(ambiguity.candidatePhrase, resolution);
+  }, [persistIntentMarker]);
+
+  const applyFinancialChoice = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']): TaskOutcome => {
+    const store = useAppStore.getState();
+    const { result } = applyFinancialAmbiguity(ambiguity, resolution, store);
+    learnIntentMarker(ambiguity, resolution);
+    return { handled: true, botText: buildFinancialBotText(result.entries), cards: buildFinanceCards(result.entries), botType: 'bot' };
+  }, [learnIntentMarker]);
 
   /**
    * Cria as tarefas devolvidas pelo motor e monta a resposta do bot.
@@ -219,14 +300,15 @@ return date.toISOString().split('T')[0];
     if (cal.intent === 'create_event' && cal.confidence >= 0.45 && cal.events.length > 0) {
       const cards: BotCard[] = [];
       for (const ev of cal.events) {
-        addEvent({
+         addEvent({
           date: ev.date,
           time: ev.time,
           description: ev.title + (ev.context ? ` — ${ev.context}` : ''),
           type: 'event',
           eventType: ev.eventType ?? undefined,
-          source: 'chat',
-        });
+           source: 'chat',
+         });
+         learnTaxonomyTerm('calendar', ev.unresolvedTaxonomyTerm);
         cards.push({
           kind: 'event',
           title: ev.title,
@@ -260,14 +342,15 @@ return date.toISOString().split('T')[0];
     const eventCards: BotCard[] = [];
     if (decision.shouldCreateInCalendar && decision.events.length > 0) {
       for (const ev of decision.events) {
-        addEvent({
+         addEvent({
           date: ev.date,
           time: ev.time,
           description: ev.title + (ev.context ? ` — ${ev.context}` : ''),
           type: 'event',
           eventType: ev.eventType ?? undefined,
-          source: 'chat',
-        });
+           source: 'chat',
+         });
+         learnTaxonomyTerm('calendar', ev.unresolvedTaxonomyTerm);
         eventCards.push({
           kind: 'event',
           title: ev.title,
@@ -284,7 +367,7 @@ return date.toISOString().split('T')[0];
     const taskCards: BotCard[] = [];
     for (const t of result.tasks) {
       if (t.confidence < minconf) continue;
-      const taskId = addTask({
+       const taskId = addTask({
         description: t.title,
         source: 'chat',
         done: false,
@@ -294,8 +377,9 @@ return date.toISOString().split('T')[0];
         subtasks: [],
         tags: t.tags,
         createdAt: new Date().toISOString(),
-        employeeId: t.assigneeId || undefined,
-      });
+         employeeId: t.assigneeId || undefined,
+       });
+       if (taskId) learnTaxonomyTerm('task', t.unresolvedTaxonomyTerm);
       // Calendariozação: se a tarefa tem data relevante (execução OU prazo)
       // criamos um evento derivado (source='task') com deadline marcado
       // quando aplicável (especificação seções 4/6/14/22).
@@ -324,14 +408,14 @@ return date.toISOString().split('T')[0];
     if (taskCards.length === 0 && eventCards.length === 0) return { handled: false };
     const allCards = [...taskCards, ...eventCards];
     return { handled: true, botText: '', cards: allCards, actions: ['Concluir'], botType: 'bot' };
-  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask]);
+  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
   /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
-  const commitMessages = useCallback((userText: string, outcome: { botText: string; actions: string[]; botType: 'bot' | 'fallback'; cards?: BotCard[] }) => {
+  const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: FinancialDirectionAmbiguity; fallbackSourceText?: string }) => {
     refreshOrcamentos();
     refreshContratos();
     const userMsg: Message = {
@@ -342,15 +426,41 @@ return date.toISOString().split('T')[0];
     };
     const botMsg: Message = {
       id: (Date.now() + 1).toString(),
-      type: outcome.botType,
-      text: outcome.botText,
+      type: outcome.botType ?? 'bot',
+      text: outcome.botText ?? '',
       actions: outcome.actions,
       cards: outcome.cards,
+      quickActions: outcome.quickActions,
+      ambiguity: outcome.ambiguity,
+      fallbackSourceText: outcome.fallbackSourceText,
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg, botMsg]);
     scrollToBottom();
   }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
+
+  const handleFinancialChoice = useCallback((message: Message, value: FinancialDirectionAmbiguity['options'][number]['value']) => {
+    if (!message.ambiguity) return;
+    const option = message.ambiguity.options.find((item) => item.value === value);
+    if (!option) return;
+    commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
+  }, [applyFinancialChoice, commitMessages]);
+
+  const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
+    if (value === 'register_expense') {
+      setPendingFinancialText('gastei');
+      setPendingIntentMarkerPhrase(message.fallbackSourceText ?? null);
+      commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
+    } else if (value === 'register_income') {
+      setPendingFinancialText('recebi');
+      setPendingIntentMarkerPhrase(message.fallbackSourceText ?? null);
+      commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
+    } else if (value === 'add_task') {
+      commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+    } else if (value === 'other') {
+      commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
+    }
+  }, [commitMessages]);
 
 
   /**
@@ -547,7 +657,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         actions = outcome.actions ?? actions;
         botType = outcome.botType ?? botType;
         cards = outcome.cards;
-        return { botText, actions, botType, cards };
+        return { botText, actions, botType, cards, quickActions: outcome.quickActions, ambiguity: outcome.ambiguity, fallbackSourceText: outcome.fallbackSourceText };
       }
     }
 
@@ -560,6 +670,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           actions: outcome.actions ?? actions,
           botType: outcome.botType ?? botType,
           cards: outcome.cards,
+          quickActions: outcome.quickActions,
+          ambiguity: outcome.ambiguity,
+          fallbackSourceText: outcome.fallbackSourceText,
         };
       }
       if (parsed.intent === 'TASK_ADD' || parsed.intent === 'TASK_WITH_DATE') {
@@ -587,7 +700,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       botType = 'fallback';
     }
 
-    return { botText, actions, botType, cards };
+    return { botText, actions, botType, cards, fallbackSourceText: parsed.intent === 'UNKNOWN' ? text : undefined };
   }, [applyFinancialEngine, applyTaskEngineResult, handlePluginIntent]);
 
   const handleSend = useCallback(() => {
@@ -630,8 +743,13 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
               </Text>
             </View>
             <View style={styles.quickActionsRow}>
-              {['Registrar gasto', 'Adicionar tarefa', 'Outra coisa'].map((label) => (
-                <TouchableOpacity key={label} style={styles.quickActionBtn}>
+              {[
+                { label: 'Registrar saída', value: 'register_expense' as const },
+                { label: 'Registrar entrada', value: 'register_income' as const },
+                { label: 'Adicionar tarefa', value: 'add_task' as const },
+                { label: 'Outra coisa', value: 'other' as const },
+              ].map(({ label, value }) => (
+                <TouchableOpacity key={label} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -656,6 +774,15 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           ) : (
             <View style={styles.botBubble}>
               <Text style={styles.botText}>{item.text}</Text>
+            </View>
+          )}
+          {item.quickActions && item.quickActions.length > 0 && (
+            <View style={styles.quickActionsRow}>
+              {item.quickActions.map((action) => (
+                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
+                  <Text style={styles.quickActionText}>{action.label}</Text>
+                </TouchableOpacity>
+              ))}
             </View>
           )}
           {item.actions && item.actions.length > 0 && (

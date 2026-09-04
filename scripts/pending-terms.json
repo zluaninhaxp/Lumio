@@ -1,0 +1,82 @@
+[
+  {
+    "label": "ACTION_DICTIONARY.pagar",
+    "terms": [
+      "pago isso",
+      "paga essa",
+      "paga essa conta",
+      "paga lá",
+      "paga pra gente",
+      "pagá",
+      "paguemo",
+      "pagar logo",
+      "pagar rapidinho",
+      "desembolsar",
+      "desembolsa",
+      "quitar",
+      "quita aí",
+      "liquidar a conta",
+      "liquida isso",
+      "acerta esse débito",
+      "mandar um pix",
+      "passar o pix",
+      "pagarr",
+      "pagamemto"
+    ]
+  },
+  {
+    "label": "ACTION_DICTIONARY.agendar",
+    "terms": [
+      "agende pra mim",
+      "agendar consulta",
+      "marcar consulta",
+      "marca consulta",
+      "marcá",
+      "marcam pra mim",
+      "marquemo",
+      "botar na agenda",
+      "pôr na agenda",
+      "põe na agenda",
+      "anotar na agenda",
+      "reservar uma data",
+      "separa um horário pra mim",
+      "encaixar um horário",
+      "encaixa aí",
+      "deixar combinado",
+      "combina pra tal dia",
+      "agendá",
+      "agendrar",
+      "agenndar"
+    ]
+  },
+  {
+    "label": "IN_FUTURE_MARKERS",
+    "terms": [
+      "vou ter recebimento",
+      "vou faturar",
+      "vai entrar na minha conta",
+      "vai cair na minha conta",
+      "tá pra entrar",
+      "ta pra entrar",
+      "tá pra receber",
+      "to pra receber",
+      "tô esperando cair",
+      "esperando receber",
+      "aguardo pagamento",
+      "pagamento pendente",
+      "tem um pix pra cair",
+      "pix agendado pra cair",
+      "vão depositar pra mim",
+      "vai mandar o valor",
+      "vai me repassar",
+      "me repassa depois",
+      "fica pra me pagar",
+      "vai quitar comigo",
+      "o pagamento vem",
+      "dinheiro a caminho",
+      "grana a caminho",
+      "recebo semana que vem",
+      "entra semana que vem"
+    ]
+  }
+]

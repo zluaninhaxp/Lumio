@@ -68,6 +68,8 @@ export interface ParsedTask {
   assigneeName: string | null;
   /** Tags resolvidas a partir de `taskTags`/`keywordMap`. */
   tags: string[];
+  /** Termo extraído que não foi resolvido pela taxonomy, quando disponível. */
+  unresolvedTaxonomyTerm?: string | null;
   category?: string | null;
   categoryId?: string | null;
   subcategory?: string | null;

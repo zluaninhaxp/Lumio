@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { EmployeeItem, useAppStore } from '../../src/store';
 
@@ -10,6 +10,7 @@ const EMPTY = { name: '', role: '', contact: '', commissionRate: '' };
 
 export default function EquipeScreen() {
   const router = useRouter();
+  const { returnToFinance, returnToTasks, returnToCalendar, relation } = useLocalSearchParams<{ returnToFinance?: string; returnToTasks?: string; returnToCalendar?: string; relation?: string }>();
   const { employeeItems, addEmployeeItem, updateEmployeeItem, removeEmployeeItem, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [form, setForm] = useState(EMPTY);
@@ -25,8 +26,14 @@ export default function EquipeScreen() {
     if (!form.name.trim() || !form.role.trim()) return;
     const rate = Number(form.commissionRate.replace(',', '.')) || 0;
     const payload = { name: form.name.trim(), role: form.role.trim(), contact: form.contact.trim(), commissionRate: rate, createdAt: editingId ? employeeItems.find((item) => item.id === editingId)?.createdAt ?? new Date().toISOString() : new Date().toISOString() };
-    if (editingId) updateEmployeeItem(editingId, payload); else addEmployeeItem(payload);
-    setModalVisible(false);
+     let createdId: string | undefined;
+     if (editingId) updateEmployeeItem(editingId, payload); else createdId = addEmployeeItem(payload);
+     setModalVisible(false);
+      if (!editingId && createdId && returnToFinance === '1' && relation === 'employee') {
+        router.replace({ pathname: '/(tabs)/financeiro', params: { returnToFinance: '1', createdId, relation: 'employee' } });
+      } else if (!editingId && createdId && (returnToTasks === '1' || returnToCalendar === '1') && relation === 'employee') {
+       router.replace({ pathname: returnToTasks === '1' ? '/(tabs)/tarefas' : '/(tabs)/calendario', params: { [returnToTasks === '1' ? 'returnToTasks' : 'returnToCalendar']: '1', createdId, relation: 'employee' } });
+     }
   };
   const remove = (id: string) => Alert.alert('Excluir funcionário', 'As tarefas e pedidos vinculados ficarão sem funcionário.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => removeEmployeeItem(id) }]);
   return <SafeAreaView style={styles.safe}>

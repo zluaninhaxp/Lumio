@@ -238,8 +238,17 @@ const styles = StyleSheet.create({
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
   cell: { width: '14.28%', alignItems: 'center', paddingVertical: 4 },
-  dayCircleSelected: { backgroundColor: Colors.accent },
-  dayCircleToday: { borderWidth: 1.5, borderColor: Colors.accent },
+  dayCircleSelected: {
+    backgroundColor: Colors.accent,
+    borderRadius: 15,
+    overflow: 'hidden',
+  },
+  dayCircleToday: {
+    borderWidth: 1.5,
+    borderColor: Colors.accent,
+    borderRadius: 15,
+    overflow: 'hidden',
+  },
   dayText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,

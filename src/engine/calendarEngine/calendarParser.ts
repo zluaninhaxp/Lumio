@@ -181,9 +181,11 @@ export function parseCalendarMessage(
   // --- 6) Construção dos resultados ---
   const eventTypeAliases = buildEventTypeAliases(context.calendarEventTypes);
   const person = resolvePerson(normalized.original, [...context.people]);
-   const eventType = context.taxonomy
-     ? resolveEntity(text, 'calendar', context.taxonomy).genericLabel
-     : classifyEventType(text, eventTypeAliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
+  const taxonomyResolution = context.taxonomy ? resolveEntity(text, 'calendar', context.taxonomy) : null;
+  const eventType = context.taxonomy
+    ? taxonomyResolution?.genericLabel ?? null
+    : classifyEventType(text, eventTypeAliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
+  const unresolvedTaxonomyTerm = context.taxonomy ? (context.taxonomy.length > 0 && !eventType ? text.trim() : null) : null;
 
   const out: CalendarParseResult = {
     intent,
@@ -199,7 +201,7 @@ export function parseCalendarMessage(
     out.events = extractMultipleEvents(normalized, context, eventTypeAliases, compromissoHits);
     if (out.events.length === 0) {
       // Fallback: monta um único evento da mensagem toda.
-      const ev = buildEvent(normalized, resolution, person, eventType, context);
+      const ev = buildEvent(normalized, resolution, person, eventType, unresolvedTaxonomyTerm, context);
       if (ev) out.events = [ev];
     }
   }
@@ -385,9 +387,11 @@ function extractMultipleEvents(
   for (const p of valid) {
     const person = resolvePerson(p, [...context.people]);
     const frag = normalizeMessage(p);
-     const eventType = context.taxonomy
-       ? resolveEntity(frag.text, 'calendar', context.taxonomy).genericLabel
-       : classifyEventType(frag.text, aliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
+    const taxonomyResolution = context.taxonomy ? resolveEntity(frag.text, 'calendar', context.taxonomy) : null;
+    const eventType = context.taxonomy
+      ? taxonomyResolution?.genericLabel ?? null
+      : classifyEventType(frag.text, aliases, context.calendarEventTypes, context.keywordMap, compromissoHits);
+    const unresolvedTaxonomyTerm = context.taxonomy ? (context.taxonomy.length > 0 && !eventType ? frag.text.trim() : null) : null;
     // Shadow temporal para este fragmento.
     const fragFull = resolveTemporal(frag.tokens, context.now);
     const date = fragFull.resolution.dueDate ?? resolution.dueDate;
@@ -407,6 +411,7 @@ function extractMultipleEvents(
       personName: person.name,
       personId: person.id,
       eventType,
+      unresolvedTaxonomyTerm,
       context: extractContext(residualText, title),
       hasExplicitTime: !!time,
       confidence: 0.7,
@@ -483,6 +488,7 @@ function buildEvent(
   resolution: TemporalResolution,
   person: { name: string | null; id: string | null; ambiguous: boolean },
   eventType: string | null,
+  unresolvedTaxonomyTerm: string | null,
   context: CalendarParserContext
 ): ParsedCalendarEvent | null {
   if (!resolution.dueDate) return null;
@@ -501,6 +507,7 @@ function buildEvent(
     personName: person.name,
     personId: person.id,
     eventType,
+    unresolvedTaxonomyTerm,
     context: extractContext(residualText, title),
     hasExplicitTime: !!resolution.dueTime,
     confidence: 0.78,

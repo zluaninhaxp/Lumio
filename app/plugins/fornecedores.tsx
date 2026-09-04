@@ -12,7 +12,7 @@ const money = (value: number) => `R$ ${Math.abs(value).toFixed(2).replace('.', '
 
 export default function FornecedoresScreen() {
   const router = useRouter();
-  const { returnToFinance, relation } = useLocalSearchParams<{ returnToFinance?: string; relation?: string }>();
+  const { returnToFinance, returnToTasks, returnToCalendar, relation } = useLocalSearchParams<{ returnToFinance?: string; returnToTasks?: string; returnToCalendar?: string; relation?: string }>();
   const { fornecedorItems, transactions, addFornecedorItem, updateFornecedorItem, removeFornecedorItem, linkTransactionToSupplier, setPluginActivation } = useAppStore();
   const [query, setQuery] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -37,6 +37,8 @@ export default function FornecedoresScreen() {
     setModalVisible(false);
     if (!editingId && createdId && returnToFinance === '1' && relation === 'supplier') {
       router.replace({ pathname: '/(tabs)/financeiro', params: { returnToFinance: '1', createdId, relation: 'supplier' } });
+    } else if (!editingId && createdId && (returnToTasks === '1' || returnToCalendar === '1') && relation === 'supplier') {
+      router.replace({ pathname: returnToTasks === '1' ? '/(tabs)/tarefas' : '/(tabs)/calendario', params: { [returnToTasks === '1' ? 'returnToTasks' : 'returnToCalendar']: '1', createdId, relation: 'supplier' } });
     }
   };
   const deleteSupplier = (id: string) => Alert.alert('Excluir fornecedor', 'Despesas vinculadas ficarão sem fornecedor, mas não serão excluídas.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => removeFornecedorItem(id) }]);

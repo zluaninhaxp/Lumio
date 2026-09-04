@@ -9,7 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test \"src/engine/taskEngine/__tests__/*.test.ts\" \"src/engine/calendarEngine/__tests__/*.test.ts\" \"src/engine/financialEngine/__tests__/*.test.ts\" \"src/engine/taxonomy/__tests__/*.test.ts\" \"src/store/__tests__/*.test.ts\""
+    "test": "node --experimental-strip-types --test \"src/engine/__tests__/*.test.ts\" \"src/engine/taskEngine/__tests__/*.test.ts\" \"src/engine/calendarEngine/__tests__/*.test.ts\" \"src/engine/financialEngine/__tests__/*.test.ts\" \"src/engine/taxonomy/__tests__/*.test.ts\" \"src/store/__tests__/*.test.ts\"",
+    "expand-dictionaries": "tsx scripts/expand-dictionaries.ts"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
@@ -45,7 +46,9 @@
     "@babel/core": "^7.24.0",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.12",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "ts-morph": "^26.0.0",
+    "tsx": "^4.20.3"
   },
   "engines": {
     "node": ">=20.19.4"

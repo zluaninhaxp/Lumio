@@ -3,6 +3,7 @@ import { authService } from '../services/authService';
 import { userService, UpdateUserInput } from '../services/userService';
 import { PublicUser } from '../types/user';
 import { onboardingService } from '../services/onboardingService';
+import { learnedIntentRepository } from '../repositories/learnedIntentRepository';
 import { useAppStore } from '../store';
 import type { OnboardingContextDTO } from '../ai/onboardingContext';
 import type { OnboardingExtractionResult } from '../ai/types';
@@ -23,6 +24,17 @@ export interface AuthContextValue {
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
 
+function removeLegacyIntentMarkers(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return value;
+  const profile = value as Record<string, unknown>;
+  const taxonomy = profile.taxonomy;
+  if (!('learnedIntentMarkers' in profile) && (!taxonomy || typeof taxonomy !== 'object' || !('learnedIntentMarkers' in taxonomy))) return value;
+  const { learnedIntentMarkers: _topLevel, ...withoutTopLevel } = profile;
+  if (!taxonomy || typeof taxonomy !== 'object') return withoutTopLevel;
+  const { learnedIntentMarkers: _nested, ...withoutNested } = taxonomy as Record<string, unknown>;
+  return { ...withoutTopLevel, taxonomy: withoutNested };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<PublicUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,14 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // /tarefas), mas elimina o bleed de categorias/tags/tipos gerados
         // pelo onboarding.
         useAppStore.getState().resetOnboardingState();
+        useAppStore.getState().hydrateLearnedIntentMarkers([]);
         return;
       }
       useAppStore.getState().hydrateOnboarding({
         responses: (record.responses ?? {}) as Record<string, string>,
         context: (record.context ?? null) as OnboardingContextDTO | null,
-        structuredProfile: (record.structuredProfile ?? null) as OnboardingExtractionResult | null,
+        structuredProfile: removeLegacyIntentMarkers(record.structuredProfile) as OnboardingExtractionResult | null,
         activatedPlugins: record.activatedPlugins ?? [],
       });
+      const cleanedProfile = removeLegacyIntentMarkers(record.structuredProfile);
+      if (cleanedProfile !== record.structuredProfile) {
+        void onboardingService.saveStructuredProfile(user.id, cleanedProfile);
+      }
+      const learnedIntentMarkers = await learnedIntentRepository.getAll(user.id);
+      useAppStore.getState().hydrateLearnedIntentMarkers(learnedIntentMarkers);
     } catch (error) {
       console.warn('Falha ao carregar dados do onboarding:', error);
     }

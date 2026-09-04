@@ -24,8 +24,7 @@ export const OUT_REALIZED_MARKERS = [
   'terminei de pagar', 'acabei de pagar', 'acabei de comprar',
   'paguei a conta', 'quitei', ' quitei ',
   // hábito presente ("todo mês pago...") — reconhecido, sem duplicar
-  ' pago ', ' eu pago ',
-];
+  ' pago ', ' eu pago ', 'fiz um pix', 'fiz pix', 'mandei um pix', 'mandei pix', 'enviei um pix', 'enviei pix', 'transferi um pix', "gastei pacas", "din din saiu", "pagamentozinho", "desembolsei uma grana", "saiu uma grana", "saiu do caixa", "passei no cartão", "passei o cartão", "torrei uma grana", "foi embora da conta", "já quitei isso", "quitei a parada", "paguei tudinho", "gastei uma nota", "saiu uns reais"];
 
 // ─── SAÍDA — FUTURO / OBRIGAÇÃO ─────────────────────────────────────
 export const OUT_FUTURE_MARKERS = [
@@ -36,6 +35,7 @@ export const OUT_FUTURE_MARKERS = [
   'tenho uma conta', 'tenho uma conta de', 'tenho uma conta para pagar',
   'uma conta de', 'conta para pagar', 'para pagar', 'a pagar',
   'tenho que desembolsar', 'irei pagar', 'vou ter que pagar',
+  'vou fazer um pix', 'vou fazer pix', 'vou mandar um pix', 'vou enviar um pix', 'preciso fazer um pix',
   'vence', 'vencendo', 'vence dia', 'vence no dia', 'vence em',
   'preciso pagar a conta', 'falta pagar', 'estou devendo', 'tou devendo',
   'tenho que pagar a conta',
@@ -46,14 +46,16 @@ export const IN_REALIZED_MARKERS = [
   'recebi', 'eu recebi', 'já recebi', 'recebemos',
   'entrou', 'entrou na conta', 'entrou na minha conta', 'entrou um',
   'caiu', 'caiu na conta', 'caiu na minha conta', 'caiu um',
-  'vendi', 'eu vendi', 'vendemos', 'a venda de', 'venda de',
+  'vendi', 'eu vendi', 'vendemos', 'ganhei', 'ganhamos', 'a venda de', 'venda de',
   'faturei', 'faturo', 'faturamento de', 'fechei uma venda', 'fechei a venda',
   'me pagou', 'me pagaram', 'me pagaste', 'nos pagou', 'nos pagaram',
-  'me passou', 'me passaram', 'me mandou', 'me mandaram',
+  'me passou', 'me passaram', 'me mandou', 'me mandaram', 'transferiram', 'me transferiram',
   'me enviou', 'me depositou', 'depositaram', 'depositou na minha conta',
   'pagou pra mim', 'pagou para mim', 'passou pra mim', 'passou para mim',
   'recebimento de', 'o cliente pagou', 'a cliente pagou', 'os clientes pagaram',
   'cliente me pagou', 'recebi o pagamento', 'recebi o pix',
+  // Forma impessoal usada quando o usuário informa que terceiros pagaram.
+  'fizeram um pagamento', 'fizeram o pagamento',
   // hábito presente ("recebo todo mês")
   ' eu recebo ', ' recebo ',
 ];
@@ -68,8 +70,7 @@ export const IN_FUTURE_MARKERS = [
   'ficou de me pagar', 'ficou de pagar', 'ficou de me passar',
   'vai me pagar em', 'cliente vai pagar', 'o cliente vai pagar',
   'vai me dar', 'me deve', 'está me devendo', 'esta me devendo',
-  'vou receber de', 'vou receber do',
-];
+  'vou receber de', 'vou receber do', "vou ganhar", "vou receber uma grana", "vai pingar", "vai cair um dinheiro", "vai entrar uma grana", "entra na conta amanhã", "deve cair", "deve entrar", "está pra cair", "tou pra receber", "vou buscar meu pagamento", "me paga depois", "me paga amanhã", "vai fazer o pix", "vai pixar", "vai transferir", "vai depositar", "vai mandar o pagamento", "fica de me pagar", "combinou de me pagar", "prometeu me pagar", "tem que me pagar", "tenho dinheiro pra entrar", "cair um pix", "receber uma bolada", "vou ter recebimento", "vou faturar", "vai entrar na minha conta", "vai cair na minha conta", "tá pra entrar", "tá pra receber", "to pra receber", "tô esperando cair", "esperando receber", "aguardo pagamento", "pagamento pendente", "tem um pix pra cair", "pix agendado pra cair", "vão depositar pra mim", "vai mandar o valor", "vai me repassar", "me repassa depois", "fica pra me pagar", "vai quitar comigo", "o pagamento vem", "dinheiro a caminho", "grana a caminho", "recebo semana que vem", "entra semana que vem"];
 
 /**
  * Sujeito de 3ª pessoa + "pagou/vai pagar" = o OUTRO paga o usuário

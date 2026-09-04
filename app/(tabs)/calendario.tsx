@@ -20,8 +20,18 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 import { BottomFade } from '../components/BottomFade';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import type { EventFormData } from '../components/Calendar/EventForm';
+import type { Relation } from '../components/Tasks/TaskPeopleSelector';
+import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
 
 export default function CalendarioScreen() {
+  const router = useRouter();
+  const { returnToCalendar, createdId, relation } = useLocalSearchParams<{
+    returnToCalendar?: string;
+    createdId?: string;
+    relation?: Relation;
+  }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
   const {
@@ -52,8 +62,17 @@ export default function CalendarioScreen() {
   const [loading, setLoading] = useState(false);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [appointmentSheetVisible, setAppointmentSheetVisible] = useState(false);
+  const [pendingEventDraft, setPendingEventDraft] = useState<EventFormData | null>(() => getRelationDraft<EventFormData>('calendar'));
 
   useEffect(() => { refreshContratos(); }, [refreshContratos]);
+
+  useEffect(() => {
+    if (returnToCalendar !== '1' || !createdId || !relation) return;
+    const draft = setPendingRelation('calendar', relation, createdId);
+    setPendingEventDraft((draftState) => draft ? { ...draftState, ...draft } as EventFormData : draftState);
+    setSheetVisible(true);
+    router.setParams({ returnToCalendar: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToCalendar, router]);
 
   const supplierDueEvents = useMemo(() => transactions.flatMap((transaction) => {
     if (!transaction.supplierId || !transaction.supplierDueDate || transaction.supplierPaid) return [];
@@ -140,16 +159,24 @@ export default function CalendarioScreen() {
           priority: 'media',
           subtasks: [],
           tags: [],
+          clientId: data.clientId,
+          supplierId: data.supplierId,
+          employeeId: data.employeeId,
           createdAt: new Date().toISOString(),
         });
         calendarizeTask(taskId, {
           date: data.date,
           time: data.time,
           eventType: data.eventType,
+          clientId: data.clientId,
+          supplierId: data.supplierId,
+          employeeId: data.employeeId,
         });
       } else {
         addEvent(data);
       }
+      clearRelationDraft('calendar');
+      setPendingEventDraft(null);
       setSheetVisible(false);
     },
     [addEvent, addTask, calendarizeTask]
@@ -268,11 +295,25 @@ export default function CalendarioScreen() {
 
       <FAB onPress={() => setSheetVisible(true)} />
 
-      <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)}>
+      <BottomSheet visible={sheetVisible} onClose={() => { clearRelationDraft('calendar'); setPendingEventDraft(null); setSheetVisible(false); }} height={620}>
         <EventForm
+          key={pendingEventDraft ? `calendar-draft-${pendingEventDraft.clientId ?? ''}-${pendingEventDraft.supplierId ?? ''}-${pendingEventDraft.employeeId ?? ''}` : 'calendar-new'}
           initialDate={selectedDate}
+          initialData={pendingEventDraft ?? undefined}
           onSave={handleSave}
-          onCancel={() => setSheetVisible(false)}
+          onCancel={() => { clearRelationDraft('calendar'); setPendingEventDraft(null); setSheetVisible(false); }}
+          onBeforeNavigate={(relation, data) => {
+            saveRelationDraft('calendar', data);
+            setPendingEventDraft(data);
+            setSheetVisible(false);
+            setTimeout(() => {
+              const pluginId = relation === 'client' ? 'clientes' : relation === 'supplier' ? 'fornecedores' : 'equipe';
+              const route = useAppStore.getState().activatedPlugins.includes(pluginId)
+                ? ({ clientes: '/plugins/clientes', fornecedores: '/plugins/fornecedores', equipe: '/plugins/equipe' } as const)[pluginId]
+                : `/plugins/store?highlight=${pluginId}`;
+              router.push(`${route}${route.includes('?') ? '&' : '?'}returnToCalendar=1&relation=${relation}` as any);
+            }, 240);
+          }}
         />
       </BottomSheet>
       <BottomSheet visible={appointmentSheetVisible} onClose={() => setAppointmentSheetVisible(false)}>

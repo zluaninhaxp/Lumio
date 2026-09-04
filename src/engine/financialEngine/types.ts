@@ -17,7 +17,7 @@
  * false` + `supplierDueDate` (padrão do fluxo de fornecedores).
  */
 import type { ConfidenceLevel } from '../taskEngine/types.ts';
-import type { GenericNode } from '../taxonomy/types.ts';
+import type { GenericNode, LearnedIntentMarker } from '../taxonomy/types.ts';
 
 export type FinancialDirection = 'expense' | 'income';
 
@@ -62,6 +62,7 @@ export interface FinancialParserContext {
   taxonomy?: GenericNode[];
   expenseTaxonomy?: GenericNode[];
   incomeTaxonomy?: GenericNode[];
+  businessProfile?: { learnedIntentMarkers: LearnedIntentMarker[] };
   /** Clientes reais (`clienteItems`). */
   clients: ReadonlyArray<{ id: string; name: string }>;
   /** Fornecedores reais (`fornecedorItems`). */
@@ -85,6 +86,8 @@ export interface ParsedFinancialEntry {
   counterpartyEmployeeId: string | null;
   /** Categoria resolvida contra o onboarding, ou null = sem categoria. */
   category: string | null;
+  /** Termo extraído que não foi resolvido pela taxonomy, quando disponível. */
+  unresolvedTaxonomyTerm?: string | null;
   categoryId?: string | null;
   subcategory?: string | null;
   subcategoryId?: string | null;
@@ -105,6 +108,13 @@ export interface ParsedFinancialEntry {
   confidenceLevel: ConfidenceLevel;
   /** Fragmento original que originou esta entrada. */
   originalText: string;
+}
+
+export interface FinancialDirectionAmbiguity {
+  type: 'financial_direction';
+  partialData: { amount: number; currency: string; rawDate?: string };
+  candidatePhrase: string | null;
+  options: { label: string; value: 'OUT_REALIZED' | 'OUT_FUTURE' | 'IN_REALIZED' | 'IN_FUTURE' }[];
 }
 
 /** Consulta reconhecida (respondida com dados REAIS do store). */
@@ -141,4 +151,5 @@ export interface FinancialParseResult {
   /** Motivo humano quando intent não gera lançamentos. */
   reason: string | null;
   originalText: string;
+  ambiguity: FinancialDirectionAmbiguity | null;
 }

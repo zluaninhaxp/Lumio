@@ -20,7 +20,7 @@
 import { normalizeMessage, stripAccents } from '../taskEngine/normalize.ts';
 import { resolveTemporal } from '../taskEngine/temporal.ts';
 import { resolvePerson } from '../taskEngine/personResolver.ts';
-import { scanMoneyTokens, pickAmount } from './moneyParser.ts';
+import { scanMoneyTokens, pickAmount, type MoneyCandidate } from './moneyParser.ts';
 import {
   OUT_REALIZED_MARKERS, OUT_FUTURE_MARKERS,
   IN_REALIZED_MARKERS, IN_FUTURE_MARKERS,
@@ -32,9 +32,9 @@ import {
 } from './dictionaries.ts';
 import type {
   FinancialDirection, FinancialEditRef, FinancialIntent, FinancialParseResult,
-  FinancialParserContext, FinancialQuery, ParsedFinancialEntry,
+  FinancialParserContext, FinancialQuery, ParsedFinancialEntry, FinancialDirectionAmbiguity,
 } from './types.ts';
-import { resolveEntity } from '../taxonomy/entityResolver.ts';
+import { findLearnedIntentMarker, resolveEntity } from '../taxonomy/entityResolver.ts';
 import type { GenericNode, TaxonomyDomain } from '../taxonomy/types.ts';
 
 export const FINANCIAL_ENGINE_VERSION = '1.0.0';
@@ -45,7 +45,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
   const text = normalized.text;
   const none = (reason: string): FinancialParseResult => ({
     intent: 'none', confidence: 0, entries: [], query: null, edit: null,
-    recurrence: null, reason, originalText: normalized.original,
+    recurrence: null, reason, originalText: normalized.original, ambiguity: null,
   });
 
   if (!text) return none('Mensagem vazia.');
@@ -58,7 +58,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
   const query = classifyQuery(text, context);
   if (query) return {
     intent: 'query', confidence: 0.9, entries: [], query,
-    edit: null, recurrence: null, reason: null, originalText: normalized.original,
+    edit: null, recurrence: null, reason: null, originalText: normalized.original, ambiguity: null,
   };
 
   // ── 3) Recorrência (seção 37): reconhecer, não lançar ──
@@ -67,7 +67,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     return {
       intent: 'recurrence', confidence: 0.8, entries: [], query: null, edit: null,
       recurrence: { expression: recHit[0] }, reason: null,
-      originalText: normalized.original,
+      originalText: normalized.original, ambiguity: null,
     };
   }
 
@@ -76,19 +76,55 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
   if (edit) return {
     intent: edit.kind === 'delete' ? 'delete' : 'edit', confidence: 0.7,
     entries: [], query: null, edit, recurrence: null, reason: null,
-    originalText: normalized.original,
+    originalText: normalized.original, ambiguity: null,
   };
 
   // ── 5) Direção + tempo verbal ──
-  const signal = detectDirectionAndTense(text);
-  if (!signal.isFinancial) return none('Sem intenção financeira reconhecida.');
+  let signal = detectDirectionAndTense(text);
+  if (!signal.isFinancial) {
+    const learnedMarker = context.businessProfile
+      ? findLearnedIntentMarker(context.businessProfile, 'financial', text)
+      : null;
+    if (learnedMarker) signal = signalFromResolution(learnedMarker.resolution);
+  }
+  if (!signal.isFinancial) {
+    const scan = scanMoneyTokens(normalized.tokens);
+    const picked = pickAmount(normalized.tokens, scan);
+    if (picked.amount === null || picked.amount <= 0 || !scan.money.some((candidate) => candidate.strong)) {
+      return none('Sem intenção financeira reconhecida.');
+    }
+    const candidatePhrase = buildCandidatePhrase(normalized, scan.money, picked.amount);
+    const marker = context.businessProfile && candidatePhrase
+      ? findLearnedIntentMarker(context.businessProfile, 'financial', candidatePhrase)
+      : null;
+    if (marker) {
+      signal = signalFromResolution(marker.resolution);
+    } else {
+      const ambiguity: FinancialDirectionAmbiguity = {
+        type: 'financial_direction',
+        partialData: { amount: picked.amount, currency: 'BRL' },
+        candidatePhrase,
+        options: [
+          { label: 'Saída', value: 'OUT_REALIZED' },
+          { label: 'Saída futura', value: 'OUT_FUTURE' },
+          { label: 'Entrada', value: 'IN_REALIZED' },
+          { label: 'Entrada futura', value: 'IN_FUTURE' },
+        ],
+      };
+      return {
+        intent: 'none', confidence: 0, entries: [], query: null, edit: null,
+        recurrence: null, reason: 'Direção financeira ambígua — perguntar ao usuário.',
+        originalText: normalized.original, ambiguity,
+      };
+    }
+  }
 
   // ── 6) Fragmentos (múltiplas movimentações — seções 34/35) ──
   const fragments = splitFinancialFragments(normalized.original);
   const entries: ParsedFinancialEntry[] = [];
   let sharedDateISO: string | null = null;
-  let sharedTense: 'realized' | 'future' | null = null;
-  let sharedDirection: FinancialDirection | null = null;
+  let sharedTense: 'realized' | 'future' | null = signal.tense;
+  let sharedDirection: FinancialDirection | null = signal.direction;
 
   for (const frag of fragments) {
     const fn = normalizeMessage(frag);
@@ -116,6 +152,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
         direction, tense: tense!, amount: null, amountComputed: false,
         counterpartyName: null, counterpartyClientId: null, counterpartySupplierId: null,
         counterpartyEmployeeId: null, category: null, item: null,
+        unresolvedTaxonomyTerm: null,
         transactionDate: null, dueDate: null, status: 'pending',
         installments: fragScan.installments, quantity: picked.quantity,
         confidence: 0.4, confidenceLevel: 'baixa', originalText: frag,
@@ -124,8 +161,10 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     }
 
     const counterparty = extractCounterparty(normalized.original, fn, context);
-     const categoryResolution = resolveFinancialCategory(fn.text, direction, context);
-     const category = categoryResolution.genericLabel;
+    const categoryResolution = resolveFinancialCategory(fn.text, direction, context);
+    const category = categoryResolution.genericLabel;
+    const taxonomy = direction === 'expense' ? (context.expenseTaxonomy ?? context.taxonomy) : (context.incomeTaxonomy ?? context.taxonomy);
+    const unresolvedTaxonomyTerm = taxonomy ? (taxonomy.length > 0 && !categoryResolution.genericLabel ? fn.text.trim() : null) : null;
     const item = extractItem(fragTokens, direction);
      const confidence = computeConfidence(signal, fragSignal, picked, category, dateISO);
 
@@ -133,7 +172,8 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
       direction, tense,
       amount, amountComputed: picked.computed,
       ...counterparty,
-       category,
+      category,
+      unresolvedTaxonomyTerm,
        categoryId: categoryResolution.genericId,
        subcategory: categoryResolution.specificLabel,
        subcategoryId: categoryResolution.specificId,
@@ -162,16 +202,12 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
   }
 
   if (incomplete) {
-    // Sem valor: se é FUTURO/obrigação ("tenho que pagar o funcionário até
-    // dia 20"), devolve `none` para o taskEngine criar a tarefa — o valor
-    // não é obrigatório no domínio tarefa. Se é REALIZADO ("paguei o
-    // João"), pergunta o valor (nunca lança sem valor).
-    const anyFutureSignal = entries.some((e) => e.tense === 'future');
-    if (anyFutureSignal) return none('Obrigação sem valor — tratar como tarefa.');
+    // A direção já foi reconhecida, mas o valor ainda é obrigatório para
+    // criar qualquer movimentação, inclusive uma obrigação futura.
     return {
-      intent: 'incomplete', confidence: 0.5, entries: [], query: null, edit: null,
+      intent: 'incomplete', confidence: 0.5, entries, query: null, edit: null,
       recurrence: null, reason: 'Valor não informado — perguntar ao usuário.',
-      originalText: normalized.original,
+      originalText: normalized.original, ambiguity: null,
     };
   }
 
@@ -181,8 +217,26 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     confidence: Math.max(...valid.map((e) => e.confidence)),
     entries: valid,
     query: null, edit: null, recurrence: null, reason: null,
-    originalText: normalized.original,
+    originalText: normalized.original, ambiguity: null,
   };
+}
+
+function signalFromResolution(resolution: string): DirectionSignal {
+  return {
+    isFinancial: true,
+    direction: resolution.startsWith('IN_') ? 'income' : resolution.startsWith('OUT_') ? 'expense' : null,
+    tense: resolution.endsWith('_FUTURE') ? 'future' : resolution.endsWith('_REALIZED') ? 'realized' : null,
+  };
+}
+
+function buildCandidatePhrase(normalized: { tokens: string[] }, candidates: MoneyCandidate[], amount: number): string | null {
+  const candidate = candidates.find((item) => item.amount === amount && item.strong) ?? candidates.find((item) => item.amount === amount);
+  if (!candidate) return null;
+  const before = normalized.tokens.slice(0, candidate.tokenIndex);
+  const after = normalized.tokens.slice(candidate.tokenIndex + candidate.tokenLength);
+  while (before.length > 0 && ['de', 'do', 'da', 'dos', 'das', 'por', 'em', 'no', 'na'].includes(before[before.length - 1])) before.pop();
+  const phrase = [...before, ...after].join(' ').replace(/\s+/g, ' ').trim();
+  return phrase && phrase.split(' ').length <= 8 ? phrase : null;
 }
 
 // ═════════════════ DIREÇÃO E TEMPO ═════════════════
@@ -200,10 +254,10 @@ interface DirectionSignal {
  * pessoa ("o cliente pagou") convertem pagamento de terceiro em ENTRADA.
  */
 export function detectDirectionAndTense(text: string): DirectionSignal {
-  const outRealized = OUT_REALIZED_MARKERS.some((m) => text.includes(m));
-  const outFuture = OUT_FUTURE_MARKERS.some((m) => text.includes(m));
-  const inRealized = IN_REALIZED_MARKERS.some((m) => text.includes(m));
-  const inFuture = IN_FUTURE_MARKERS.some((m) => text.includes(m));
+  const outRealized = OUT_REALIZED_MARKERS.some((m) => matchesMarker(text, m));
+  const outFuture = OUT_FUTURE_MARKERS.some((m) => matchesMarker(text, m));
+  const inRealized = IN_REALIZED_MARKERS.some((m) => matchesMarker(text, m));
+  const inFuture = IN_FUTURE_MARKERS.some((m) => matchesMarker(text, m));
   const payer3rd = PAYER_3RD_PERSON_PATTERNS.some((re) => re.test(text));
 
   // "o cliente pagou/vai pagar" = entrada (3ª pessoa pagando o usuário)
@@ -243,10 +297,22 @@ export function detectDirectionAndTense(text: string): DirectionSignal {
 function firstIndex(text: string, markers: string[]): number | null {
   let best: number | null = null;
   for (const m of markers) {
-    const idx = text.indexOf(m);
+    const idx = markerIndex(text, m);
     if (idx >= 0 && (best === null || idx < best)) best = idx;
   }
   return best;
+}
+
+function matchesMarker(text: string, marker: string): boolean {
+  return markerIndex(text, marker) >= 0;
+}
+
+function markerIndex(text: string, marker: string): number {
+  const needle = marker.trim();
+  if (!needle) return -1;
+  const paddedText = ` ${text} `;
+  const index = paddedText.indexOf(` ${needle} `);
+  return index;
 }
 
 // ═════════════════ FRAGMENTOS (múltiplas movimentações) ═════════════════

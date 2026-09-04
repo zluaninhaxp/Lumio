@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFinancialMessage, detectDirectionAndTense } from '../financialParser.ts';
 import type { FinancialParserContext } from '../types.ts';
+import type { GenericNode } from '../../taxonomy/types.ts';
+import type { LearnedIntentMarker } from '../../taxonomy/types.ts';
 
 const NOW = new Date(2026, 7, 13, 10, 0, 0, 0); // 2026-08-13 quinta
 
@@ -29,6 +31,20 @@ function ctx(overrides: Partial<FinancialParserContext> = {}): FinancialParserCo
 function parse(msg: string, overrides: Partial<FinancialParserContext> = {}) {
   return parseFinancialMessage(msg, ctx(overrides));
 }
+
+const financialTaxonomy: GenericNode[] = [{
+  id: 'material',
+  generic: { label: 'Material', synonyms: ['materiais'] },
+  specifics: [],
+}];
+
+test('marca categoria financeira não resolvida apenas com taxonomy', () => {
+  const unresolved = parse('gastei 300 de gizmo', { taxonomy: financialTaxonomy });
+  assert.match(unresolved.entries[0].unresolvedTaxonomyTerm ?? '', /gastei 300 de gizmo/);
+  const resolved = parse('gastei 300 de material', { taxonomy: financialTaxonomy });
+  assert.equal(resolved.entries[0].unresolvedTaxonomyTerm, null);
+  assert.equal(parse('gastei 300 de gizmo').entries[0].unresolvedTaxonomyTerm, null);
+});
 
 // ═══ ENTRADAS (seção 28) ═══════════════════════════════════════════
 test('"recebi 500" -> entrada realizada', () => {
@@ -61,6 +77,73 @@ test('"o cliente pagou 800" -> entrada (3ª pessoa)', () => {
   assert.equal(r.entries[0].status, 'received');
 });
 
+test('reaproveita a direção aprendida quando a nova frase contém só o termo-chave', () => {
+  const learnedIntentMarkers: LearnedIntentMarker[] = [{
+    phrase: 'tomei um calote', domain: 'financial', resolution: 'OUT_REALIZED', occurrences: 1, lastSeenAt: NOW.toISOString(),
+  }];
+  const result = parse('calote de 40 reais', { businessProfile: { learnedIntentMarkers } });
+  assert.equal(result.ambiguity, null);
+  assert.equal(result.intent, 'create_transaction');
+  assert.equal(result.entries[0].direction, 'expense');
+  assert.equal(result.entries[0].amount, 40);
+});
+
+test('não deixa o token genérico pix herdar entrada em uma frase de saída', () => {
+  const learnedIntentMarkers: LearnedIntentMarker[] = [{
+    phrase: 'me fizeram um pix', domain: 'financial', resolution: 'IN_REALIZED', occurrences: 1, lastSeenAt: NOW.toISOString(),
+  }];
+  const result = parse('fiz um pix de 40 reais', { businessProfile: { learnedIntentMarkers } });
+  assert.equal(result.ambiguity, null);
+  assert.equal(result.intent, 'create_transaction');
+  assert.equal(result.entries[0].direction, 'expense');
+  assert.equal(result.entries[0].amount, 40);
+});
+
+test('distingue transferi de transferiram para mim', () => {
+  const outgoing = parse('transferi 20 reais');
+  assert.equal(outgoing.intent, 'create_transaction');
+  assert.equal(outgoing.entries[0].direction, 'expense');
+
+  const incoming = parse('transferiram 30 reais pra mim');
+  assert.equal(incoming.intent, 'create_transaction');
+  assert.equal(incoming.entries[0].direction, 'income');
+  assert.equal(incoming.entries[0].amount, 30);
+});
+
+test('mantém a intenção pendente para completar o valor na mensagem seguinte', () => {
+  const pending = parse('recebi um pagamento');
+  assert.equal(pending.intent, 'incomplete');
+  assert.equal(pending.entries[0].direction, 'income');
+
+  const completed = parse(`${pending.originalText} 32 reais`);
+  assert.equal(completed.intent, 'create_transaction');
+  assert.equal(completed.entries[0].direction, 'income');
+  assert.equal(completed.entries[0].amount, 32);
+
+});
+
+test('pergunta o valor para toda direção reconhecida, realizada ou futura', () => {
+  for (const message of ['me fizeram um pix', 'fiz um pix', 'vou fazer um pix']) {
+    const result = parse(message, {
+      businessProfile: {
+        learnedIntentMarkers: message.startsWith('me fizeram') ? [{
+          phrase: 'me fizeram um pix', domain: 'financial', resolution: 'IN_REALIZED', occurrences: 1, lastSeenAt: NOW.toISOString(),
+        }] : [],
+      },
+    });
+    assert.equal(result.intent, 'incomplete', message);
+    assert.equal(result.entries.length, 1, message);
+  }
+});
+
+test('"fizeram um pagamento de 30 reais" -> entrada realizada', () => {
+  const r = parse('fizeram um pagamento de 30 reais');
+  assert.equal(r.intent, 'create_transaction');
+  assert.equal(r.entries[0].direction, 'income');
+  assert.equal(r.entries[0].amount, 30);
+  assert.equal(r.entries[0].status, 'received');
+});
+
 test('"o cliente me pagou 800"', () => {
   const r = parse('o cliente me pagou 800');
   assert.equal(r.entries[0].direction, 'income');
@@ -70,6 +153,13 @@ test('"vendi por 2000"', () => {
   const r = parse('vendi por 2000');
   assert.equal(r.entries[0].direction, 'income');
   assert.equal(r.entries[0].amount, 2000);
+});
+
+test('"ganhei 30 reais" -> entrada realizada', () => {
+  const r = parse('ganhei 30 reais');
+  assert.equal(r.intent, 'create_transaction');
+  assert.equal(r.entries[0].direction, 'income');
+  assert.equal(r.entries[0].amount, 30);
 });
 
 test('"caiu 2 mil hoje"', () => {

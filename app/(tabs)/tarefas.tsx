@@ -13,11 +13,15 @@ import { daysUntil } from '../../src/utils/supplier';
 import { FAB } from '../components/Calendar/FAB';
 import { BottomSheet } from '../components/Calendar/BottomSheet';
 import { TaskForm, type TaskFormData } from '../components/Tasks/TaskForm';
+import { TaskDateSelector } from '../components/Tasks/TaskDateSelector';
+import { TaskPeopleSelector } from '../components/Tasks/TaskPeopleSelector';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 import { ChatIndicator } from '../components/ChatIndicator';
 import { BottomFade } from '../components/BottomFade';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -93,59 +97,6 @@ function isToday(dateStr: string | null): boolean {
   return d.getTime() === now.getTime();
 }
 
-function getCalendarDays(year: number, month: number): (number | null)[][] {
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDow = new Date(year, month, 1).getDay();
-
-  const weeks: (number | null)[][] = [];
-  let currentWeek: (number | null)[] = [];
-
-  for (let i = 0; i < firstDow; i++) currentWeek.push(null);
-  for (let day = 1; day <= daysInMonth; day++) {
-    currentWeek.push(day);
-    if (currentWeek.length === 7) {
-      weeks.push(currentWeek);
-      currentWeek = [];
-    }
-  }
-  if (currentWeek.length > 0) {
-    while (currentWeek.length < 7) currentWeek.push(null);
-    weeks.push(currentWeek);
-  }
-  return weeks;
-}
-
-function isSameDate(a: string | null, y: number, m: number, d: number): boolean {
-  if (!a) return false;
-  const parts = a.split('-');
-  return parseInt(parts[0]) === y && parseInt(parts[1]) === m + 1 && parseInt(parts[2]) === d;
-}
-
-function isTodayDate(y: number, m: number, d: number): boolean {
-  const now = new Date();
-  return now.getFullYear() === y && now.getMonth() === m && now.getDate() === d;
-}
-
-function getDateQuickOptions(): { label: string; value: string | null; icon: any }[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const endOfWeek = new Date(today);
-  endOfWeek.setDate(endOfWeek.getDate() + (6 - today.getDay()));
-  const nextMonday = new Date(today);
-  nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7));
-  const fmt = (d: Date) => d.toISOString().split('T')[0];
-
-  return [
-    { label: 'Hoje', value: fmt(today), icon: 'sunny-outline' },
-    { label: 'Amanhã', value: fmt(tomorrow), icon: 'calendar-outline' },
-    { label: 'Esta semana', value: fmt(endOfWeek), icon: 'today-outline' },
-    { label: 'Próxima semana', value: fmt(nextMonday), icon: 'arrow-forward-outline' },
-    { label: 'Sem data', value: null, icon: 'close-circle-outline' },
-  ];
-}
-
 function sortTasks(list: Task[]): Task[] {
   return [...list].sort((a, b) => {
     if (a.done !== b.done) return a.done ? 1 : -1;
@@ -166,6 +117,12 @@ function subtaskProgress(subtasks: Subtask[]): { done: number; total: number } {
 }
 
 export default function TarefasScreen() {
+  const router = useRouter();
+  const { returnToTasks, createdId, relation } = useLocalSearchParams<{
+    returnToTasks?: string;
+    createdId?: string;
+    relation?: 'client' | 'supplier' | 'employee';
+  }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
   const { tasks, addTask, updateTask, toggleTask, removeTask, taskTags, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
@@ -175,8 +132,8 @@ export default function TarefasScreen() {
   const [activeTagFilters, setActiveTagFilters] = useState<string[]>([]);
   const [showTagFilter, setShowTagFilter] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [editText, setEditText] = useState('');
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [pendingTaskDraft, setPendingTaskDraft] = useState<TaskFormData | null>(() => getRelationDraft<TaskFormData>('task'));
   const [sheetVisible, setSheetVisible] = useState(false);
   const [priorityPicker, setPriorityPicker] = useState<{
     taskId?: string;
@@ -185,10 +142,8 @@ export default function TarefasScreen() {
   const [datePicker, setDatePicker] = useState<{
     taskId?: string;
     current: string | null;
+    currentLabel: string | null;
   } | null>(null);
-  const [calendarViewYear, setCalendarViewYear] = useState(new Date().getFullYear());
-  const [calendarViewMonth, setCalendarViewMonth] = useState(new Date().getMonth());
-  const [showCalendar, setShowCalendar] = useState(false);
   const [tagManager, setTagManager] = useState<{ taskId: string; current: string[] } | null>(null);
   const [employeePicker, setEmployeePicker] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState('');
@@ -293,18 +248,12 @@ export default function TarefasScreen() {
   }, [refreshOrcamentos, refreshContratos]);
 
   useEffect(() => {
-    if (datePicker) {
-      if (datePicker.current) {
-        const d = new Date(datePicker.current + 'T00:00:00');
-        setCalendarViewYear(d.getFullYear());
-        setCalendarViewMonth(d.getMonth());
-      } else {
-        const now = new Date();
-        setCalendarViewYear(now.getFullYear());
-        setCalendarViewMonth(now.getMonth());
-      }
-    }
-  }, [datePicker]);
+    if (returnToTasks !== '1' || !createdId || !relation) return;
+    const draft = setPendingRelation('task', relation, createdId);
+    setPendingTaskDraft((draftState) => draft ? { ...draftState, ...draft } as TaskFormData : draftState);
+    setSheetVisible(true);
+    router.setParams({ returnToTasks: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToTasks, router]);
 
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
@@ -340,6 +289,7 @@ export default function TarefasScreen() {
   }, [tasks, searchQuery, activeFilter, activeTagFilters]);
 
   const hasNoTasksAtAll = tasks.length === 0;
+  const taskBeingAssigned = employeePicker ? tasks.find((task) => task.id === employeePicker) : null;
 
   const handleAddTask = useCallback((data: TaskFormData) => {
     addTask({
@@ -350,12 +300,29 @@ export default function TarefasScreen() {
       priority: data.priority,
       subtasks: [],
       tags: data.tags,
+      clientId: data.clientId,
+      supplierId: data.supplierId,
       createdAt: new Date().toISOString(),
       employeeId: data.employeeId,
     });
     setSheetVisible(false);
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, [addTask]);
+
+  const handleSaveTask = useCallback((data: TaskFormData) => {
+    if (editingTask) {
+      updateTask(editingTask.id, data);
+      setEditingTask(null);
+      clearRelationDraft('task');
+      setPendingTaskDraft(null);
+      setSheetVisible(false);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      return;
+    }
+    clearRelationDraft('task');
+    setPendingTaskDraft(null);
+    handleAddTask(data);
+  }, [editingTask, handleAddTask, updateTask]);
 
   const handleToggle = useCallback(
     (id: string) => {
@@ -374,25 +341,10 @@ export default function TarefasScreen() {
     [removeTask, expandedTaskId],
   );
 
-  const handleStartEdit = useCallback((id: string, description: string) => {
-    setEditingTaskId(id);
-    setEditText(description);
-  }, []);
-
-  const handleSaveEdit = useCallback(
-    (id: string) => {
-      if (editText.trim()) {
-        updateTask(id, { description: editText.trim() });
-      }
-      setEditingTaskId(null);
-      setEditText('');
-    },
-    [editText, updateTask],
-  );
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingTaskId(null);
-    setEditText('');
+  const handleStartEdit = useCallback((task: Task) => {
+    closeOpenSwipeable();
+    setEditingTask(task);
+    setSheetVisible(true);
   }, []);
 
   const handleSetPriority = useCallback(
@@ -559,20 +511,19 @@ export default function TarefasScreen() {
     </TouchableOpacity>
   );
 
-  const renderLeftActions = (taskId: string, task: Task) => (
+  const renderLeftActions = (task: Task) => (
     <TouchableOpacity
-      style={[styles.swipeComplete, task.done && styles.swipeCompleteUndo]}
-      onPress={() => { closeOpenSwipeable(); handleToggle(taskId); }}
+      style={styles.swipeComplete}
+      onPress={() => handleStartEdit(task)}
     >
-      <Ionicons name={task.done ? 'arrow-undo' : 'checkmark-circle'} size={20} color="#FFFFFF" />
-      <Text style={styles.swipeActionText}>{task.done ? 'Reabrir' : 'Concluir'}</Text>
+      <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+      <Text style={styles.swipeActionText}>Editar</Text>
     </TouchableOpacity>
   );
 
   // ─────── Task Card ───────
   const renderTaskCard = ({ item }: { item: Task }) => {
     const isExpanded = expandedTaskId === item.id;
-    const isEditing = editingTaskId === item.id;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const isOverdue = item.dueDate && !item.done && new Date(item.dueDate + 'T00:00:00') < today;
@@ -585,7 +536,7 @@ export default function TarefasScreen() {
           else swipeableRefs.current.delete(item.id);
         }}
         renderRightActions={() => renderRightActions(item.id)}
-        renderLeftActions={() => renderLeftActions(item.id, item)}
+         renderLeftActions={() => renderLeftActions(item)}
         onSwipeableWillOpen={() => {
           swipeableRefs.current.forEach((r, key) => {
             if (key !== item.id) r.close();
@@ -619,35 +570,15 @@ export default function TarefasScreen() {
               activeOpacity={1}
               onPress={() => handleToggleExpand(item.id)}
             >
-              {isEditing ? (
-                <TextInput
-                  style={styles.inlineEditInput}
-                  value={editText}
-                  onChangeText={setEditText}
-                  onSubmitEditing={() => handleSaveEdit(item.id)}
-                  onBlur={handleCancelEdit}
-                  autoFocus
-                  selectTextOnFocus
-                  returnKeyType="done"
-                />
-              ) : (
-                <TouchableOpacity
-                  onPress={() => {
-                    if (!item.done) handleStartEdit(item.id, item.description);
-                  }}
-                  activeOpacity={1}
+              <View style={styles.taskDescriptionRow}>
+                {item.source === 'chat' && <ChatIndicator size={14} />}
+                <Text
+                  style={[styles.taskText, item.done && styles.taskTextDone]}
+                  numberOfLines={isExpanded ? undefined : 2}
                 >
-                  <View style={styles.taskDescriptionRow}>
-                    {item.source === 'chat' && <ChatIndicator size={14} />}
-                    <Text
-                      style={[styles.taskText, item.done && styles.taskTextDone]}
-                      numberOfLines={isExpanded ? undefined : 2}
-                    >
-                      {item.description}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
+                  {item.description}
+                </Text>
+              </View>
 
               <View style={styles.taskMetaRow}>
                 <TouchableOpacity
@@ -667,7 +598,7 @@ export default function TarefasScreen() {
                 {item.dueDate && (
                   <TouchableOpacity
                     style={[styles.taskMetaTag, isOverdue && styles.taskMetaTagOverdue]}
-                    onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate })}
+                    onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate, currentLabel: item.dueDateLabel ?? null })}
                   >
                     <Ionicons
                       name="calendar-outline"
@@ -683,7 +614,7 @@ export default function TarefasScreen() {
                 {!item.dueDate && (
                   <TouchableOpacity
                     style={styles.taskMetaTag}
-                    onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate })}
+                    onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate, currentLabel: item.dueDateLabel ?? null })}
                   >
                     <Ionicons name="calendar-outline" size={10} color={Colors.textSecondary} />
                     <Text style={styles.taskMetaText}>Prazo</Text>
@@ -706,9 +637,13 @@ export default function TarefasScreen() {
                 })}
 
                 <TouchableOpacity style={styles.taskMetaTag} onPress={() => setEmployeePicker(item.id)}>
-                  <Ionicons name="person-outline" size={10} color={item.employeeId ? Colors.accent : Colors.textSecondary} />
-                  <Text style={[styles.taskMetaText, item.employeeId && { color: Colors.accent }]} numberOfLines={1}>
-                    {employeeItems.find((employee) => employee.id === item.employeeId)?.name ?? 'Atribuir'}
+                  <Ionicons name="person-outline" size={10} color={item.employeeId || item.clientId || item.supplierId ? Colors.accent : Colors.textSecondary} />
+                  <Text style={[styles.taskMetaText, (item.employeeId || item.clientId || item.supplierId) && { color: Colors.accent }]} numberOfLines={1}>
+                    {[
+                      clienteItems.find((client) => client.id === item.clientId)?.name,
+                      fornecedorItems.find((supplier) => supplier.id === item.supplierId)?.name,
+                      employeeItems.find((employee) => employee.id === item.employeeId)?.name,
+                    ].filter(Boolean).join(', ') || 'Atribuir'}
                   </Text>
                 </TouchableOpacity>
 
@@ -918,191 +853,38 @@ export default function TarefasScreen() {
   );
 
   // ─────── Date Picker Modal ───────
-  const renderDatePicker = () => {
-    const options = getDateQuickOptions();
-    const weekDays = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
-    const weeks = getCalendarDays(calendarViewYear, calendarViewMonth);
-    const selectedDate = datePicker?.current ?? null;
-    const monthNames = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
-    ];
-
-    const goToPrevMonth = () => {
-      if (calendarViewMonth === 0) {
-        setCalendarViewYear((y) => y - 1);
-        setCalendarViewMonth(11);
-      } else {
-        setCalendarViewMonth((m) => m - 1);
-      }
-    };
-
-    const goToNextMonth = () => {
-      if (calendarViewMonth === 11) {
-        setCalendarViewYear((y) => y + 1);
-        setCalendarViewMonth(0);
-      } else {
-        setCalendarViewMonth((m) => m + 1);
-      }
-    };
-
-    const handleCalendarDateSelect = (day: number) => {
-      const m = String(calendarViewMonth + 1).padStart(2, '0');
-      const d = String(day).padStart(2, '0');
-      const dateStr = `${calendarViewYear}-${m}-${d}`;
-      if (datePicker) {
-        handleSetDueDate(datePicker.taskId, dateStr);
-        setShowCalendar(false);
-      }
-    };
-
-    return (
-      <Modal
-        visible={datePicker !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setDatePicker(null)}
-      >
-        <Pressable style={styles.modalOverlay} onPress={() => { setDatePicker(null); setShowCalendar(false); }}>
-          <Pressable style={styles.pickerCard}>
-            <View style={styles.pickerHeader}>
-              <Text style={styles.pickerTitle}>Data de vencimento</Text>
-              <TouchableOpacity
-                onPress={() => { setDatePicker(null); setShowCalendar(false); }}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="close" size={22} color={Colors.textMuted} />
-              </TouchableOpacity>
-            </View>
-
-            {options.map((opt, idx) => {
-              const isSelected = (selectedDate ?? null) === (opt.value ?? null);
-              return (
-                <TouchableOpacity
-                  key={idx}
-                  style={[styles.pickerOption, isSelected && styles.pickerOptionActive]}
-                  onPress={() => {
-                    if (datePicker) {
-                      const periodLabels = ['Esta semana', 'Próxima semana'];
-                      const label = periodLabels.includes(opt.label) ? opt.label : null;
-                      handleSetDueDate(datePicker.taskId, opt.value, label);
-                      setShowCalendar(false);
-                    }
-                  }}
-                >
-                  <View style={[styles.pickerIconCircle, isSelected && { backgroundColor: Colors.accentLight }]}>
-                    <Ionicons
-                      name={opt.icon}
-                      size={20}
-                      color={isSelected ? Colors.accent : Colors.textSecondary}
-                    />
-                  </View>
-                  <Text style={[styles.pickerOptionLabel, { marginLeft: Spacing.md, flex: 1 }]}>
-                    {opt.label}
-                  </Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={22} color={Colors.accent} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-
-            <View style={styles.dateDivider} />
-
-            {/* Collapsible calendar trigger */}
+  const renderDatePicker = () => (
+    <Modal
+      visible={datePicker !== null}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setDatePicker(null)}
+    >
+      <Pressable style={styles.modalOverlay} onPress={() => setDatePicker(null)}>
+        <Pressable style={styles.pickerCard}>
+          <View style={styles.pickerHeader}>
+            <Text style={styles.pickerTitle}>Data de vencimento</Text>
             <TouchableOpacity
-              style={styles.calendarTrigger}
-              onPress={() => setShowCalendar((v) => !v)}
+              onPress={() => setDatePicker(null)}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons
-                name="calendar-outline"
-                size={18}
-                color={selectedDate ? Colors.accent : Colors.textSecondary}
-              />
-              <Text
-                style={[
-                  styles.calendarTriggerText,
-                  selectedDate && styles.calendarTriggerTextActive,
-                ]}
-              >
-                {selectedDate
-                  ? new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', {
-                      day: '2-digit',
-                      month: 'long',
-                      year: 'numeric',
-                    })
-                  : 'Escolher data específica'}
-              </Text>
-              <Ionicons
-                name={showCalendar ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color={Colors.textMuted}
-              />
+              <Ionicons name="close" size={22} color={Colors.textMuted} />
             </TouchableOpacity>
+          </View>
 
-            {showCalendar && (
-              <View style={styles.calendarContainer}>
-                <View style={styles.calendarHeader}>
-                  <TouchableOpacity onPress={goToPrevMonth} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="chevron-back" size={20} color={Colors.primary} />
-                  </TouchableOpacity>
-                  <Text style={styles.calendarMonthLabel}>
-                    {monthNames[calendarViewMonth]} {calendarViewYear}
-                  </Text>
-                  <TouchableOpacity onPress={goToNextMonth} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.calendarWeekDays}>
-                  {weekDays.map((wd, i) => (
-                    <View key={i} style={styles.calendarWeekDayCell}>
-                      <Text style={styles.calendarWeekDayText}>{wd}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {weeks.map((week, wi) => (
-                  <View key={wi} style={styles.calendarWeek}>
-                    {week.map((day, di) => {
-                      if (day === null) {
-                        return <View key={di} style={styles.calendarDayCell} />;
-                      }
-                      const dateStr = `${calendarViewYear}-${String(calendarViewMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      const isSel = isSameDate(selectedDate, calendarViewYear, calendarViewMonth, day);
-                      const isTdy = isTodayDate(calendarViewYear, calendarViewMonth, day);
-
-                      return (
-                        <TouchableOpacity
-                          key={di}
-                          style={[
-                            styles.calendarDayCell,
-                            isSel && styles.calendarDaySelected,
-                            isTdy && !isSel && styles.calendarDayToday,
-                          ]}
-                          onPress={() => handleCalendarDateSelect(day)}
-                        >
-                          <Text
-                            style={[
-                              styles.calendarDayText,
-                              isSel && styles.calendarDayTextSelected,
-                              isTdy && !isSel && styles.calendarDayTextToday,
-                            ]}
-                          >
-                            {day}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                ))}
-              </View>
-            )}
-          </Pressable>
+          <TaskDateSelector
+            value={datePicker?.current ?? null}
+            label={datePicker?.currentLabel ?? null}
+            onChange={(value, label) => {
+              if (datePicker) {
+                handleSetDueDate(datePicker.taskId, value, label);
+              }
+            }}
+          />
         </Pressable>
-      </Modal>
-    );
-  };
+      </Pressable>
+    </Modal>
+  );
 
   // ─────── Loading State ───────
   if (isLoading) {
@@ -1303,8 +1085,31 @@ export default function TarefasScreen() {
 
           <FAB onPress={() => setSheetVisible(true)} />
 
-          <BottomSheet visible={sheetVisible} onClose={() => setSheetVisible(false)}>
-            <TaskForm onSave={handleAddTask} onCancel={() => setSheetVisible(false)} />
+          <BottomSheet visible={sheetVisible} onClose={() => { clearRelationDraft('task'); setPendingTaskDraft(null); setSheetVisible(false); }} height={620}>
+            <TaskForm
+              key={editingTask?.id ?? (pendingTaskDraft ? `task-draft-${pendingTaskDraft.clientId ?? ''}-${pendingTaskDraft.supplierId ?? ''}-${pendingTaskDraft.employeeId ?? ''}` : 'new-task')}
+              initialData={editingTask ?? pendingTaskDraft ?? undefined}
+              onSave={handleSaveTask}
+              onCancel={() => {
+                setEditingTask(null);
+                clearRelationDraft('task');
+                setPendingTaskDraft(null);
+                setSheetVisible(false);
+              }}
+              onBeforeNavigate={(relation, data) => {
+                saveRelationDraft('task', data);
+                setPendingTaskDraft(data);
+                setEditingTask(null);
+                setSheetVisible(false);
+                setTimeout(() => {
+                  const pluginId = relation === 'client' ? 'clientes' : relation === 'supplier' ? 'fornecedores' : 'equipe';
+                  const route = useAppStore.getState().activatedPlugins.includes(pluginId)
+                    ? ({ clientes: '/plugins/clientes', fornecedores: '/plugins/fornecedores', equipe: '/plugins/equipe' } as const)[pluginId]
+                    : `/plugins/store?highlight=${pluginId}`;
+                  router.push(`${route}${route.includes('?') ? '&' : '?'}returnToTasks=1&relation=${relation}` as any);
+                }, 240);
+              }}
+            />
           </BottomSheet>
         </KeyboardAvoidingView>
 
@@ -1315,10 +1120,15 @@ export default function TarefasScreen() {
         <Modal visible={employeePicker !== null} transparent animationType="fade" onRequestClose={() => setEmployeePicker(null)}>
           <Pressable style={styles.modalOverlay} onPress={() => setEmployeePicker(null)}>
             <Pressable style={styles.pickerCard}>
-              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir funcionário</Text><TouchableOpacity onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.textMuted} /></TouchableOpacity></View>
-              <TouchableOpacity style={styles.pickerOption} onPress={() => { if (employeePicker) updateTask(employeePicker, { employeeId: undefined }); setEmployeePicker(null); }}><Text style={styles.pickerOptionLabel}>Sem funcionário</Text></TouchableOpacity>
-              {employeeItems.map((employee) => <TouchableOpacity key={employee.id} style={styles.pickerOption} onPress={() => { if (employeePicker) updateTask(employeePicker, { employeeId: employee.id }); setEmployeePicker(null); }}><Text style={styles.pickerOptionLabel}>{employee.name}</Text><Text style={styles.pickerOptionDesc}>{employee.role}</Text></TouchableOpacity>)}
-              {employeeItems.length === 0 && <Text style={styles.tagEmpty}>Cadastre funcionários no módulo Equipe.</Text>}
+              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir tarefa</Text><TouchableOpacity onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.textMuted} /></TouchableOpacity></View>
+              {taskBeingAssigned && (
+                <TaskPeopleSelector
+                  clientId={taskBeingAssigned.clientId}
+                  supplierId={taskBeingAssigned.supplierId}
+                  employeeId={taskBeingAssigned.employeeId}
+                  onChange={(relation, id) => updateTask(taskBeingAssigned.id, { [`${relation}Id`]: id })}
+                />
+              )}
             </Pressable>
           </Pressable>
         </Modal>
@@ -1536,9 +1346,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 1,
   },
   taskCardDone: { opacity: 0.55 },
   taskMainRow: {
@@ -1752,7 +1562,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   swipeComplete: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.warning,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -1878,13 +1688,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Date divider
-  dateDivider: {
-    height: 1,
-    backgroundColor: Colors.border,
-    marginVertical: Spacing.lg,
-  },
-
   // Tag manager
   tagEmpty: {
     fontFamily: 'PlusJakartaSans_400Regular',
@@ -1993,88 +1796,5 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
     color: Colors.danger,
-  },
-
-  // Calendar trigger
-  calendarTrigger: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.md,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.bg,
-    gap: Spacing.sm,
-  },
-  calendarTriggerText: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-  },
-  calendarTriggerTextActive: {
-    fontFamily: 'PlusJakartaSans_500Medium',
-    color: Colors.primary,
-  },
-
-  // Calendar
-  calendarContainer: {
-    marginTop: Spacing.sm,
-    paddingTop: Spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  calendarHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  calendarMonthLabel: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-  },
-  calendarWeekDays: {
-    flexDirection: 'row',
-    marginBottom: Spacing.xs,
-  },
-  calendarWeekDayCell: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: Spacing.xs,
-  },
-  calendarWeekDayText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 11,
-    color: Colors.textMuted,
-  },
-  calendarWeek: {
-    flexDirection: 'row',
-  },
-  calendarDayCell: {
-    flex: 1,
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: Radius.full,
-  },
-  calendarDayText: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-  },
-  calendarDayToday: {
-    backgroundColor: Colors.bg,
-  },
-  calendarDayTextToday: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    color: Colors.accent,
-  },
-  calendarDaySelected: {
-    backgroundColor: Colors.accent,
-  },
-  calendarDayTextSelected: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    color: '#FFFFFF',
   },
 });
