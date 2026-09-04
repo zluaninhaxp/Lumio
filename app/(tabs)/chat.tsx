@@ -10,7 +10,8 @@ import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
 import type { TaskParserContext, TaskParseResult } from '../../src/engine/taskEngine/types';
-import { parseCalendarMessage, decideHybrid } from '../../src/engine/calendarEngine/calendarParser';
+import { parseCalendarMessage, decideHybrid, humanizeDueDate, resolveTemporal } from '../../src/engine/calendarEngine/calendarParser';
+import { buildTaskEventAmbiguity, type TaskEventAmbiguity } from '../../src/engine/calendarEngine/domainAmbiguity';
 import type { CalendarParserContext } from '../../src/engine/calendarEngine/types';
 import {
   parseFinancialMessage, applyFinancialResult, buildFinanceCards,
@@ -35,14 +36,15 @@ interface Message {
   text: string;
   actions?: string[];
   quickActions?: { label: string; value: QuickActionValue }[];
-  ambiguity?: FinancialDirectionAmbiguity;
+  ambiguity?: ChatAmbiguity;
   fallbackSourceText?: string;
   /** Cards visuais (substituem `text` quando presentes). */
   cards?: BotCard[];
   timestamp: Date;
 }
 
-type QuickActionValue = FinancialDirectionAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other';
+type ChatAmbiguity = FinancialDirectionAmbiguity | TaskEventAmbiguity;
+type QuickActionValue = ChatAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other';
 
 const INITIAL_MESSAGES: Message[] = [
   {
@@ -177,10 +179,10 @@ return date.toISOString().split('T')[0];
     };
   }, []);
 
-  const persistIntentMarker = useCallback((phrase: string, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
+  const persistIntentMarker = useCallback((domain: 'financial' | 'calendar', phrase: string, resolution: string) => {
     const state = useAppStore.getState();
     const markers = state.learnedIntentMarkers.map((marker) => ({ ...marker }));
-    recordLearnedIntentMarker({ learnedIntentMarkers: markers }, 'financial', phrase, resolution);
+    recordLearnedIntentMarker({ learnedIntentMarkers: markers }, domain, phrase, resolution);
     state.updateLearnedIntentMarkers(markers);
     if (currentUser) {
       void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
@@ -232,7 +234,7 @@ return date.toISOString().split('T')[0];
           const entry = result.entries[0];
           const direction = entry.direction === 'income' ? 'IN' : 'OUT';
           const tense = entry.tense === 'future' ? 'FUTURE' : 'REALIZED';
-          persistIntentMarker(learnedPhrase, `${direction}_${tense}` as FinancialDirectionAmbiguity['options'][number]['value']);
+          persistIntentMarker('financial', learnedPhrase, `${direction}_${tense}` as FinancialDirectionAmbiguity['options'][number]['value']);
         }
        for (const entry of result.entries) {
          learnTaxonomyTerm(`financial.${entry.direction}`, entry.unresolvedTaxonomyTerm);
@@ -256,13 +258,13 @@ return date.toISOString().split('T')[0];
     botType?: 'bot' | 'fallback';
     cards?: BotCard[];
     quickActions?: { label: string; value: QuickActionValue }[];
-    ambiguity?: FinancialDirectionAmbiguity;
+    ambiguity?: ChatAmbiguity;
     fallbackSourceText?: string;
   };
 
   const learnIntentMarker = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
     if (!ambiguity.candidatePhrase) return;
-    persistIntentMarker(ambiguity.candidatePhrase, resolution);
+    persistIntentMarker('financial', ambiguity.candidatePhrase, resolution);
   }, [persistIntentMarker]);
 
   const applyFinancialChoice = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']): TaskOutcome => {
@@ -271,6 +273,27 @@ return date.toISOString().split('T')[0];
     learnIntentMarker(ambiguity, resolution);
     return { handled: true, botText: buildFinancialBotText(result.entries), cards: buildFinanceCards(result.entries), botType: 'bot' };
   }, [learnIntentMarker]);
+
+  const applyTaskEventChoice = useCallback((ambiguity: TaskEventAmbiguity, resolution: 'task' | 'event'): TaskOutcome => {
+    if (resolution === 'task') {
+      const taskId = addTask({
+        description: ambiguity.sourceText,
+        source: 'chat',
+        done: false,
+        dueDate: ambiguity.date,
+        dueDateLabel: humanizeDueDate(ambiguity.date, new Date()),
+        priority: 'media',
+        subtasks: [],
+        tags: [],
+        createdAt: new Date().toISOString(),
+      });
+      persistIntentMarker('calendar', ambiguity.candidatePhrase, 'task');
+      return { handled: true, botText: `Tarefa criada: "${ambiguity.sourceText}".`, actions: taskId ? ['Concluir'] : undefined, botType: 'bot' };
+    }
+    addEvent({ date: ambiguity.date, time: ambiguity.time, description: ambiguity.sourceText, type: 'event', source: 'chat' });
+    persistIntentMarker('calendar', ambiguity.candidatePhrase, 'event');
+    return { handled: true, botText: `Evento criado: "${ambiguity.sourceText}".`, botType: 'bot' };
+  }, [addTask, addEvent, persistIntentMarker]);
 
   /**
    * Cria as tarefas devolvidas pelo motor e monta a resposta do bot.
@@ -293,6 +316,32 @@ return date.toISOString().split('T')[0];
     const result = runTaskEngine(returnText);
     const cal = runCalendarEngine(returnText);
     const minconf = 0.5;
+
+    const learnedDomainMarker = findLearnedIntentMarker(
+      { learnedIntentMarkers: useAppStore.getState().learnedIntentMarkers },
+      'calendar',
+      returnText,
+    );
+    const temporal = resolveTemporal(cal.normalized.tokens, new Date()).resolution;
+    if (learnedDomainMarker && (learnedDomainMarker.resolution === 'task' || learnedDomainMarker.resolution === 'event') && (temporal.dueDate || temporal.dueTime)) {
+      const learnedAmbiguity: TaskEventAmbiguity = {
+        type: 'task_or_event', sourceText: returnText, candidatePhrase: returnText,
+        date: temporal.dueDate ?? new Date().toISOString().split('T')[0], time: temporal.dueTime,
+        options: [{ label: 'Tarefa', value: 'task' }, { label: 'Evento', value: 'event' }],
+      };
+      return applyTaskEventChoice(learnedAmbiguity, learnedDomainMarker.resolution);
+    }
+
+    const domainAmbiguity = buildTaskEventAmbiguity(returnText, result, cal, new Date());
+    if (domainAmbiguity) {
+      return {
+        handled: true,
+        botText: 'Isso é uma tarefa pra fazer ou um compromisso marcado?',
+        quickActions: domainAmbiguity.options,
+        ambiguity: domainAmbiguity,
+        botType: 'bot',
+      };
+    }
 
     // ─── CASO 1: calendar diz create_event PURO (compromissos/eventos) ───
     // A intenção dominante é compromisso. NÃO criar tarefas (evita
@@ -408,14 +457,14 @@ return date.toISOString().split('T')[0];
     if (taskCards.length === 0 && eventCards.length === 0) return { handled: false };
     const allCards = [...taskCards, ...eventCards];
     return { handled: true, botText: '', cards: allCards, actions: ['Concluir'], botType: 'bot' };
-  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm]);
+  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
   /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
-  const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: FinancialDirectionAmbiguity; fallbackSourceText?: string }) => {
+  const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: ChatAmbiguity; fallbackSourceText?: string }) => {
     refreshOrcamentos();
     refreshContratos();
     const userMsg: Message = {
@@ -440,11 +489,18 @@ return date.toISOString().split('T')[0];
   }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
 
   const handleFinancialChoice = useCallback((message: Message, value: FinancialDirectionAmbiguity['options'][number]['value']) => {
-    if (!message.ambiguity) return;
+    if (!message.ambiguity || message.ambiguity.type !== 'financial_direction') return;
     const option = message.ambiguity.options.find((item) => item.value === value);
     if (!option) return;
     commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
   }, [applyFinancialChoice, commitMessages]);
+
+  const handleTaskEventChoice = useCallback((message: Message, value: 'task' | 'event') => {
+    if (!message.ambiguity || message.ambiguity.type !== 'task_or_event') return;
+    const option = message.ambiguity.options.find((item) => item.value === value);
+    if (!option) return;
+    commitMessages(option.label, applyTaskEventChoice(message.ambiguity, value));
+  }, [applyTaskEventChoice, commitMessages]);
 
   const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
     if (value === 'register_expense') {
@@ -779,7 +835,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {item.quickActions && item.quickActions.length > 0 && (
             <View style={styles.quickActionsRow}>
               {item.quickActions.map((action) => (
-                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
+                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => item.ambiguity?.type === 'task_or_event'
+                  ? handleTaskEventChoice(item, action.value as 'task' | 'event')
+                  : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
                   <Text style={styles.quickActionText}>{action.label}</Text>
                 </TouchableOpacity>
               ))}

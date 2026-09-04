@@ -11,7 +11,10 @@ import assert from 'node:assert/strict';
 import { parseTaskMessage } from '../../taskEngine/taskParser.ts';
 import type { TaskParserContext } from '../../taskEngine/types.ts';
 import { parseCalendarMessage, decideHybrid } from '../calendarParser.ts';
+import { buildTaskEventAmbiguity } from '../domainAmbiguity.ts';
 import type { CalendarParserContext } from '../types.ts';
+import { findLearnedIntentMarker, recordLearnedIntentMarker } from '../../taxonomy/entityResolver.ts';
+import type { LearnedIntentMarker } from '../../taxonomy/types.ts';
 
 const NOW = new Date(2026, 7, 13, 10, 0, 0, 0); // 2026-08-13 quinta
 
@@ -42,6 +45,24 @@ function calCtx(): CalendarParserContext {
     people: taskCtx().people,
   };
 }
+
+test('data sem verbo claro dispara ambiguidade entre tarefa e evento', () => {
+  const text = 'dia 20 às 15h com cliente';
+  const ambiguity = buildTaskEventAmbiguity(text, parseTaskMessage(text, taskCtx()), parseCalendarMessage(text, calCtx()), NOW);
+  assert.deepEqual(ambiguity?.options, [{ label: 'Tarefa', value: 'task' }, { label: 'Evento', value: 'event' }]);
+  assert.equal(ambiguity?.date, '2026-08-20');
+  assert.equal(ambiguity?.time, '15:00');
+});
+
+test('escolha Evento cria marker e resolve mensagem parecida sem nova pergunta', () => {
+  const text = 'dia 20 às 15h com cliente';
+  const markers: LearnedIntentMarker[] = [];
+  const ambiguity = buildTaskEventAmbiguity(text, parseTaskMessage(text, taskCtx()), parseCalendarMessage(text, calCtx()), NOW);
+  assert.ok(ambiguity);
+  recordLearnedIntentMarker({ learnedIntentMarkers: markers }, 'calendar', ambiguity!.candidatePhrase, 'event');
+  assert.equal(findLearnedIntentMarker({ learnedIntentMarkers: markers }, 'calendar', 'dia 22 às 15h com cliente')?.resolution, 'event');
+  assert.equal(ambiguity!.options.find((option) => option.value === 'event')?.label, 'Evento');
+});
 
 /** Espelha a orquestração do chat.tsx — decide o que criar. */
 function orchestrate(msg: string): {
