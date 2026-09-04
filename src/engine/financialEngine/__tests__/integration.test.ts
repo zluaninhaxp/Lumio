@@ -9,10 +9,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseFinancialMessage } from '../financialParser.ts';
-import { applyFinancialResult, buildFinanceCards } from '../financialOrchestrator.ts';
+import { applyFinancialAmbiguity, applyFinancialResult, buildFinanceCards } from '../financialOrchestrator.ts';
 import { entryToTransactionPayload, buildFinancialBotText } from '../apply.ts';
 import { answerFinancialQuery } from '../queryAnswer.ts';
 import type { FinancialParserContext } from '../types.ts';
+import { recordLearnedIntentMarker } from '../../taxonomy/entityResolver.ts';
+import type { LearnedIntentMarker } from '../../taxonomy/types.ts';
 // Tipos estruturais espelhando o store real (importar `src/store/index.ts`
 // traria zustand/expo para o runner de testes — mantemos o teste puro).
 interface Tx {
@@ -55,7 +57,7 @@ interface EventLike {
 
 const NOW = new Date(2026, 7, 13, 10, 0, 0, 0); // qui 13/08/2026
 
-function ctx(): FinancialParserContext {
+function ctx(learnedIntentMarkers: LearnedIntentMarker[] = []): FinancialParserContext {
   return {
     now: NOW,
     expenseCategories: ['Material', 'Combustível', 'Funcionários', 'Fornecedores'],
@@ -64,8 +66,34 @@ function ctx(): FinancialParserContext {
     clients: [{ id: 'cli_1', name: 'João' }],
     suppliers: [{ id: 'sup_1', name: 'Casa do Cimento', paymentTerm: '30 dias' }],
     employees: [{ id: 'emp_1', name: 'Carlos' }],
+    businessProfile: { learnedIntentMarkers },
   };
 }
+
+test('ambiguidade financeira aprende a direção e resolve a próxima mensagem', () => {
+  const store = makeStore();
+  const learnedIntentMarkers: LearnedIntentMarker[] = [];
+  const first = parseFinancialMessage('me fizeram um pix de 50 reais', ctx(learnedIntentMarkers));
+  assert.equal(first.ambiguity?.candidatePhrase, 'me fizeram um pix');
+  assert.equal(first.ambiguity?.partialData.amount, 50);
+  assert.equal(store.state.transactions.length, 0);
+  console.log('1. pergunta:', first.ambiguity?.type, first.ambiguity?.candidatePhrase);
+
+  applyFinancialAmbiguity(first.ambiguity!, 'IN_REALIZED', store);
+  recordLearnedIntentMarker({ learnedIntentMarkers }, 'financial', first.ambiguity!.candidatePhrase!, 'IN_REALIZED');
+  assert.equal(store.state.transactions[0].amount, 50);
+  assert.equal(learnedIntentMarkers[0].phrase, 'me fizeram um pix');
+  assert.equal(learnedIntentMarkers[0].resolution, 'IN_REALIZED');
+  assert.equal(learnedIntentMarkers[0].occurrences, 1);
+  console.log('2. resposta:', 'Eu recebi', '-> entrada R$ 50');
+
+  const second = parseFinancialMessage('me fizeram um pix de 80 reais', ctx(learnedIntentMarkers));
+  assert.equal(second.ambiguity, null);
+  assert.equal(second.intent, 'create_transaction');
+  assert.equal(second.entries[0].direction, 'income');
+  assert.equal(second.entries[0].amount, 80);
+  console.log('3. próxima mensagem:', 'entrada R$ 80 sem ambiguidade');
+});
 
 /** Store espelho com a interface mínima do zustand. */
 function makeStore() {

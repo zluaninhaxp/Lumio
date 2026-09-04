@@ -15,7 +15,7 @@
  * um store falso que espelha a interface do zustand.
  */
 import { entryToTransactionPayload } from './apply.ts';
-import type { ParsedFinancialEntry, FinancialParseResult } from './types.ts';
+import type { ParsedFinancialEntry, FinancialDirectionAmbiguity, FinancialParseResult } from './types.ts';
 import type { Transaction, Task } from '../../store/index.ts';
 
 /** Interface mínima do store consumida pela orquestração. */
@@ -90,6 +90,33 @@ export function applyFinancialResult(
   }
 
   return { transactionIds: [], taskId: null, created: 'nothing' };
+}
+
+/** Applies a direction chosen from an ambiguity without parsing the original text again. */
+export function applyFinancialAmbiguity(
+  ambiguity: FinancialDirectionAmbiguity,
+  resolution: FinancialDirectionAmbiguity['options'][number]['value'],
+  store: FinancialStoreApi,
+): { result: FinancialParseResult; application: FinancialApplicationResult } {
+  const direction = resolution.startsWith('IN_') ? 'income' : 'expense';
+  const tense = resolution.endsWith('_FUTURE') ? 'future' : 'realized';
+  const date = ambiguity.partialData.rawDate ?? new Date().toISOString().split('T')[0];
+  const entry: ParsedFinancialEntry = {
+    direction, tense, amount: ambiguity.partialData.amount, amountComputed: false,
+    counterpartyName: null, counterpartyClientId: null, counterpartySupplierId: null,
+    counterpartyEmployeeId: null, category: null, item: null,
+    transactionDate: tense === 'realized' ? date : null,
+    dueDate: tense === 'future' ? date : null,
+    status: tense === 'realized' ? (direction === 'expense' ? 'paid' : 'received') : 'pending',
+    installments: null, quantity: null, confidence: 1, confidenceLevel: 'alta',
+    originalText: ambiguity.candidatePhrase ?? '',
+  };
+  const result: FinancialParseResult = {
+    intent: tense === 'future' ? 'create_obligation' : 'create_transaction',
+    confidence: 1, entries: [entry], query: null, edit: null, recurrence: null,
+    reason: null, originalText: ambiguity.candidatePhrase ?? '', ambiguity: null,
+  };
+  return { result, application: applyFinancialResult(result, store) };
 }
 
 /** Monta os cards do bot a partir das entries criadas. */

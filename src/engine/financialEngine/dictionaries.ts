@@ -24,7 +24,7 @@ export const OUT_REALIZED_MARKERS = [
   'terminei de pagar', 'acabei de pagar', 'acabei de comprar',
   'paguei a conta', 'quitei', ' quitei ',
   // hábito presente ("todo mês pago...") — reconhecido, sem duplicar
-  ' pago ', ' eu pago ', "gastei pacas", "din din saiu", "pagamentozinho", "desembolsei uma grana", "saiu uma grana", "saiu do caixa", "passei no cartão", "passei o cartão", "torrei uma grana", "foi embora da conta", "já quitei isso", "quitei a parada", "paguei tudinho", "gastei uma nota", "saiu uns reais"];
+  ' pago ', ' eu pago ', 'fiz um pix', 'fiz pix', 'mandei um pix', 'mandei pix', 'enviei um pix', 'enviei pix', 'transferi um pix', "gastei pacas", "din din saiu", "pagamentozinho", "desembolsei uma grana", "saiu uma grana", "saiu do caixa", "passei no cartão", "passei o cartão", "torrei uma grana", "foi embora da conta", "já quitei isso", "quitei a parada", "paguei tudinho", "gastei uma nota", "saiu uns reais"];
 
 // ─── SAÍDA — FUTURO / OBRIGAÇÃO ─────────────────────────────────────
 export const OUT_FUTURE_MARKERS = [
@@ -35,6 +35,7 @@ export const OUT_FUTURE_MARKERS = [
   'tenho uma conta', 'tenho uma conta de', 'tenho uma conta para pagar',
   'uma conta de', 'conta para pagar', 'para pagar', 'a pagar',
   'tenho que desembolsar', 'irei pagar', 'vou ter que pagar',
+  'vou fazer um pix', 'vou fazer pix', 'vou mandar um pix', 'vou enviar um pix', 'preciso fazer um pix',
   'vence', 'vencendo', 'vence dia', 'vence no dia', 'vence em',
   'preciso pagar a conta', 'falta pagar', 'estou devendo', 'tou devendo',
   'tenho que pagar a conta',
@@ -48,7 +49,7 @@ export const IN_REALIZED_MARKERS = [
   'vendi', 'eu vendi', 'vendemos', 'ganhei', 'ganhamos', 'a venda de', 'venda de',
   'faturei', 'faturo', 'faturamento de', 'fechei uma venda', 'fechei a venda',
   'me pagou', 'me pagaram', 'me pagaste', 'nos pagou', 'nos pagaram',
-  'me passou', 'me passaram', 'me mandou', 'me mandaram',
+  'me passou', 'me passaram', 'me mandou', 'me mandaram', 'transferiram', 'me transferiram',
   'me enviou', 'me depositou', 'depositaram', 'depositou na minha conta',
   'pagou pra mim', 'pagou para mim', 'passou pra mim', 'passou para mim',
   'recebimento de', 'o cliente pagou', 'a cliente pagou', 'os clientes pagaram',

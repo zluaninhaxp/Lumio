@@ -23,6 +23,14 @@ export interface LearnedTerm {
   occurrences: number;
 }
 
+export interface LearnedIntentMarker {
+  phrase: string;
+  domain: 'task' | 'calendar' | 'financial';
+  resolution: string;
+  occurrences: number;
+  lastSeenAt: string;
+}
+
 export interface BusinessTaxonomy {
   taxonomyVersion: 2;
   businessName: string | null;

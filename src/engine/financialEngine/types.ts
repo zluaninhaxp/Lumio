@@ -17,7 +17,7 @@
  * false` + `supplierDueDate` (padrão do fluxo de fornecedores).
  */
 import type { ConfidenceLevel } from '../taskEngine/types.ts';
-import type { GenericNode } from '../taxonomy/types.ts';
+import type { GenericNode, LearnedIntentMarker } from '../taxonomy/types.ts';
 
 export type FinancialDirection = 'expense' | 'income';
 
@@ -62,6 +62,7 @@ export interface FinancialParserContext {
   taxonomy?: GenericNode[];
   expenseTaxonomy?: GenericNode[];
   incomeTaxonomy?: GenericNode[];
+  businessProfile?: { learnedIntentMarkers: LearnedIntentMarker[] };
   /** Clientes reais (`clienteItems`). */
   clients: ReadonlyArray<{ id: string; name: string }>;
   /** Fornecedores reais (`fornecedorItems`). */
@@ -109,6 +110,13 @@ export interface ParsedFinancialEntry {
   originalText: string;
 }
 
+export interface FinancialDirectionAmbiguity {
+  type: 'financial_direction';
+  partialData: { amount: number; currency: string; rawDate?: string };
+  candidatePhrase: string | null;
+  options: { label: string; value: 'OUT_REALIZED' | 'OUT_FUTURE' | 'IN_REALIZED' | 'IN_FUTURE' }[];
+}
+
 /** Consulta reconhecida (respondida com dados REAIS do store). */
 export interface FinancialQuery {
   kind:
@@ -143,4 +151,5 @@ export interface FinancialParseResult {
   /** Motivo humano quando intent não gera lançamentos. */
   reason: string | null;
   originalText: string;
+  ambiguity: FinancialDirectionAmbiguity | null;
 }

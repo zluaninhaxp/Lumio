@@ -7,8 +7,45 @@ import { buildOnboardingContextDTO, OnboardingContextDTO } from '../ai/onboardin
 import { OnboardingExtractionResult, CategorySuggestion, RecommendedPlugin } from '../ai/types';
 import { canActivatePlugin, PluginId } from '../plugins/registry';
 import { generateId } from '../utils/id';
-import type { BusinessTaxonomy } from '../engine/taxonomy/types';
+import type { BusinessTaxonomy, LearnedIntentMarker } from '../engine/taxonomy/types';
 import { migrateV1toV2 } from '../engine/taxonomy/migrateV1toV2';
+
+function isBusinessTaxonomy(value: unknown): value is BusinessTaxonomy {
+  return !!value && typeof value === 'object'
+    && (value as { taxonomyVersion?: unknown }).taxonomyVersion === 2
+    && !!(value as { domains?: unknown }).domains;
+}
+
+function normalizeHydratedProfile(value: OnboardingExtractionResult | null): { extraction: OnboardingExtractionResult; taxonomy: BusinessTaxonomy } | null {
+  if (!value) return null;
+  if (isBusinessTaxonomy(value)) {
+    const { learnedIntentMarkers: _legacyMarkers, ...taxonomyWithoutLegacy } = value as BusinessTaxonomy & { learnedIntentMarkers?: unknown };
+    const taxonomy = taxonomyWithoutLegacy as BusinessTaxonomy;
+    const suggestion = (domain: keyof BusinessTaxonomy['domains']): CategorySuggestion[] => taxonomy.domains[domain].map((node) => ({ label: node.generic.label, origin: 'mentioned' as const }));
+    return {
+      taxonomy,
+      extraction: {
+        taxonomy,
+        businessName: taxonomy.businessName,
+        segment: taxonomy.segment,
+        summary: taxonomy.summary,
+        coreCategories: {
+          financial: { expense: suggestion('financial.expense'), income: suggestion('financial.income') },
+          taskTags: suggestion('task'),
+          calendarEventTypes: suggestion('calendar'),
+        },
+        keywordMap: {},
+        recommendedPlugins: taxonomy.recommendedPlugins,
+        missingInformation: taxonomy.missingInformation,
+      },
+    };
+  }
+  if (!value.coreCategories?.financial || !value.coreCategories.taskTags || !value.coreCategories.calendarEventTypes) return null;
+  const rawTaxonomy = value.taxonomy ?? migrateV1toV2({ ...value, coreCategories: { financial: { expense: value.coreCategories.financial.expense.map((c) => c.label), income: value.coreCategories.financial.income.map((c) => c.label) }, taskTags: value.coreCategories.taskTags.map((c) => c.label), calendarEventTypes: value.coreCategories.calendarEventTypes.map((c) => c.label) } });
+  const { learnedIntentMarkers: _legacyMarkers, ...taxonomyWithoutLegacy } = rawTaxonomy as BusinessTaxonomy & { learnedIntentMarkers?: unknown };
+  const taxonomy = taxonomyWithoutLegacy as BusinessTaxonomy;
+  return { extraction: { ...value, taxonomy }, taxonomy };
+}
 
 export interface Transaction {
   id: string;
@@ -313,6 +350,9 @@ export interface AppStore {
   onboardingExtraction: OnboardingExtractionResult | null;
   taxonomy: BusinessTaxonomy | null;
   updateTaxonomy: (taxonomy: BusinessTaxonomy) => void;
+  learnedIntentMarkers: LearnedIntentMarker[];
+  hydrateLearnedIntentMarkers: (markers: LearnedIntentMarker[]) => void;
+  updateLearnedIntentMarkers: (markers: LearnedIntentMarker[]) => void;
 
   /**
    * Resultado calculado na tela de celebração (`app/celebration.tsx`),
@@ -626,6 +666,9 @@ export const useAppStore = create<AppStore>((set) => ({
   onboardingExtraction: null,
   taxonomy: null,
   updateTaxonomy: (taxonomy) => set((s) => ({ taxonomy, onboardingExtraction: s.onboardingExtraction ? { ...s.onboardingExtraction, taxonomy } : null })),
+  learnedIntentMarkers: [],
+  hydrateLearnedIntentMarkers: (markers) => set({ learnedIntentMarkers: markers }),
+  updateLearnedIntentMarkers: (markers) => set({ learnedIntentMarkers: markers }),
   pendingOnboardingExtraction: null,
   pendingOnboardingExtractionIsSimulation: false,
   setPendingOnboardingExtraction: (result, isSimulation = false) =>
@@ -1035,25 +1078,27 @@ updateEmployeeItem: (id, item) =>
       onboardingCompleted: true,
     })),
   hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins }) =>
-    set((s) => structuredProfile ? {
-      openAnswers: responses,
-      onboardingContext: context,
-       onboardingExtraction: structuredProfile,
-       taxonomy: structuredProfile.taxonomy ?? migrateV1toV2({ ...structuredProfile, coreCategories: { financial: { expense: structuredProfile.coreCategories.financial.expense.map((c) => c.label), income: structuredProfile.coreCategories.financial.income.map((c) => c.label) }, taskTags: structuredProfile.coreCategories.taskTags.map((c) => c.label), calendarEventTypes: structuredProfile.coreCategories.calendarEventTypes.map((c) => c.label) } }),
-      pendingOnboardingExtraction: null,
-      pendingOnboardingExtractionIsSimulation: false,
-      businessName: structuredProfile.businessName ?? s.businessName,
-      businessType: structuredProfile.segment ?? s.businessType,
-      financialExpenseCategories: structuredProfile.coreCategories.financial.expense,
-      financialIncomeCategories: structuredProfile.coreCategories.financial.income,
-      taskTags: structuredProfile.coreCategories.taskTags,
-      calendarEventTypes: structuredProfile.coreCategories.calendarEventTypes,
-      keywordMap: structuredProfile.keywordMap,
-      recommendedPlugins: structuredProfile.recommendedPlugins,
-      customTaskTags: structuredProfile.coreCategories.taskTags.map((c) => c.label),
-      activatedPlugins,
-      onboardingCompleted: true,
-    } : {
+    set((s) => {
+      const normalizedProfile = normalizeHydratedProfile(structuredProfile);
+      return normalizedProfile ? {
+       openAnswers: responses,
+       onboardingContext: context,
+       onboardingExtraction: normalizedProfile.extraction,
+       taxonomy: normalizedProfile.taxonomy,
+       pendingOnboardingExtraction: null,
+       pendingOnboardingExtractionIsSimulation: false,
+       businessName: normalizedProfile.extraction.businessName ?? s.businessName,
+       businessType: normalizedProfile.extraction.segment ?? s.businessType,
+       financialExpenseCategories: normalizedProfile.extraction.coreCategories.financial.expense,
+       financialIncomeCategories: normalizedProfile.extraction.coreCategories.financial.income,
+       taskTags: normalizedProfile.extraction.coreCategories.taskTags,
+       calendarEventTypes: normalizedProfile.extraction.coreCategories.calendarEventTypes,
+       keywordMap: normalizedProfile.extraction.keywordMap,
+       recommendedPlugins: normalizedProfile.extraction.recommendedPlugins,
+       customTaskTags: normalizedProfile.extraction.coreCategories.taskTags.map((c) => c.label),
+       activatedPlugins,
+       onboardingCompleted: true,
+      } : {
       openAnswers: responses,
       onboardingContext: context,
       activatedPlugins,
@@ -1069,6 +1114,7 @@ updateEmployeeItem: (id, item) =>
       keywordMap: {},
       recommendedPlugins: [],
       customTaskTags: [],
+      };
     }),
 
   resetOnboardingState: () =>
@@ -1079,7 +1125,8 @@ updateEmployeeItem: (id, item) =>
       openAnswers: {},
       onboardingContext: null,
       onboardingExtraction: null,
-      taxonomy: null,
+       taxonomy: null,
+       learnedIntentMarkers: [],
       pendingOnboardingExtraction: null,
       pendingOnboardingExtractionIsSimulation: false,
       financialExpenseCategories: [],

@@ -2,9 +2,9 @@ export { parseFinancialMessage, detectDirectionAndTense, classifyCategory, FINAN
 export { scanMoneyTokens, pickAmount, parseBRNumber } from './moneyParser.ts';
 export { entryToTransactionPayload, buildFinancialBotText, formatBRL } from './apply.ts';
 export { answerFinancialQuery } from './queryAnswer.ts';
-export { applyFinancialResult, buildFinanceCards } from './financialOrchestrator.ts';
+export { applyFinancialResult, applyFinancialAmbiguity, buildFinanceCards } from './financialOrchestrator.ts';
 export type { FinancialStoreApi, FinanceBotCard } from './financialOrchestrator.ts';
 export type {
   FinancialDirection, FinancialIntent, FinancialParseResult,
-  FinancialParserContext, FinancialQuery, ParsedFinancialEntry, FinancialEditRef,
+  FinancialParserContext, FinancialQuery, ParsedFinancialEntry, FinancialEditRef, FinancialDirectionAmbiguity,
 } from './types.ts';

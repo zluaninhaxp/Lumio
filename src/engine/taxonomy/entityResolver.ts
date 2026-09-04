@@ -1,4 +1,4 @@
-import type { EntityResolution, GenericNode, LearnedTerm, SpecificNode, TaxonomyDomain } from './types.ts';
+import type { EntityResolution, GenericNode, LearnedIntentMarker, LearnedTerm, SpecificNode, TaxonomyDomain } from './types.ts';
 import { normalizeTaxonomyText, taxonomyTokens } from './normalize.ts';
 
 const EMPTY: EntityResolution = { genericId: null, genericLabel: null, specificId: null, specificLabel: null, specificCandidates: [], genericConfidence: 0, specificConfidence: null, matchedTerm: null };
@@ -76,9 +76,60 @@ function editSimilarity(a: string, b: string): number {
 }
 
 export function recordLearnedTerm(profile: { learnedTerms: LearnedTerm[] }, domain: TaxonomyDomain, rawTermExtracted: string): void {
-  const text = rawTermExtracted.trim();
+  recordNormalizedOccurrence(profile.learnedTerms, domain, rawTermExtracted, (term) => term.text, (term, now) => { term.occurrences += 1; term.seenAt = now; }, (text, now) => ({ text, domain, resolvedTo: null, seenAt: now, occurrences: 1 }));
+}
+
+export function recordLearnedIntentMarker(
+  profile: { learnedIntentMarkers: LearnedIntentMarker[] },
+  domain: LearnedIntentMarker['domain'],
+  phrase: string,
+  resolution: string,
+): void {
+  recordNormalizedOccurrence(profile.learnedIntentMarkers, domain, phrase, (marker) => marker.phrase, (marker, now) => { marker.occurrences += 1; marker.lastSeenAt = now; }, (text, now) => ({ phrase: text, domain, resolution, occurrences: 1, lastSeenAt: now }));
+}
+
+export function findLearnedIntentMarker(
+  profile: { learnedIntentMarkers: LearnedIntentMarker[] },
+  domain: LearnedIntentMarker['domain'],
+  phrase: string,
+): LearnedIntentMarker | null {
+  const normalizedPhrase = normalizeTaxonomyText(phrase);
+  if (!normalizedPhrase) return null;
+
+  const exact = profile.learnedIntentMarkers.find((marker) => marker.domain === domain && normalizeTaxonomyText(marker.phrase) === normalizedPhrase);
+  if (exact) return exact;
+
+  return profile.learnedIntentMarkers
+    .filter((marker) => marker.domain === domain)
+    .map((marker) => ({ marker, score: intentPhraseSimilarity(normalizedPhrase, marker.phrase) }))
+    .filter(({ score }) => score >= 0.75)
+    .sort((a, b) => b.score - a.score)[0]?.marker ?? null;
+}
+
+function intentPhraseSimilarity(a: string, b: string): number {
+  const phraseScore = bestFuzzy(a, [b]).score;
+  const aTokens = taxonomyTokens(a);
+  const bTokens = taxonomyTokens(b);
+  const tokenScore = aTokens.length === 1 && !GENERIC_INTENT_TOKENS.has(aTokens[0])
+    ? Math.max(0, ...aTokens.flatMap((aToken) => bTokens.map((bToken) => editSimilarity(aToken, bToken))))
+    : 0;
+  return Math.max(phraseScore, tokenScore);
+}
+
+const GENERIC_INTENT_TOKENS = new Set(['pix', 'pagamento', 'transferencia', 'dinheiro', 'valor', 'conta']);
+
+function recordNormalizedOccurrence<T extends { domain: string; occurrences: number }>(
+  items: T[],
+  domain: string,
+  rawText: string,
+  getText: (item: T) => string,
+  updateExisting: (item: T, now: string) => void,
+  create: (text: string, now: string) => T,
+): void {
+  const text = rawText.trim();
   if (!text) return;
-  const existing = profile.learnedTerms.find((term) => term.domain === domain && normalizeTaxonomyText(term.text) === normalizeTaxonomyText(text));
-  if (existing) { existing.occurrences += 1; existing.seenAt = new Date().toISOString(); return; }
-  profile.learnedTerms.push({ text, domain, resolvedTo: null, seenAt: new Date().toISOString(), occurrences: 1 });
+  const existing = items.find((item) => item.domain === domain && normalizeTaxonomyText(getText(item)) === normalizeTaxonomyText(text));
+  const now = new Date().toISOString();
+  if (existing) { updateExisting(existing, now); return; }
+  items.push(create(text, now));
 }

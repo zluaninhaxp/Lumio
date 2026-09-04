@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { recordLearnedTerm, resolveEntity } from '../entityResolver.ts';
+import { findLearnedIntentMarker, recordLearnedIntentMarker, recordLearnedTerm, resolveEntity } from '../entityResolver.ts';
+import type { LearnedIntentMarker } from '../types.ts';
 import type { GenericNode } from '../types.ts';
 
 const nodes: GenericNode[] = [{ id: 'material', generic: { label: 'Material', synonyms: ['materiais'] }, specifics: [
@@ -31,4 +32,25 @@ test('recordLearnedTerm deduplicates by domain and normalized text', () => {
   recordLearnedTerm(profile, 'task', ' gizmo ');
   assert.equal(profile.learnedTerms.length, 1);
   assert.equal(profile.learnedTerms[0].occurrences, 2);
+});
+
+test('recordLearnedIntentMarker increments normalized duplicates', () => {
+  const profile = { learnedIntentMarkers: [] as LearnedIntentMarker[] };
+  recordLearnedIntentMarker(profile, 'financial', '  pagar a diária  ', 'OUT_REALIZED');
+  recordLearnedIntentMarker(profile, 'financial', 'pagar diária', 'OUT_REALIZED');
+  assert.equal(profile.learnedIntentMarkers.length, 1);
+  assert.equal(profile.learnedIntentMarkers[0].occurrences, 2);
+});
+
+test('findLearnedIntentMarker supports exact, fuzzy, and miss cases', () => {
+  const marker: LearnedIntentMarker = { phrase: 'pagar a diária do ajudante', domain: 'financial', resolution: 'OUT_REALIZED', occurrences: 1, lastSeenAt: new Date().toISOString() };
+  const profile = { learnedIntentMarkers: [marker] };
+  assert.equal(findLearnedIntentMarker(profile, 'financial', 'pagar diária ajudante'), marker);
+  assert.equal(findLearnedIntentMarker(profile, 'financial', 'pagar a diária do ajudante hoje'), marker);
+  assert.equal(findLearnedIntentMarker(profile, 'financial', 'marcar reunião com cliente'), null);
+});
+
+test('findLearnedIntentMarker matches a learned phrase when only its key token remains', () => {
+  const profile = { learnedIntentMarkers: [{ phrase: 'tomei um calote', domain: 'financial' as const, resolution: 'OUT_REALIZED', occurrences: 1, lastSeenAt: new Date().toISOString() }] };
+  assert.equal(findLearnedIntentMarker(profile, 'financial', 'calote'), profile.learnedIntentMarkers[0]);
 });
