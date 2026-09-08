@@ -43,8 +43,8 @@ test('ambiguidade: Carlos único, mas "João" case parcial casa um', () => {
   assert.equal(r.id, 'emp_3');
 });
 
-test('sem pessoas no contexto — devolve null', () => {
+test('sem pessoas no contexto — preserva candidato não cadastrado sem id', () => {
   const r = resolvePerson('ligar pro João', []);
   assert.equal(r.id, null);
-  assert.equal(r.name, null);
+  assert.equal(r.name, 'João');
 });

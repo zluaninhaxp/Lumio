@@ -9,13 +9,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
+import { normalizeMessage } from '../../src/engine/taskEngine/normalize';
 import type { TaskParserContext, TaskParseResult } from '../../src/engine/taskEngine/types';
 import { parseCalendarMessage, decideHybrid, humanizeDueDate, resolveTemporal } from '../../src/engine/calendarEngine/calendarParser';
 import { buildTaskEventAmbiguity, type TaskEventAmbiguity } from '../../src/engine/calendarEngine/domainAmbiguity';
 import type { CalendarParserContext } from '../../src/engine/calendarEngine/types';
 import {
   parseFinancialMessage, applyFinancialResult, buildFinanceCards,
-  buildFinancialBotText, answerFinancialQuery, formatBRL, applyFinancialAmbiguity,
+  buildFinancialBotText, answerFinancialQuery, formatBRL, applyFinancialAmbiguity, isSafeFinancialLearnedMarkerPhrase,
 } from '../../src/engine/financialEngine';
 import type { FinancialDirectionAmbiguity, FinancialParserContext } from '../../src/engine/financialEngine';
 import { useAppStore } from '../../src/store';
@@ -179,9 +180,20 @@ return date.toISOString().split('T')[0];
     };
   }, []);
 
-  const persistIntentMarker = useCallback((domain: 'financial' | 'calendar', phrase: string, resolution: string) => {
+  const persistIntentMarker = useCallback((domain: 'financial' | 'calendar' | 'task', phrase: string, resolution: string) => {
     const state = useAppStore.getState();
-    const markers = state.learnedIntentMarkers.map((marker) => ({ ...marker }));
+    const markers = state.learnedIntentMarkers
+      .filter((marker) => marker.domain !== 'financial' || isSafeFinancialLearnedMarkerPhrase(marker.phrase))
+      .map((marker) => ({ ...marker }));
+    if (domain === 'financial' && !isSafeFinancialLearnedMarkerPhrase(phrase)) {
+      state.updateLearnedIntentMarkers(markers);
+      if (currentUser) {
+        void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
+          console.warn('Falha ao limpar intenção financeira aprendida:', error);
+        });
+      }
+      return;
+    }
     recordLearnedIntentMarker({ learnedIntentMarkers: markers }, domain, phrase, resolution);
     state.updateLearnedIntentMarkers(markers);
     if (currentUser) {
@@ -190,6 +202,11 @@ return date.toISOString().split('T')[0];
       });
     }
   }, [currentUser]);
+
+  const taskHookFromText = useCallback((text: string): string | null => {
+    const token = normalizeMessage(text).tokens.find((item) => /^[\p{L}][\p{L}'-]{2,}$/u.test(item));
+    return token ?? null;
+  }, []);
 
   const applyFinancialEngine = useCallback((text: string): TaskOutcome => {
     const sourceText = pendingFinancialText ? `${pendingFinancialText} ${text}` : text;
@@ -288,7 +305,7 @@ return date.toISOString().split('T')[0];
         createdAt: new Date().toISOString(),
       });
       persistIntentMarker('calendar', ambiguity.candidatePhrase, 'task');
-      return { handled: true, botText: `Tarefa criada: "${ambiguity.sourceText}".`, actions: taskId ? ['Concluir'] : undefined, botType: 'bot' };
+      return { handled: true, botText: `Tarefa criada: "${ambiguity.sourceText}".`, botType: 'bot' };
     }
     addEvent({ date: ambiguity.date, time: ambiguity.time, description: ambiguity.sourceText, type: 'event', source: 'chat' });
     persistIntentMarker('calendar', ambiguity.candidatePhrase, 'event');
@@ -316,6 +333,41 @@ return date.toISOString().split('T')[0];
     const result = runTaskEngine(returnText);
     const cal = runCalendarEngine(returnText);
     const minconf = 0.5;
+
+    // Hooks aprendidos no fallback promovem frases desconhecidas a tarefas
+    // sem alterar o regex/dicionário fixo do motor.
+    const taskHook = taskHookFromText(returnText);
+    const learnedTaskHook = taskHook
+      ? findLearnedIntentMarker({ learnedIntentMarkers: useAppStore.getState().learnedIntentMarkers }, 'task', taskHook)
+      : null;
+    if ((result.intent !== 'create_task' || result.tasks.length === 0) && learnedTaskHook?.resolution === 'task') {
+      const normalized = normalizeMessage(returnText);
+      const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
+      const taskId = addTask({
+        description: returnText,
+        source: 'chat',
+        done: false,
+        dueDate: temporal.dueDate,
+        dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
+        priority: 'media',
+        subtasks: [],
+        tags: [],
+        createdAt: new Date().toISOString(),
+      });
+      if (taskId) persistIntentMarker('task', taskHook!, 'task');
+      return {
+        handled: true,
+        botText: taskId ? '' : 'Não foi possível criar a tarefa.',
+        botType: 'bot',
+        cards: taskId ? [{
+          kind: temporal.isDeadline ? 'deadline' : 'task',
+          title: returnText,
+          date: temporal.dueDate ?? undefined,
+          dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
+          time: temporal.dueTime ?? undefined,
+        }] : undefined,
+      };
+    }
 
     const learnedDomainMarker = findLearnedIntentMarker(
       { learnedIntentMarkers: useAppStore.getState().learnedIntentMarkers },
@@ -456,8 +508,8 @@ return date.toISOString().split('T')[0];
     }
     if (taskCards.length === 0 && eventCards.length === 0) return { handled: false };
     const allCards = [...taskCards, ...eventCards];
-    return { handled: true, botText: '', cards: allCards, actions: ['Concluir'], botType: 'bot' };
-  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice]);
+    return { handled: true, botText: '', cards: allCards, botType: 'bot' };
+  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice, persistIntentMarker, taskHookFromText]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
@@ -505,18 +557,50 @@ return date.toISOString().split('T')[0];
   const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
     if (value === 'register_expense') {
       setPendingFinancialText('gastei');
-      setPendingIntentMarkerPhrase(message.fallbackSourceText ?? null);
+      // O fallback genérico não é evidência suficiente para aprender direção
+      // financeira: a frase pode ser uma tarefa, como "coloque 700 da obra".
+      setPendingIntentMarkerPhrase(null);
       commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
     } else if (value === 'register_income') {
       setPendingFinancialText('recebi');
-      setPendingIntentMarkerPhrase(message.fallbackSourceText ?? null);
+      setPendingIntentMarkerPhrase(null);
       commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
     } else if (value === 'add_task') {
-      commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+      const sourceText = message.fallbackSourceText?.trim();
+      if (!sourceText) {
+        commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+        return;
+      }
+      const normalized = normalizeMessage(sourceText);
+      const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
+      const taskId = addTask({
+        description: sourceText,
+        source: 'chat',
+        done: false,
+        dueDate: temporal.dueDate,
+        dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
+        priority: 'media',
+        subtasks: [],
+        tags: [],
+        createdAt: new Date().toISOString(),
+      });
+      const hook = taskHookFromText(sourceText);
+      if (taskId && hook) persistIntentMarker('task', hook, 'task');
+      commitMessages('Adicionar tarefa', {
+        botText: taskId ? '' : 'Não foi possível criar a tarefa.',
+        botType: 'bot',
+        cards: taskId ? [{
+          kind: temporal.isDeadline ? 'deadline' : 'task',
+          title: sourceText,
+          date: temporal.dueDate ?? undefined,
+          dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
+          time: temporal.dueTime ?? undefined,
+        }] : undefined,
+      });
     } else if (value === 'other') {
       commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
     }
-  }, [commitMessages]);
+  }, [addTask, commitMessages, persistIntentMarker, taskHookFromText]);
 
 
   /**
@@ -737,6 +821,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           actions: [],
           botType: 'fallback' as const,
           cards: undefined,
+          fallbackSourceText: text,
         };
       }
     }

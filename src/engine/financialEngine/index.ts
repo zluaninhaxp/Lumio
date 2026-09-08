@@ -1,4 +1,4 @@
-export { parseFinancialMessage, detectDirectionAndTense, classifyCategory, FINANCIAL_ENGINE_VERSION } from './financialParser.ts';
+export { parseFinancialMessage, detectDirectionAndTense, classifyCategory, isSafeFinancialLearnedMarkerPhrase, FINANCIAL_ENGINE_VERSION } from './financialParser.ts';
 export { scanMoneyTokens, pickAmount, parseBRNumber } from './moneyParser.ts';
 export { entryToTransactionPayload, buildFinancialBotText, formatBRL } from './apply.ts';
 export { answerFinancialQuery } from './queryAnswer.ts';

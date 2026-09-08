@@ -20,6 +20,7 @@ import { humanizeDueDate, resolveTemporal } from './temporal.ts';
 import { ACTION_DICTIONARY, resolveAction } from './dictionaries.ts';
 import type { TaskParserContext, TaskParseResult, ParsedTask, NormalizedText, TaskEntity } from './types.ts';
 import { resolveEntity } from '../taxonomy/entityResolver.ts';
+import { FILLER_WORDS, TRIGGER_WORDS } from './stopwords.ts';
 
 /** Versão do motor — útil para logs/TCC. */
 export const TASK_ENGINE_VERSION = '2.0.0';
@@ -49,7 +50,7 @@ export function parseTaskMessage(input: string, context: TaskParserContext): Tas
   const tasks: ParsedTask[] = [];
 
   for (const frag of fragments) {
-    const t = buildTask(frag, context, normalized.original, assessment.confidence, assessment.action, sharedDue);
+    const t = buildTask(frag.normalized, frag.original, context, normalized.original, assessment.confidence, assessment.action, sharedDue);
     if (t) tasks.push(t);
   }
 
@@ -72,17 +73,16 @@ export function parseTaskMessage(input: string, context: TaskParserContext): Tas
   };
 }
 
-function buildTask(fragment: string, context: TaskParserContext, originalText: string, baseConfidence: number, hintAction: string | null, sharedDueDate: string | null): ParsedTask | null {
+function buildTask(fragment: string, originalFragment: string, context: TaskParserContext, originalText: string, baseConfidence: number, hintAction: string | null, sharedDueDate: string | null): ParsedTask | null {
   const { entity, resolved } = extractEntities(fragment, context.now);
 
   // Se o fragmento não tem ação recognoscível nem gatilho forte, descartar.
   if (!entity.action && !hasTrigger(fragment)) return null;
 
   // Resolve pessoa (no fragmento) — validação contra o contexto real.
-  // O personResolver é insensível a acento/case, então funciona sobre o
-  // fragmento normalizado; o nome próprio (case) só seria útil para pessoas
-  // fora do contexto, que o motor não inventa (seção 20).
-  const person = resolvePerson(fragment, context.people);
+  // O matching é insensível a case/acento, mas a extração de um nome não
+  // cadastrado precisa receber o fragmento com a capitalização original.
+  const person = resolvePerson(originalFragment, context.people);
 
   // Limpa o objeto: remove o nome da pessoa E verbos-gap ("precisa", "vai",
   // "tem", "que") que aparecem entre o sujeito-pessoa e a ação.
@@ -103,7 +103,7 @@ function buildTask(fragment: string, context: TaskParserContext, originalText: s
   const dueDateLabel = humanizeDueDate(dueDateISO, context.now);
 
   // Monta o título.
-  const title = buildTitle(cleanedEntity, person.name);
+  const title = buildTitle(cleanedEntity, person.name, !!person.name && !person.id);
   if (!title) return null;
 
   // Descrição: contexto narrativo extra que não coube no título.
@@ -155,33 +155,25 @@ function cleanObjectFromPerson(entity: TaskEntity, personName: string | null): T
   // Tokens do objeto.
   const tokens = entity.object.split(' ');
   // Remove o primeiro nome da pessoa (e variações com artigo "o/a").
-  const GAP_WORDS = new Set([
-    'precisa', 'precisamos', 'precisava', 'tem', 'temos', 'tinha',
-    'vai', 'vao', 'vão', 'foi', 'foram', 'ia', 'indo',
-    'que', 'de', 'da', 'do', 'pra', 'pro', 'para',
-    'pediu', 'pediu pra', 'pediu para', 'falou', 'falou pra', 'falou para',
-    'disse', 'disse que', 'quer', 'queria', 'quer que',
-    'eu', 'nós', 'nos', 'mim', 'ele', 'ela', 'eles', 'elas',
-    'me', 'te', 'se', 'lhe',
-  ]);
-
   const cleaned: string[] = [];
   let skipPerson = false;
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i];
     // Se for o artigo "o/a" seguido do nome da pessoa, pula ambos.
     if ((tok === 'o' || tok === 'a') && tokens[i + 1] === personFirst) {
+      if (cleaned.length > 0 && ['com', 'para', 'pra', 'pro'].includes(cleaned[cleaned.length - 1])) cleaned.pop();
       i++; // pula o nome
       skipPerson = true;
       continue;
     }
     // Se for o próprio nome da pessoa.
     if (tok === personFirst) {
+      if (cleaned.length > 0 && ['com', 'para', 'pra', 'pro'].includes(cleaned[cleaned.length - 1])) cleaned.pop();
       skipPerson = true;
       continue;
     }
     // Se acabamos de pular a pessoa, remove verbos-gap seguintes.
-    if (skipPerson && GAP_WORDS.has(tok)) {
+    if (skipPerson && FILLER_WORDS.has(tok)) {
       continue;
     }
     skipPerson = false;
@@ -210,12 +202,11 @@ function detectSharedDueDate(n: NormalizedText, now: Date): string | null {
 }
 
 function hasTrigger(fragment: string): boolean {
-  // detectado via INTENT_TRIGGERS — checagem simples
-  const triggers = ['preciso', 'tenho que', 'tem que', 'devo', 'me lembra', 'não esquece', 'nao esquece', 'anota', 'coloca', 'adiciona', 'cria', 'fica', 'ficou', 'seria bom', 'quero', 'preciso deixar'];
-  return triggers.some((t) => fragment.includes(t));
+  return [...TRIGGER_WORDS].some((t) => fragment.split(' ').includes(t)) ||
+    fragment.includes('tenho que') || fragment.includes('tem que') || fragment.includes('me lembra') || fragment.includes('não esquece') || fragment.includes('nao esquece') || fragment.includes('seria bom');
 }
 
-function buildTitle(entity: TaskEntity, personName: string | null): string | null {
+function buildTitle(entity: TaskEntity, personName: string | null, includeUnregisteredPerson: boolean): string | null {
   if (!entity.action && !entity.object) return null;
 
   // Capitaliza a ação (infinitivo) + objeto.
@@ -226,7 +217,8 @@ function buildTitle(entity: TaskEntity, personName: string | null): string | nul
 
   let title: string;
   if (actionInf && obj) {
-    title = `${actionInf} ${obj}`;
+    const lowerObj = entity.object ? lowercaseFirst(entity.object) : obj;
+    title = includeUnregisteredPerson && personName ? `${actionInf} com ${personName} ${lowerObj}` : `${actionInf} ${lowerObj}`;
   } else if (actionInf && personName) {
     // "ligar pro João" -> objeto vazio mas pessoa presente
     title = `${actionInf} com ${personName}`;
@@ -265,11 +257,24 @@ function buildDescription(fragment: string, title: string, entity: TaskEntity, p
     }
     leftover = leftover.replace(new RegExp(escapeReg(personName), 'gi'), '');
   }
+  // A remoção da ação pode deixar o wrapper de lembrete sem o verbo que o
+  // extractor consumiu (por exemplo, "não posso esquecer de o boleto").
+  leftover = leftover.replace(/\b(?:não|nao)\s+posso\s+esquecer(?:\s+de)?(?:\s+(?:o|a|os|as))?\b/gi, ' ');
   // Remove verbos-gap comuns que ficam como resíduo ("precisa", "vai", "tem",
   // "pediu", "falou", "que", "pra", "eu", etc.) — só quando estão isolados.
-  const GAP_RE = /\b(?:precisa|precisamos|precisava|tem|temos|tinha|vai|vao|vão|foi|foram|pediu|falou|disse|quer|queria|que|pra|pro|para|de|da|do|eu|nós|nos|mim|ele|ela|eles|elas|me|te|se|lhe)\b/gi;
+  const gapWords = new Set([...TRIGGER_WORDS, ...FILLER_WORDS]);
+  const GAP_RE = new RegExp(`\\b(?:${[...gapWords].map(escapeReg).join('|')})\\b`, 'giu');
   leftover = leftover.replace(GAP_RE, ' ');
   leftover = leftover.replace(/\s+/g, ' ').replace(/^[,;: ]+|[,;: ]+$/g, '').trim();
+
+  // Se o que sobrou é majoritariamente uma repetição do objeto, não crie uma
+  // descrição truncada (ex.: "reuniã sobre orçamento").
+  if (entity.object) {
+    const objectWords = new Set(entity.object.toLowerCase().split(/\s+/).filter((word) => word.length > 3));
+    const leftoverWords = leftover.toLowerCase().split(/\s+/).filter((word) => word.length > 3);
+    const repeated = leftoverWords.filter((word) => objectWords.has(word)).length;
+    if (repeated >= 2) return null;
+  }
 
   // Só vale como descrição se sobrou contexto significativo (> 12 chars, palavras reais).
   if (leftover.length < 12) return null;
@@ -295,6 +300,10 @@ function capitalize(s: string): string {
 function capitalizeFirst(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+function lowercaseFirst(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toLowerCase() + s.slice(1);
 }
 function escapeReg(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

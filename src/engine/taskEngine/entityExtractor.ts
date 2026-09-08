@@ -9,18 +9,7 @@
 import { resolveAction } from './dictionaries.ts';
 import { resolveTemporal, type TemporalResolution } from './temporal.ts';
 import type { NormalizedText, TaskEntity } from './types.ts';
-
-/** Palavras "function words" que não carregam significado de objeto. */
-const FILLER = new Set([
-  'que', 'de', 'da', 'do', 'das', 'dos', 'um', 'uma', 'uns', 'umas',
-  'o', 'a', 'os', 'as', 'e', 'pra', 'pro', 'para', 'para o', 'para a',
-  'com', 'sem', 'no', 'na', 'nos', 'nas', 'isso', 'aquilo', 'aquele', 'essa',
-  'esse', 'este', 'esta', 'meu', 'minha', 'nosso', 'nossa',
-  'eu', 'ele', 'ela', 'vocês', 'voce', 'vc', 'agora', 'já', 'ja',
-  'preciso', 'precisamos', 'precisa', 'tenho', 'tem', 'temos', 'devo', 'devemos',
-  'lembra', 'lembre', 'lembrar', 'anota', 'anote', 'anotar',
-  'não', 'nao',
-]);
+import { FILLER_WORDS, TRIGGER_WORDS } from './stopwords.ts';
 
 /** Delimitadores que separam múltiplas tarefas (ver seção 7). */
 const MULTI_DELIMS = /\s+(?:e|,|;\s*|depois)\s+/i;
@@ -36,6 +25,11 @@ export interface ExtractedFragment {
   residualTokens: string[];
 }
 
+export interface TaskFragment {
+  normalized: string;
+  original: string;
+}
+
 /**
  * Quebra a mensagem em múltiplos fragmentos quando há delimitadores de
  * múltiplas tarefas E cada lado contém um verbo de ação próprio. Sem isso,
@@ -46,21 +40,18 @@ export interface ExtractedFragment {
  * são os delimitadores naturais de múltiplas tarefas. Sem isso, split
  * por vírgula nunca casa depois da normalização.
  */
-export function splitTaskFragments(n: NormalizedText): string[] {
+export function splitTaskFragments(n: NormalizedText): TaskFragment[] {
   if (!n.text) return [];
 
   // Split sobre o texto bruto para preservar vírgulas/pontos-e-vírgulas.
   const rawParts = roughSplitRaw(n.original);
-  if (rawParts.length <= 1) return [n.text];
+  if (rawParts.length <= 1) return [{ normalized: n.text, original: n.original }];
 
   // Filtra fragmentos que possuem verbo de ação próprio — regra da
   // seção 7 (lista de objetos NÃO vira múltiplas tarefas).
   const valid = rawParts.filter((p) => hasOwnAction(normalizeForSplit(p)));
-  if (valid.length <= 1) return [n.text];
-  // Devolve cada fragmento já NORMALIZADO (lowercase, sem pontuação) para
-  // manter compatibilidade com o resto do pipeline que espera texto
-  // normalizado.
-  return valid.map((p) => normalizeForSplit(p));
+  if (valid.length <= 1) return [{ normalized: n.text, original: n.original }];
+  return valid.map((p) => ({ normalized: normalizeForSplit(p), original: p }));
 }
 
 /** Normaliza só o necessário para checagem de ação (lowercase + acentos). */
@@ -119,7 +110,7 @@ export function extractEntities(fragment: string, now: Date): ExtractedFragment 
     isDeadline = resolution.isDeadline;
   }
   // Também remove marcadores de prazo "até" residuais se temporal não casou.
-  residualTokens = residualTokens.filter((t) => t !== 'até' && t !== 'ate' && t !== 'para' && t !== 'pra' && t !== 'antes' && t !== 'depois');
+  residualTokens = residualTokens.filter((t) => t !== 'até' && t !== 'ate' && t !== 'antes' && t !== 'depois');
 
   // 2) Ação — primeiro token que casa um verbo de ação.
   let action: string | null = null;
@@ -184,12 +175,8 @@ export function extractEntities(fragment: string, now: Date): ExtractedFragment 
 
 /** Remove palavras iniciais de gatilho de intenção que vêm antes da ação. */
 function stripLeadingTriggers(tokens: string[]): string[] {
-  const starts = ['preciso', 'precisamos', 'precisa', 'tenho', 'tem', 'temos', 'devo', 'devemos', 'devia', 'deveria',
-    'lembra', 'lembre', 'lembrar', 'anota', 'anote', 'anotar', 'adiciona', 'adicione', 'adicionar', 'aí', 'ai',
-    'cria', 'crie', 'criar', 'coloca', 'coloque', 'colocar', 'inclui', 'inclua', 'incluir',
-    'fala', 'fale', 'pede', 'peça', 'peca', 'bota', 'põe', 'pone', 'registra', 'registre'];
   let i = 0;
-  while (i < tokens.length && (starts.includes(tokens[i]) || tokens[i] === 'que' || tokens[i] === 'de' || tokens[i] === 'q')) i++;
+  while (i < tokens.length && (TRIGGER_WORDS.has(tokens[i]) || tokens[i] === 'que' || tokens[i] === 'de' || tokens[i] === 'q')) i++;
   // não remover se for a própria ação (ex.: "comprar")
   return tokens.slice(i);
 }
@@ -199,6 +186,14 @@ function stripWrapperPhrases(tokens: string[]): string[] {
   const phrases: string[][] = [
     ['não', 'posso', 'esquecer', 'de'],
     ['nao', 'posso', 'esquecer', 'de'],
+    ['não', 'posso', 'esquecer', 'de', 'o'],
+    ['não', 'posso', 'esquecer', 'de', 'a'],
+    ['não', 'posso', 'esquecer', 'de', 'os'],
+    ['não', 'posso', 'esquecer', 'de', 'as'],
+    ['nao', 'posso', 'esquecer', 'de', 'o'],
+    ['nao', 'posso', 'esquecer', 'de', 'a'],
+    ['nao', 'posso', 'esquecer', 'de', 'os'],
+    ['nao', 'posso', 'esquecer', 'de', 'as'],
     ['não', 'esquece', 'de'],
     ['nao', 'esquece', 'de'],
     ['não', 'posso', 'esquecer'],
@@ -243,24 +238,15 @@ function removePrefix(tokens: string[], prefix: string[]): string[] {
 
 /** Tira "pro/para o + nome" do objeto quando vier em formato curto. */
 function stripAssigneeMarkers(tokens: string[]): string[] {
-  const idx = tokens.findIndex((t, i) => (t === 'pro' || t === 'pra' || t === 'para' || t === 'com') && /^[\p{L}]/u.test(tokens[i + 1] ?? '') && i > 1);
-  if (idx >= 0) {
-    // corta a partir da preposição de pessoa (pessoa fica para o resolver)
-    return tokens.slice(0, idx);
-  }
-  // "o João" / "a Maria" no início
-  if (tokens.length >= 2 && (tokens[0] === 'o' || tokens[0] === 'a') && /^[A-ZÀ-Ú]/u.test(tokens[1] ?? '')) {
-    // Esta heurística só tem efeito sobre o texto normalizado (lower). Como
-    // normalizamos pra lower, não dá pra diferenciar "o João" de "o orçamento".
-    // Por isso deixamos a resolução de pessoa no personResolver, que tem a lista real.
-  }
+  // Não remova preposições no extrator: "para a equipe" e "com Pedro sobre..."
+  // podem ser objeto legítimo. O resolver/limpador de pessoa decide depois.
   return tokens;
 }
 
 function trimFiller(tokens: string[]): string[] {
   let start = 0;
   let end = tokens.length;
-  while (start < end && FILLER.has(tokens[start])) start++;
-  while (end > start && FILLER.has(tokens[end - 1])) end--;
+  while (start < end && FILLER_WORDS.has(tokens[start])) start++;
+  while (end > start && FILLER_WORDS.has(tokens[end - 1])) end--;
   return tokens.slice(start, end);
 }
