@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Modal,
   Animated,
+  PanResponder,
   TouchableWithoutFeedback,
   Dimensions,
   KeyboardAvoidingView,
@@ -76,6 +77,34 @@ export function BottomSheet({
     [translateY, backdropOpacity, onClose, height]
   );
 
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(0, gesture.dy)),
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > 90 || gesture.vy > 0.8) {
+          close();
+          return;
+        }
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 70,
+          friction: 10,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 70,
+          friction: 10,
+        }).start();
+      },
+    }),
+  ).current;
+
   useEffect(() => {
     if (visible) {
       open();
@@ -110,7 +139,13 @@ export function BottomSheet({
               { transform: [{ translateY }] },
             ]}
           >
-             <View style={styles.handle} />
+             <View
+               style={styles.handleHitArea}
+               hitSlop={{ top: 16, bottom: 16, left: 48, right: 48 }}
+               {...panResponder.panHandlers}
+             >
+               <View style={styles.handle} />
+             </View>
             {children}
           </Animated.View>
         </KeyboardAvoidingView>
@@ -146,5 +181,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
+  },
+  handleHitArea: {
+    width: '100%',
+    height: 32,
+    alignItems: 'center',
   },
 });
