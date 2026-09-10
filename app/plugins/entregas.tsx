@@ -12,7 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { DeliveryStatus, Entrega, useAppStore } from "../../src/store";
@@ -223,11 +226,10 @@ export default function EntregasScreen() {
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onClose={() => setModalVisible(false)}
+        height={620}
       >
         <View style={styles.overlay}>
           <View style={styles.modal}>
@@ -288,45 +290,12 @@ export default function EntregasScreen() {
                 placeholder="2026-08-12"
                 placeholderTextColor={Colors.textMuted}
               />
-              <Text style={styles.label}>Responsável (opcional)</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chips}
-              >
-                <TouchableOpacity
-                  style={[styles.chip, !employeeId && styles.chipActive]}
-                  onPress={() => setEmployeeId(undefined)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      !employeeId && styles.chipTextActive,
-                    ]}
-                  >
-                    Não informado
-                  </Text>
-                </TouchableOpacity>
-                {employeeItems.map((employee) => (
-                  <TouchableOpacity
-                    key={employee.id}
-                    style={[
-                      styles.chip,
-                      employeeId === employee.id && styles.chipActive,
-                    ]}
-                    onPress={() => setEmployeeId(employee.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        employeeId === employee.id && styles.chipTextActive,
-                      ]}
-                    >
-                      {employee.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <TaskPeopleSelector
+                title={null}
+                relations={["employee"]}
+                employeeId={employeeId}
+                onChange={(_, id) => setEmployeeId(id)}
+              />
               <Text style={styles.label}>Frete simples (opcional)</Text>
               <TextInput
                 style={styles.input}
@@ -353,8 +322,8 @@ export default function EntregasScreen() {
               )}
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.action}>Cancelar</Text>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={save}>
                 <Text style={styles.saveText}>Salvar entrega</Text>
@@ -362,7 +331,7 @@ export default function EntregasScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -518,5 +487,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
   saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  ...pluginFormStyles,
 });

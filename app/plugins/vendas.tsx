@@ -7,12 +7,16 @@ import {
   Modal,
   TextInput,
   Alert,
+  Dimensions,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
@@ -27,6 +31,8 @@ const emptyItem = (): DraftItem => ({
   quantity: 1,
   unitPrice: 0,
 });
+const FORM_SHEET_MAX_HEIGHT = Dimensions.get("window").height * 0.8;
+const SHEET_CHROME_HEIGHT = Spacing.md + 4 + Spacing.lg + Spacing.xxxl;
 
 export default function VendasScreen() {
   const router = useRouter();
@@ -34,7 +40,6 @@ export default function VendasScreen() {
     pedidos,
     clienteItems,
     estoqueItems,
-    employeeItems,
     addPedido,
     updatePedido,
     completePedido,
@@ -49,6 +54,8 @@ export default function VendasScreen() {
   const [status, setStatus] = useState<OrderStatus>("aberto");
   const [employeeId, setEmployeeId] = useState<string | undefined>();
   const [employeePickerVisible, setEmployeePickerVisible] = useState(false);
+  const [formBodyHeight, setFormBodyHeight] = useState(0);
+  const [formFooterHeight, setFormFooterHeight] = useState(0);
 
   const visibleOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -71,12 +78,18 @@ export default function VendasScreen() {
       sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
     0,
   );
+  const formSheetHeight = formBodyHeight > 0 && formFooterHeight > 0
+    ? Math.min(FORM_SHEET_MAX_HEIGHT, formBodyHeight + formFooterHeight + SHEET_CHROME_HEIGHT)
+    : undefined;
+  const formSheetBounded = formSheetHeight !== undefined;
   const openAdd = () => {
     setEditingId(null);
     setClientId(undefined);
     setEmployeeId(undefined);
     setItems([emptyItem()]);
     setStatus("aberto");
+    setFormBodyHeight(0);
+    setFormFooterHeight(0);
     setModalVisible(true);
     setEmployeePickerVisible(true);
   };
@@ -86,8 +99,10 @@ export default function VendasScreen() {
     setEmployeeId(order.employeeId);
     setItems(order.items.map((item) => ({ ...item })));
     setStatus(order.status);
+    setFormBodyHeight(0);
+    setFormFooterHeight(0);
     setModalVisible(true);
-    assignEmployee(order);
+    setEmployeePickerVisible(true);
   };
   const updateItem = (id: string, updates: Partial<DraftItem>) =>
     setItems((current) =>
@@ -160,18 +175,6 @@ export default function VendasScreen() {
     if (!updatePedido(id, { status: "cancelado" }))
       Alert.alert("Não foi possível cancelar o pedido.");
   };
-  const assignEmployee = (order: Pedido) =>
-    Alert.alert("Quem atendeu este pedido?", undefined, [
-      {
-        text: "Não informado",
-        onPress: () => updatePedido(order.id, { employeeId: undefined }),
-      },
-      ...employeeItems.map((employee) => ({
-        text: employee.name,
-        onPress: () => updatePedido(order.id, { employeeId: employee.id }),
-      })),
-      { text: "Cancelar", style: "cancel" as const },
-    ]);
   const clientName = (id?: string) =>
     id ? clienteItems.find((client) => client.id === id)?.name : undefined;
   const statusLabel: Record<OrderStatus, string> = {
@@ -302,57 +305,29 @@ export default function VendasScreen() {
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onClose={() => setModalVisible(false)}
+        minHeight={0}
+        maxHeight={FORM_SHEET_MAX_HEIGHT}
+        sheetHeight={formSheetHeight}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+        <View style={[styles.modalOverlay, formSheetBounded && styles.formSheetOverlay]}>
+          <View style={[styles.modalCard, formSheetBounded && styles.formSheetCard]}>
+            <ScrollView
+              style={[styles.formScroll, formSheetBounded && styles.formScrollBounded]}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={(_, height) => setFormBodyHeight((current) => current === height ? current : height)}
+            >
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar pedido" : "Novo pedido"}
               </Text>
-              <Text style={styles.label}>Cliente (opcional)</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chipRow}
-              >
-                <TouchableOpacity
-                  style={[styles.chip, !clientId && styles.chipActive]}
-                  onPress={() => setClientId(undefined)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      !clientId && styles.chipTextActive,
-                    ]}
-                  >
-                    Venda avulsa
-                  </Text>
-                </TouchableOpacity>
-                {clienteItems.map((client) => (
-                  <TouchableOpacity
-                    key={client.id}
-                    style={[
-                      styles.chip,
-                      clientId === client.id && styles.chipActive,
-                    ]}
-                    onPress={() => setClientId(client.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        clientId === client.id && styles.chipTextActive,
-                      ]}
-                    >
-                      {client.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <TaskPeopleSelector
+                title={null}
+                relations={["client"]}
+                clientId={clientId}
+                onChange={(_, id) => setClientId(id)}
+              />
               <Text style={styles.label}>Itens vendidos</Text>
               {items.map((item, index) => (
                 <View key={item.id} style={styles.itemForm}>
@@ -458,7 +433,6 @@ export default function VendasScreen() {
                 <Ionicons name="add" size={17} color={Colors.accent} />
                 <Text style={styles.actionText}>Adicionar item</Text>
               </TouchableOpacity>
-              <Text style={styles.totalPreview}>Total: {money(total)}</Text>
               {editingId && (
                 <>
                   <Text style={styles.label}>Status</Text>
@@ -488,25 +462,30 @@ export default function VendasScreen() {
                 </>
               )}
             </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={saveOrder}>
-                <Text style={styles.modalConfirmText}>Salvar</Text>
-              </TouchableOpacity>
+            <View
+              style={styles.formFooter}
+              onLayout={(event) => setFormFooterHeight(event.nativeEvent.layout.height)}
+            >
+              <Text style={styles.totalPreview}>Total: {money(total)}</Text>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalConfirm} onPress={saveOrder}>
+                  <Text style={styles.modalConfirmText}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
-      </Modal>
-      <Modal
+      </BottomSheet>
+      <BottomSheet
         visible={employeePickerVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEmployeePickerVisible(false)}
+        onClose={() => setEmployeePickerVisible(false)}
+        height={420}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.employeePickerCard}>
@@ -523,22 +502,18 @@ export default function VendasScreen() {
             >
               <Text style={styles.employeeOptionText}>Não informado</Text>
             </TouchableOpacity>
-            {employeeItems.map((employee) => (
-              <TouchableOpacity
-                key={employee.id}
-                style={styles.employeeOption}
-                onPress={() => {
-                  setEmployeeId(employee.id);
-                  setEmployeePickerVisible(false);
-                }}
-              >
-                <Text style={styles.employeeOptionText}>{employee.name}</Text>
-                <Text style={styles.employeeRoleText}>{employee.role}</Text>
-              </TouchableOpacity>
-            ))}
+            <TaskPeopleSelector
+              title={null}
+              relations={["employee"]}
+              employeeId={employeeId}
+              onChange={(_, id) => {
+                setEmployeeId(id);
+                setEmployeePickerVisible(false);
+              }}
+            />
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -707,6 +682,10 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xl,
     marginBottom: Spacing.md,
   },
+  formScroll: { flexShrink: 1 },
+  formScrollBounded: { flex: 1 },
+  formSheetOverlay: { flex: 1 },
+  formSheetCard: { flex: 1 },
   label: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     color: Colors.textSecondary,
@@ -771,7 +750,13 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
-    marginVertical: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  formFooter: {
+    flexShrink: 0,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   modalActions: {
     flexDirection: "row",
@@ -801,4 +786,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
+  ...pluginFormStyles,
 });

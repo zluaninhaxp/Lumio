@@ -19,6 +19,7 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
+    marginTop: 2,
   },
   required: {
     color: Colors.danger,

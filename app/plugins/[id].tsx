@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
@@ -154,7 +156,11 @@ export default function GenericPluginScreen() {
 
       <FAB onPress={openAdd} />
 
-      <Modal visible={modalVisible} transparent animationType="slide">
+      <BottomSheet
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        height={620}
+      >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Novo {def.itemLabel}</Text>
@@ -229,7 +235,7 @@ export default function GenericPluginScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -379,4 +385,5 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: "#FFFFFF",
   },
+  ...pluginFormStyles,
 });

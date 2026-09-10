@@ -12,7 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useRouter } from "expo-router";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
@@ -270,11 +273,10 @@ export default function ContratosScreen() {
         })}
       </ScrollView>
       <FAB onPress={openAdd} />
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onClose={() => setModalVisible(false)}
+        height={620}
       >
         <View style={styles.overlay}>
           <View style={styles.modal}>
@@ -282,32 +284,12 @@ export default function ContratosScreen() {
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar contrato" : "Novo contrato"}
               </Text>
-              <RequiredLabel>Cliente</RequiredLabel>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chips}
-              >
-                {clienteItems.map((client) => (
-                  <TouchableOpacity
-                    key={client.id}
-                    style={[
-                      styles.chip,
-                      clientId === client.id && styles.chipActive,
-                    ]}
-                    onPress={() => setClientId(client.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        clientId === client.id && styles.chipTextActive,
-                      ]}
-                    >
-                      {client.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <TaskPeopleSelector
+                title={null}
+                relations={["client"]}
+                clientId={clientId}
+                onChange={(_, id) => setClientId(id ?? "")}
+              />
               <RequiredLabel>Valor por ciclo</RequiredLabel>
               <TextInput
                 style={styles.input}
@@ -346,8 +328,8 @@ export default function ContratosScreen() {
               />
             </ScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Text style={styles.action}>Cancelar</Text>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={save}>
                 <Text style={styles.saveText}>Salvar contrato</Text>
@@ -355,7 +337,7 @@ export default function ContratosScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -540,5 +522,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontFamily: "PlusJakartaSans_500Medium",
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
   saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  ...pluginFormStyles,
 });

@@ -7,12 +7,16 @@ import {
   Modal,
   TextInput,
   Alert,
+  Dimensions,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import {
@@ -30,6 +34,8 @@ const emptyItem = (): DraftItem => ({
   quantity: 1,
   unitPrice: 0,
 });
+const FORM_SHEET_MAX_HEIGHT = Dimensions.get("window").height * 0.8;
+const SHEET_CHROME_HEIGHT = Spacing.md + 4 + Spacing.lg + Spacing.xxxl;
 const defaultValidity = () => {
   const date = new Date();
   date.setDate(date.getDate() + 7);
@@ -53,6 +59,8 @@ export default function OrcamentosScreen() {
   const [clientId, setClientId] = useState<string | undefined>();
   const [validUntil, setValidUntil] = useState(defaultValidity());
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
+  const [formBodyHeight, setFormBodyHeight] = useState(0);
+  const [formFooterHeight, setFormFooterHeight] = useState(0);
   useEffect(() => {
     refreshOrcamentos();
   }, [refreshOrcamentos]);
@@ -73,6 +81,10 @@ export default function OrcamentosScreen() {
     (sum, item) => sum + item.quantity * item.unitPrice,
     0,
   );
+  const formSheetHeight = formBodyHeight > 0 && formFooterHeight > 0
+    ? Math.min(FORM_SHEET_MAX_HEIGHT, formBodyHeight + formFooterHeight + SHEET_CHROME_HEIGHT)
+    : undefined;
+  const formSheetBounded = formSheetHeight !== undefined;
   const statusLabel: Record<QuoteStatus, string> = {
     pendente: "Pendente",
     aprovado: "Aprovado",
@@ -84,6 +96,8 @@ export default function OrcamentosScreen() {
     setClientId(undefined);
     setValidUntil(defaultValidity());
     setItems([emptyItem()]);
+    setFormBodyHeight(0);
+    setFormFooterHeight(0);
     setModalVisible(true);
   };
   const openEdit = (quote: Orcamento) => {
@@ -91,6 +105,8 @@ export default function OrcamentosScreen() {
     setClientId(quote.clientId);
     setValidUntil(quote.validUntil);
     setItems(quote.items.map((item) => ({ ...item })));
+    setFormBodyHeight(0);
+    setFormFooterHeight(0);
     setModalVisible(true);
   };
   const updateItem = (id: string, updates: Partial<DraftItem>) =>
@@ -270,57 +286,29 @@ export default function OrcamentosScreen() {
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onClose={() => setModalVisible(false)}
+        minHeight={0}
+        maxHeight={FORM_SHEET_MAX_HEIGHT}
+        sheetHeight={formSheetHeight}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <ScrollView>
+        <View style={[styles.modalOverlay, formSheetBounded && styles.formSheetOverlay]}>
+          <View style={[styles.modalCard, formSheetBounded && styles.formSheetCard]}>
+              <ScrollView
+                style={[styles.formScroll, formSheetBounded && styles.formScrollBounded]}
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={(_, height) => setFormBodyHeight((current) => current === height ? current : height)}
+              >
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar orçamento" : "Novo orçamento"}
               </Text>
-              <Text style={styles.label}>Cliente (opcional)</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chips}
-              >
-                <TouchableOpacity
-                  style={[styles.chip, !clientId && styles.chipActive]}
-                  onPress={() => setClientId(undefined)}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      !clientId && styles.chipTextActive,
-                    ]}
-                  >
-                    Sem cliente
-                  </Text>
-                </TouchableOpacity>
-                {clienteItems.map((client) => (
-                  <TouchableOpacity
-                    key={client.id}
-                    style={[
-                      styles.chip,
-                      clientId === client.id && styles.chipActive,
-                    ]}
-                    onPress={() => setClientId(client.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        clientId === client.id && styles.chipTextActive,
-                      ]}
-                    >
-                      {client.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              <TaskPeopleSelector
+                title={null}
+                relations={["client"]}
+                clientId={clientId}
+                onChange={(_, id) => setClientId(id)}
+              />
               <RequiredLabel>Validade (AAAA-MM-DD)</RequiredLabel>
               <TextInput
                 style={styles.input}
@@ -380,22 +368,27 @@ export default function OrcamentosScreen() {
               >
                 <Text style={styles.actionText}>+ Adicionar item</Text>
               </TouchableOpacity>
-              <Text style={styles.totalPreview}>Total: {money(total)}</Text>
             </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.cancelLabel}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={save}>
-                <Text style={styles.confirmLabel}>Salvar</Text>
-              </TouchableOpacity>
+            <View
+              style={styles.formFooter}
+              onLayout={(event) => setFormFooterHeight(event.nativeEvent.layout.height)}
+            >
+              <Text style={styles.totalPreview}>Total: {money(total)}</Text>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={styles.cancelLabel}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalConfirm} onPress={save}>
+                  <Text style={styles.confirmLabel}>Salvar</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -534,6 +527,10 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xl,
     marginBottom: Spacing.md,
   },
+  formScroll: { flexShrink: 1 },
+  formScrollBounded: { flex: 1 },
+  formSheetOverlay: { flex: 1 },
+  formSheetCard: { flex: 1 },
   label: {
     color: Colors.textSecondary,
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -579,7 +576,13 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
-    marginVertical: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  formFooter: {
+    flexShrink: 0,
+    paddingTop: Spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
   },
   modalActions: {
     flexDirection: "row",
@@ -597,6 +600,7 @@ const styles = StyleSheet.create({
   cancelLabel: {
     color: Colors.textSecondary,
     fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: FontSize.sm,
   },
   modalConfirm: {
     flex: 1,
@@ -605,5 +609,10 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     alignItems: "center",
   },
-  confirmLabel: { color: "#FFFFFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  confirmLabel: {
+    color: "#FFFFFF",
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: FontSize.sm,
+  },
+  ...pluginFormStyles,
 });

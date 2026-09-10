@@ -11,17 +11,31 @@ import {
 } from 'react-native';
 import { Colors, Radius, Spacing } from '../../../src/constants/theme';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = 420;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
   height?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  sheetHeight?: number | `${number}%`;
 }
 
-export function BottomSheet({ visible, onClose, children, height = SHEET_HEIGHT }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  onClose,
+  children,
+  height = SHEET_HEIGHT,
+  minHeight = 0,
+  maxHeight,
+  sheetHeight,
+}: BottomSheetProps) {
+  const resolvedSheetHeight = typeof sheetHeight === 'string'
+    ? SCREEN_HEIGHT * (parseFloat(sheetHeight) / 100)
+    : sheetHeight;
   const translateY = useRef(new Animated.Value(height)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -89,6 +103,10 @@ export function BottomSheet({ visible, onClose, children, height = SHEET_HEIGHT 
           <Animated.View
             style={[
               styles.sheet,
+              { minHeight },
+              maxHeight !== undefined && { maxHeight },
+              resolvedSheetHeight !== undefined && { height: resolvedSheetHeight },
+              (maxHeight !== undefined || sheetHeight !== undefined) && styles.sizedSheet,
               { transform: [{ translateY }] },
             ]}
           >
@@ -116,7 +134,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radius.xl,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xxxl,
-    minHeight: SHEET_HEIGHT,
+  },
+  sizedSheet: {
+    overflow: 'hidden',
   },
   handle: {
     width: 36,

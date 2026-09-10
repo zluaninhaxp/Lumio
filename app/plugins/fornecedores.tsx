@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { FornecedorItem, useAppStore } from "../../src/store";
@@ -319,11 +321,10 @@ export default function FornecedoresScreen() {
         )}
       </ScrollView>
       <FAB onPress={openAdd} />
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onClose={() => setModalVisible(false)}
+        height={620}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -377,12 +378,11 @@ export default function FornecedoresScreen() {
             </View>
           </View>
         </View>
-      </Modal>
-      <Modal
+      </BottomSheet>
+      <BottomSheet
         visible={unlinkedTransactionId !== null}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setUnlinkedTransactionId(null)}
+        onClose={() => setUnlinkedTransactionId(null)}
+        height={420}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.linkCard}>
@@ -410,7 +410,7 @@ export default function FornecedoresScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -618,4 +618,5 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     backgroundColor: Colors.bg,
   },
+  ...pluginFormStyles,
 });

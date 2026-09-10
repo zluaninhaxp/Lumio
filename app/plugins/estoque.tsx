@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useRouter } from "expo-router";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { EstoqueItem, useAppStore } from "../../src/store";
@@ -256,11 +258,10 @@ export default function EstoqueScreen() {
 
       <FAB onPress={openAdd} />
 
-      <Modal
+      <BottomSheet
         visible={formVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setFormVisible(false)}
+        onClose={() => setFormVisible(false)}
+        height={620}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -323,13 +324,12 @@ export default function EstoqueScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
 
-      <Modal
+      <BottomSheet
         visible={movementVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setMovementVisible(false)}
+        onClose={() => setMovementVisible(false)}
+        height={420}
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -378,7 +378,7 @@ export default function EstoqueScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -574,4 +574,5 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
+  ...pluginFormStyles,
 });

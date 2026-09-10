@@ -12,7 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
+import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
+import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
@@ -208,11 +210,10 @@ export default function EquipeScreen() {
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onClose={() => setModalVisible(false)}
+        height={620}
       >
         <View style={styles.overlay}>
           <View style={styles.modal}>
@@ -268,7 +269,7 @@ export default function EquipeScreen() {
             </View>
           </View>
         </View>
-      </Modal>
+      </BottomSheet>
     </SafeAreaView>
   );
 }
@@ -387,4 +388,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   confirmText: { color: "#FFFFFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  ...pluginFormStyles,
 });

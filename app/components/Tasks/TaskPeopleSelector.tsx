@@ -12,11 +12,21 @@ interface TaskPeopleSelectorProps {
   clientId?: string;
   supplierId?: string;
   employeeId?: string;
+  relations?: Relation[];
+  title?: string | null;
   onChange: (relation: Relation, id?: string) => void;
   onBeforeNavigate?: (relation: Relation) => void;
 }
 
-export function TaskPeopleSelector({ clientId, supplierId, employeeId, onChange, onBeforeNavigate }: TaskPeopleSelectorProps) {
+export function TaskPeopleSelector({
+  clientId,
+  supplierId,
+  employeeId,
+  relations = ['client', 'supplier', 'employee'],
+  title = 'Atribuir para',
+  onChange,
+  onBeforeNavigate,
+}: TaskPeopleSelectorProps) {
   const router = useRouter();
   const { clienteItems, fornecedorItems, employeeItems, activatedPlugins } = useAppStore();
   const [open, setOpen] = useState<Relation | null>(null);
@@ -46,8 +56,8 @@ export function TaskPeopleSelector({ clientId, supplierId, employeeId, onChange,
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Atribuir para</Text>
-      {(Object.keys(data) as Relation[]).map((relation) => {
+      {title !== null && <Text style={styles.title}>{title}</Text>}
+      {relations.map((relation) => {
         const current = data[relation];
         const selected = current.items.find((item) => item.id === current.selected)?.name ?? 'Ninguém';
         const isOpen = open === relation;
