@@ -134,11 +134,13 @@ export function TaskPeopleSelector({
       }
     };
     closePicker();
-    if (onBeforeNavigate) {
-      onBeforeNavigate(relation);
-      return;
-    }
-    setTimeout(navigate, 0);
+    setTimeout(() => {
+      if (onBeforeNavigate) {
+        onBeforeNavigate(relation);
+        return;
+      }
+      navigate();
+    }, 240);
   };
 
   const closePicker = useCallback(() => {
@@ -174,7 +176,12 @@ export function TaskPeopleSelector({
       }));
     }
     onChange(relation, id);
-    closePicker();
+    // Selection closes immediately so a parent rerender cannot leave the nested Modal intercepting touches.
+    sheetTranslateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+    sheetTranslateY.setValue(0);
+    backdropOpacity.setValue(0);
+    setActiveRelation(null);
   };
 
   const activeItems = activeRelation ? data[activeRelation].items : [];

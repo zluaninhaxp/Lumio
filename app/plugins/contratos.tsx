@@ -16,9 +16,11 @@ import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { getPluginDefinition } from "../../src/plugins/registry";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
+import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 
 const periodLabels: Record<ContractPeriod, string> = {
   mensal: "Mensal",
@@ -31,6 +33,11 @@ const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 
 export default function ContratosScreen() {
   const router = useRouter();
+  const { returnToContracts, createdId, relation } = useLocalSearchParams<{
+    returnToContracts?: string;
+    createdId?: string;
+    relation?: "client" | "supplier" | "employee";
+  }>();
   const {
     contratos,
     clienteItems,
@@ -41,13 +48,46 @@ export default function ContratosScreen() {
     refreshContratos,
     markTransactionReceived,
     setPluginActivation,
+    activatedPlugins,
   } = useAppStore();
   const [modalVisible, setModalVisible] = useState(false);
+  const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState("");
   const [value, setValue] = useState("");
   const [period, setPeriod] = useState<ContractPeriod>("mensal");
   const [startDate, setStartDate] = useState(today());
+
+  useEffect(() => {
+    if (returnToContracts !== "1" || !createdId || !relation) return;
+    const draft = setPendingRelation("contracts", relation, createdId) as {
+      editingId: string | null;
+      clientId: string;
+      value: string;
+      period: ContractPeriod;
+      startDate: string;
+    } | null;
+    if (draft) {
+      setEditingId(draft.editingId);
+      setClientId(draft.clientId);
+      setValue(draft.value);
+      setPeriod(draft.period);
+      setStartDate(draft.startDate);
+      setModalVisible(true);
+    }
+    clearRelationDraft("contracts");
+    router.setParams({ returnToContracts: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToContracts, router]);
+
+  const navigateToRelationPlugin = (relation: "client" | "supplier" | "employee") => {
+    saveRelationDraft("contracts", { editingId, clientId, value, period, startDate });
+    setModalVisible(false);
+    const pluginId = relation === "client" ? "clientes" : relation === "supplier" ? "fornecedores" : "equipe";
+    const route = activatedPlugins.includes(pluginId)
+      ? getPluginDefinition(pluginId)?.route
+      : `/plugins/store?highlight=${pluginId}`;
+    if (route) setTimeout(() => router.push(`${route}${route.includes("?") ? "&" : "?"}returnToContracts=1&relation=${relation}` as any), 240);
+  };
 
   useEffect(() => {
     refreshContratos();
@@ -67,6 +107,14 @@ export default function ContratosScreen() {
       ),
     [transactions],
   );
+  const filteredContracts = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return contratos.filter((contract) => {
+      if (!normalized) return true;
+      const client = (clienteItems.find((item) => item.id === contract.clientId)?.name ?? "").toLowerCase();
+      return `${contract.id} ${client} ${periodLabels[contract.period]} ${contract.status}`.toLowerCase().includes(normalized);
+    });
+  }, [contratos, query, clienteItems]);
 
   const openAdd = () => {
     setEditingId(null);
@@ -113,6 +161,7 @@ export default function ContratosScreen() {
       return;
     }
     refreshContratos();
+    clearRelationDraft("contracts");
     setModalVisible(false);
   };
   const clientName = (id: string) =>
@@ -158,21 +207,31 @@ export default function ContratosScreen() {
           />
         </TouchableOpacity>
       </View>
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Buscar contrato ou cliente"
+          placeholderTextColor={Colors.textMuted}
+          style={styles.searchInput}
+        />
+      </View>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {contratos.length === 0 && (
+        {filteredContracts.length === 0 && (
           <View style={styles.empty}>
             <Ionicons
               name="document-lock-outline"
               size={48}
               color={Colors.textMuted}
             />
-            <Text style={styles.emptyText}>Nenhum contrato cadastrado.</Text>
+            <Text style={styles.emptyText}>{query ? "Nenhum contrato encontrado." : "Nenhum contrato cadastrado."}</Text>
           </View>
         )}
-        {contratos.map((contract) => {
+        {filteredContracts.map((contract) => {
           const pending = predictedFor(contract.id);
           const isOverdue = overdue.has(contract.id);
           return (
@@ -289,6 +348,7 @@ export default function ContratosScreen() {
                 relations={["client"]}
                 clientId={clientId}
                 onChange={(_, id) => setClientId(id ?? "")}
+                onBeforeNavigate={navigateToRelationPlugin}
               />
               <RequiredLabel>Valor por ciclo</RequiredLabel>
               <TextInput
@@ -450,7 +510,6 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
-  cancel: { color: Colors.warning, fontFamily: "PlusJakartaSans_600SemiBold" },
   delete: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
   fab: {
     position: "absolute",
@@ -497,6 +556,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     color: Colors.primary,
   },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  searchInput: { flex: 1, height: 44, color: Colors.primary },
   chips: { gap: Spacing.sm },
   periodRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   chip: {
@@ -537,4 +609,5 @@ const styles = StyleSheet.create({
   },
   saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
+  cancel: { color: Colors.warning, fontFamily: "PlusJakartaSans_600SemiBold" },
 });

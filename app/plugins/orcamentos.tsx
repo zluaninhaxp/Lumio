@@ -17,8 +17,10 @@ import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { getPluginDefinition } from "../../src/plugins/registry";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import {
   OrderItem,
   Orcamento,
@@ -44,6 +46,11 @@ const defaultValidity = () => {
 
 export default function OrcamentosScreen() {
   const router = useRouter();
+  const { returnToQuotes, createdId, relation } = useLocalSearchParams<{
+    returnToQuotes?: string;
+    createdId?: string;
+    relation?: "client" | "supplier" | "employee";
+  }>();
   const {
     orcamentos,
     clienteItems,
@@ -51,6 +58,7 @@ export default function OrcamentosScreen() {
     updateOrcamento,
     approveOrcamento,
     refreshOrcamentos,
+    activatedPlugins,
     setPluginActivation,
   } = useAppStore();
   const [query, setQuery] = useState("");
@@ -64,6 +72,26 @@ export default function OrcamentosScreen() {
   useEffect(() => {
     refreshOrcamentos();
   }, [refreshOrcamentos]);
+  useEffect(() => {
+    if (returnToQuotes !== "1" || !createdId || !relation) return;
+    const draft = setPendingRelation("quotes", relation, createdId) as {
+      editingId: string | null;
+      clientId?: string;
+      validUntil: string;
+      items: DraftItem[];
+    } | null;
+    if (draft) {
+      setEditingId(draft.editingId);
+      setClientId(draft.clientId);
+      setValidUntil(draft.validUntil);
+      setItems(draft.items);
+      setFormBodyHeight(0);
+      setFormFooterHeight(0);
+      setModalVisible(true);
+    }
+    clearRelationDraft("quotes");
+    router.setParams({ returnToQuotes: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToQuotes, router]);
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return orcamentos.filter(
@@ -85,6 +113,15 @@ export default function OrcamentosScreen() {
     ? Math.min(FORM_SHEET_MAX_HEIGHT, formBodyHeight + formFooterHeight + SHEET_CHROME_HEIGHT)
     : undefined;
   const formSheetBounded = formSheetHeight !== undefined;
+  const navigateToRelationPlugin = (relation: "client" | "supplier" | "employee") => {
+    saveRelationDraft("quotes", { editingId, clientId, validUntil, items });
+    setModalVisible(false);
+    const pluginId = relation === "client" ? "clientes" : relation === "supplier" ? "fornecedores" : "equipe";
+    const route = activatedPlugins.includes(pluginId)
+      ? getPluginDefinition(pluginId)?.route
+      : `/plugins/store?highlight=${pluginId}`;
+    if (route) setTimeout(() => router.push(`${route}${route.includes("?") ? "&" : "?"}returnToQuotes=1&relation=${relation}` as any), 240);
+  };
   const statusLabel: Record<QuoteStatus, string> = {
     pendente: "Pendente",
     aprovado: "Aprovado",
@@ -141,6 +178,7 @@ export default function OrcamentosScreen() {
     };
     if (editingId) updateOrcamento(editingId, payload);
     else addOrcamento(payload);
+    clearRelationDraft("quotes");
     setModalVisible(false);
   };
   const approve = (id: string) => {
@@ -308,6 +346,7 @@ export default function OrcamentosScreen() {
                 relations={["client"]}
                 clientId={clientId}
                 onChange={(_, id) => setClientId(id)}
+                onBeforeNavigate={navigateToRelationPlugin}
               />
               <RequiredLabel>Validade (AAAA-MM-DD)</RequiredLabel>
               <TextInput

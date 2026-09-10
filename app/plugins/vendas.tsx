@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -17,9 +17,11 @@ import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
+import { getPluginDefinition } from "../../src/plugins/registry";
+import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 
 type DraftItem = Omit<OrderItem, "id"> & { id: string };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -36,6 +38,11 @@ const SHEET_CHROME_HEIGHT = Spacing.md + 4 + Spacing.lg + Spacing.xxxl;
 
 export default function VendasScreen() {
   const router = useRouter();
+  const { returnToSales, createdId, relation } = useLocalSearchParams<{
+    returnToSales?: string;
+    createdId?: string;
+    relation?: "client" | "supplier" | "employee";
+  }>();
   const {
     pedidos,
     clienteItems,
@@ -45,6 +52,7 @@ export default function VendasScreen() {
     completePedido,
     removePedido,
     setPluginActivation,
+    activatedPlugins,
   } = useAppStore();
   const [query, setQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,6 +64,40 @@ export default function VendasScreen() {
   const [employeePickerVisible, setEmployeePickerVisible] = useState(false);
   const [formBodyHeight, setFormBodyHeight] = useState(0);
   const [formFooterHeight, setFormFooterHeight] = useState(0);
+
+  useEffect(() => {
+    if (returnToSales !== "1" || !createdId || !relation) return;
+    const draft = setPendingRelation("sales", relation, createdId) as {
+      editingId: string | null;
+      clientId?: string;
+      employeeId?: string;
+      items: DraftItem[];
+      status: OrderStatus;
+    } | null;
+    if (draft) {
+      setEditingId(draft.editingId);
+      setClientId(draft.clientId);
+      setEmployeeId(draft.employeeId);
+      setItems(draft.items);
+      setStatus(draft.status);
+      setFormBodyHeight(0);
+      setFormFooterHeight(0);
+      setEmployeePickerVisible(false);
+      setModalVisible(true);
+    }
+    clearRelationDraft("sales");
+    router.setParams({ returnToSales: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToSales, router]);
+
+  const navigateToRelationPlugin = (relation: "client" | "supplier" | "employee", close: () => void) => {
+    saveRelationDraft("sales", { editingId, clientId, employeeId, items, status });
+    close();
+    const pluginId = relation === "client" ? "clientes" : relation === "supplier" ? "fornecedores" : "equipe";
+    const route = activatedPlugins.includes(pluginId)
+      ? getPluginDefinition(pluginId)?.route
+      : `/plugins/store?highlight=${pluginId}`;
+    if (route) setTimeout(() => router.push(`${route}${route.includes("?") ? "&" : "?"}returnToSales=1&relation=${relation}` as any), 240);
+  };
 
   const visibleOrders = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -149,6 +191,7 @@ export default function VendasScreen() {
       );
       return;
     }
+    clearRelationDraft("sales");
     setModalVisible(false);
   };
   const conclude = (id: string) => {
@@ -327,6 +370,7 @@ export default function VendasScreen() {
                 relations={["client"]}
                 clientId={clientId}
                 onChange={(_, id) => setClientId(id)}
+                onBeforeNavigate={(relation) => navigateToRelationPlugin(relation, () => setModalVisible(false))}
               />
               <Text style={styles.label}>Itens vendidos</Text>
               {items.map((item, index) => (
@@ -506,11 +550,12 @@ export default function VendasScreen() {
               title={null}
               relations={["employee"]}
               employeeId={employeeId}
-              onChange={(_, id) => {
-                setEmployeeId(id);
-                setEmployeePickerVisible(false);
-              }}
-            />
+               onChange={(_, id) => {
+                 setEmployeeId(id);
+                 setEmployeePickerVisible(false);
+               }}
+               onBeforeNavigate={(relation) => navigateToRelationPlugin(relation, () => setEmployeePickerVisible(false))}
+             />
           </View>
         </View>
       </BottomSheet>

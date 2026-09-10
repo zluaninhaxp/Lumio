@@ -24,11 +24,15 @@ const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 
 export default function ClientesScreen() {
   const router = useRouter();
-  const { returnToFinance, returnToTasks, returnToCalendar, relation } =
+  const { returnToFinance, returnToTasks, returnToCalendar, returnToQuotes, returnToContracts, returnToDeliveries, returnToSales, relation } =
     useLocalSearchParams<{
       returnToFinance?: string;
       returnToTasks?: string;
       returnToCalendar?: string;
+      returnToQuotes?: string;
+      returnToContracts?: string;
+      returnToDeliveries?: string;
+      returnToSales?: string;
       relation?: string;
     }>();
   const {
@@ -75,9 +79,19 @@ export default function ClientesScreen() {
           new Date().toISOString())
         : new Date().toISOString(),
     };
-    let createdId: string | undefined;
-    if (editingId) updateClienteItem(editingId, payload);
-    else createdId = addClienteItem(payload);
+    let createdId: string | null = null;
+    if (editingId) {
+      if (!updateClienteItem(editingId, payload)) {
+        Alert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.");
+        return;
+      }
+    } else {
+      createdId = addClienteItem(payload);
+      if (!createdId) {
+        Alert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.");
+        return;
+      }
+    }
     setModalVisible(false);
     if (
       !editingId &&
@@ -85,7 +99,7 @@ export default function ClientesScreen() {
       returnToFinance === "1" &&
       relation === "client"
     ) {
-      router.replace({
+      router.dismissTo({
         pathname: "/(tabs)/financeiro",
         params: { returnToFinance: "1", createdId, relation: "client" },
       });
@@ -95,7 +109,7 @@ export default function ClientesScreen() {
       (returnToTasks === "1" || returnToCalendar === "1") &&
       relation === "client"
     ) {
-      router.replace({
+      router.dismissTo({
         pathname:
           returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
         params: {
@@ -104,6 +118,14 @@ export default function ClientesScreen() {
           relation: "client",
         },
       });
+    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "client") {
+      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "client" } });
+    } else if (!editingId && createdId && returnToContracts === "1" && relation === "client") {
+      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "client" } });
+    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "client") {
+      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "client" } });
+    } else if (!editingId && createdId && returnToSales === "1" && relation === "client") {
+      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "client" } });
     }
   };
   const handleDelete = (id: string) =>

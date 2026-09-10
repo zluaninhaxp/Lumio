@@ -1,4 +1,4 @@
-export type RelationDraftKind = 'task' | 'calendar';
+export type RelationDraftKind = 'task' | 'calendar' | 'quotes' | 'contracts' | 'deliveries' | 'sales';
 export type RelationDraftRelation = 'client' | 'supplier' | 'employee';
 
 type Draft = Record<string, unknown>;

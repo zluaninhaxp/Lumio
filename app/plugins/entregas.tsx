@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -16,9 +16,12 @@ import { BottomSheet } from "../components/Calendar/BottomSheet";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
+import { TaskOrderSelector } from "../components/Tasks/TaskOrderSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { getPluginDefinition } from "../../src/plugins/registry";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { DeliveryStatus, Entrega, useAppStore } from "../../src/store";
+import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 
 const statusLabels: Record<DeliveryStatus, string> = {
   "a caminho": "A caminho",
@@ -33,7 +36,12 @@ const nextDate = () => {
 
 export default function EntregasScreen() {
   const router = useRouter();
-  const { orderId } = useLocalSearchParams<{ orderId?: string }>();
+  const { orderId, returnToDeliveries, createdId, relation } = useLocalSearchParams<{
+    orderId?: string;
+    returnToDeliveries?: string;
+    createdId?: string;
+    relation?: "client" | "supplier" | "employee";
+  }>();
   const {
     entregas,
     pedidos,
@@ -42,8 +50,10 @@ export default function EntregasScreen() {
     updateEntrega,
     removeEntrega,
     setPluginActivation,
+    activatedPlugins,
   } = useAppStore();
   const [modalVisible, setModalVisible] = useState(!!orderId);
+  const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState(orderId ?? "");
   const [employeeId, setEmployeeId] = useState<string | undefined>();
@@ -52,10 +62,67 @@ export default function EntregasScreen() {
   const [freightValue, setFreightValue] = useState("");
   const [createExpense, setCreateExpense] = useState(false);
 
+  useEffect(() => {
+    if (returnToDeliveries !== "1" || !createdId || !relation) return;
+    const draft = setPendingRelation("deliveries", relation, createdId) as {
+      editingId: string | null;
+      selectedOrderId: string;
+      employeeId?: string;
+      address: string;
+      estimatedDate: string;
+      freightValue: string;
+      createExpense: boolean;
+    } | null;
+    if (draft) {
+      setEditingId(draft.editingId);
+      setSelectedOrderId(draft.selectedOrderId);
+      setEmployeeId(draft.employeeId);
+      setAddress(draft.address);
+      setEstimatedDate(draft.estimatedDate);
+      setFreightValue(draft.freightValue);
+      setCreateExpense(draft.createExpense);
+      setModalVisible(true);
+    }
+    clearRelationDraft("deliveries");
+    router.setParams({ returnToDeliveries: undefined, createdId: undefined, relation: undefined });
+  }, [createdId, relation, returnToDeliveries, router]);
+
+  const navigateToRelationPlugin = (relation: "client" | "supplier" | "employee") => {
+    saveRelationDraft("deliveries", { editingId, selectedOrderId, employeeId, address, estimatedDate, freightValue, createExpense });
+    setModalVisible(false);
+    const pluginId = relation === "client" ? "clientes" : relation === "supplier" ? "fornecedores" : "equipe";
+    const route = activatedPlugins.includes(pluginId)
+      ? getPluginDefinition(pluginId)?.route
+      : `/plugins/store?highlight=${pluginId}`;
+    if (route) setTimeout(() => router.push(`${route}${route.includes("?") ? "&" : "?"}returnToDeliveries=1&relation=${relation}` as any), 240);
+  };
+
   const activeDeliveries = useMemo(
-    () => entregas.filter((item) => item.status !== "cancelada"),
+    () => entregas,
     [entregas],
   );
+  const orderLabel = (id: string) =>
+    `Pedido ${id.slice(-6)}${pedidos.find((item) => item.id === id)?.clientId ? "" : " · avulso"}`;
+  const availableOrders = useMemo(
+    () => pedidos
+      .filter(
+        (order) =>
+          order.status === "concluido" &&
+          (!entregas.some(
+            (item) => item.orderId === order.id && item.status !== "cancelada",
+          ) || order.id === selectedOrderId),
+      )
+      .map((order) => ({ id: order.id, label: orderLabel(order.id) })),
+    [entregas, pedidos, selectedOrderId],
+  );
+  const filteredDeliveries = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return activeDeliveries.filter((delivery) => {
+      if (!normalized) return true;
+      const employee = employeeItems.find((item) => item.id === delivery.employeeId)?.name ?? "";
+      return `${orderLabel(delivery.orderId)} ${delivery.address} ${employee} ${statusLabels[delivery.status]}`.toLowerCase().includes(normalized);
+    });
+  }, [activeDeliveries, employeeItems, query]);
   const openAdd = () => {
     setEditingId(null);
     setSelectedOrderId("");
@@ -111,11 +178,9 @@ export default function EntregasScreen() {
       );
       return;
     }
+    clearRelationDraft("deliveries");
     setModalVisible(false);
   };
-  const orderLabel = (id: string) =>
-    `Pedido ${id.slice(-6)}${pedidos.find((item) => item.id === id)?.clientId ? "" : " · avulso"}`;
-
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
@@ -146,24 +211,34 @@ export default function EntregasScreen() {
           />
         </TouchableOpacity>
       </View>
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Buscar entrega ou pedido"
+          placeholderTextColor={Colors.textMuted}
+          style={styles.searchInput}
+        />
+      </View>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {activeDeliveries.length === 0 && (
+        {filteredDeliveries.length === 0 && (
           <View style={styles.empty}>
             <Ionicons
               name="bicycle-outline"
               size={46}
               color={Colors.textMuted}
             />
-            <Text style={styles.emptyText}>Nenhuma entrega ativa.</Text>
+            <Text style={styles.emptyText}>{query ? "Nenhuma entrega encontrada." : "Nenhuma entrega cadastrada."}</Text>
             <Text style={styles.hint}>
               Conclua um pedido e gere a entrega pelo módulo Pedidos.
             </Text>
           </View>
         )}
-        {activeDeliveries.map((delivery) => (
+        {filteredDeliveries.map((delivery) => (
           <View key={delivery.id} style={styles.card}>
             <View style={styles.cardTop}>
               <View style={styles.deliveryIcon}>
@@ -214,13 +289,15 @@ export default function EntregasScreen() {
               <TouchableOpacity onPress={() => openEdit(delivery)}>
                 <Text style={styles.action}>Editar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() =>
-                  updateEntrega(delivery.id, { status: "cancelada" })
-                }
-              >
-                <Text style={styles.cancel}>Cancelar</Text>
-              </TouchableOpacity>
+              {delivery.status === "a caminho" && (
+                <TouchableOpacity
+                  onPress={() =>
+                    updateEntrega(delivery.id, { status: "cancelada" })
+                  }
+                >
+                  <Text style={styles.cancel}>Cancelar</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         ))}
@@ -237,43 +314,11 @@ export default function EntregasScreen() {
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar entrega" : "Nova entrega"}
               </Text>
-              <RequiredLabel>Pedido</RequiredLabel>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.chips}
-              >
-                {pedidos
-                  .filter(
-                    (order) =>
-                      order.status === "concluido" &&
-                      (!entregas.some(
-                        (item) =>
-                          item.orderId === order.id &&
-                          item.status !== "cancelada",
-                      ) ||
-                        order.id === selectedOrderId),
-                  )
-                  .map((order) => (
-                    <TouchableOpacity
-                      key={order.id}
-                      style={[
-                        styles.chip,
-                        selectedOrderId === order.id && styles.chipActive,
-                      ]}
-                      onPress={() => setSelectedOrderId(order.id)}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          selectedOrderId === order.id && styles.chipTextActive,
-                        ]}
-                      >
-                        {orderLabel(order.id)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-              </ScrollView>
+              <TaskOrderSelector
+                orders={availableOrders}
+                selectedId={selectedOrderId}
+                onChange={(id) => setSelectedOrderId(id ?? "")}
+              />
               <RequiredLabel>Endereço de entrega</RequiredLabel>
               <TextInput
                 style={styles.input}
@@ -290,12 +335,15 @@ export default function EntregasScreen() {
                 placeholder="2026-08-12"
                 placeholderTextColor={Colors.textMuted}
               />
-              <TaskPeopleSelector
-                title={null}
-                relations={["employee"]}
-                employeeId={employeeId}
-                onChange={(_, id) => setEmployeeId(id)}
-              />
+              <View style={styles.peopleSpacing}>
+                <TaskPeopleSelector
+                  title={null}
+                  relations={["employee"]}
+                  employeeId={employeeId}
+                  onChange={(_, id) => setEmployeeId(id)}
+                  onBeforeNavigate={navigateToRelationPlugin}
+                />
+              </View>
               <Text style={styles.label}>Frete simples (opcional)</Text>
               <TextInput
                 style={styles.input}
@@ -410,7 +458,6 @@ const styles = StyleSheet.create({
   },
   conclude: { color: Colors.accent, fontFamily: "PlusJakartaSans_600SemiBold" },
   action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
-  cancel: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
   fab: {
     position: "absolute",
     right: 24,
@@ -448,6 +495,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     marginBottom: Spacing.xs,
   },
+  peopleSpacing: { marginTop: Spacing.md },
   input: {
     height: 46,
     borderWidth: 1,
@@ -456,6 +504,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     color: Colors.primary,
   },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  searchInput: { flex: 1, height: 44, color: Colors.primary },
   chips: { gap: Spacing.sm },
   chip: {
     borderWidth: 1,
@@ -481,12 +542,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     marginTop: Spacing.lg,
   },
-  saveButton: {
-    backgroundColor: Colors.accent,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
   cancelButton: {
     flex: 1,
     paddingVertical: Spacing.sm,
@@ -500,6 +555,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
+  saveButton: {
+    backgroundColor: Colors.accent,
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
   saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
+  cancel: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
 });

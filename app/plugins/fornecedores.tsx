@@ -26,11 +26,15 @@ const money = (value: number) =>
 
 export default function FornecedoresScreen() {
   const router = useRouter();
-  const { returnToFinance, returnToTasks, returnToCalendar, relation } =
+  const { returnToFinance, returnToTasks, returnToCalendar, returnToQuotes, returnToContracts, returnToDeliveries, returnToSales, relation } =
     useLocalSearchParams<{
       returnToFinance?: string;
       returnToTasks?: string;
       returnToCalendar?: string;
+      returnToQuotes?: string;
+      returnToContracts?: string;
+      returnToDeliveries?: string;
+      returnToSales?: string;
       relation?: string;
     }>();
   const {
@@ -87,9 +91,19 @@ export default function FornecedoresScreen() {
       paymentTerm: form.paymentTerm.trim(),
       notes: form.notes.trim(),
     };
-    let createdId: string | undefined;
-    if (editingId) updateFornecedorItem(editingId, payload);
-    else createdId = addFornecedorItem(payload);
+    let createdId: string | null = null;
+    if (editingId) {
+      if (!updateFornecedorItem(editingId, payload)) {
+        Alert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.");
+        return;
+      }
+    } else {
+      createdId = addFornecedorItem(payload);
+      if (!createdId) {
+        Alert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.");
+        return;
+      }
+    }
     setModalVisible(false);
     if (
       !editingId &&
@@ -97,7 +111,7 @@ export default function FornecedoresScreen() {
       returnToFinance === "1" &&
       relation === "supplier"
     ) {
-      router.replace({
+      router.dismissTo({
         pathname: "/(tabs)/financeiro",
         params: { returnToFinance: "1", createdId, relation: "supplier" },
       });
@@ -107,7 +121,7 @@ export default function FornecedoresScreen() {
       (returnToTasks === "1" || returnToCalendar === "1") &&
       relation === "supplier"
     ) {
-      router.replace({
+      router.dismissTo({
         pathname:
           returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
         params: {
@@ -116,6 +130,14 @@ export default function FornecedoresScreen() {
           relation: "supplier",
         },
       });
+    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "supplier") {
+      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "supplier" } });
+    } else if (!editingId && createdId && returnToContracts === "1" && relation === "supplier") {
+      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "supplier" } });
+    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "supplier") {
+      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "supplier" } });
+    } else if (!editingId && createdId && returnToSales === "1" && relation === "supplier") {
+      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "supplier" } });
     }
   };
   const deleteSupplier = (id: string) =>

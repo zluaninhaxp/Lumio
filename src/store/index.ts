@@ -10,6 +10,10 @@ import { generateId } from '../utils/id';
 import type { BusinessTaxonomy, LearnedIntentMarker } from '../engine/taxonomy/types';
 import { migrateV1toV2 } from '../engine/taxonomy/migrateV1toV2';
 
+function normalizePersonName(name: string) {
+  return name.trim().toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function isBusinessTaxonomy(value: unknown): value is BusinessTaxonomy {
   return !!value && typeof value === 'object'
     && (value as { taxonomyVersion?: unknown }).taxonomyVersion === 2
@@ -431,8 +435,8 @@ export interface AppStore {
   refreshOrcamentos: () => void;
 
   clienteItems: ClienteItem[];
-  addClienteItem: (item: Omit<ClienteItem, 'id'>) => string;
-  updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
+  addClienteItem: (item: Omit<ClienteItem, 'id'>) => string | null;
+  updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => boolean;
   removeClienteItem: (id: string) => void;
   linkTransactionToClient: (transactionId: string, clientId: string | undefined) => void;
 
@@ -444,15 +448,15 @@ export interface AppStore {
   markTransactionReceived: (transactionId: string, received: boolean) => void;
 
   fornecedorItems: FornecedorItem[];
-  addFornecedorItem: (item: Omit<FornecedorItem, 'id'>) => string;
-  updateFornecedorItem: (id: string, item: Omit<FornecedorItem, 'id'>) => void;
+  addFornecedorItem: (item: Omit<FornecedorItem, 'id'>) => string | null;
+  updateFornecedorItem: (id: string, item: Omit<FornecedorItem, 'id'>) => boolean;
   removeFornecedorItem: (id: string) => void;
   linkTransactionToSupplier: (transactionId: string, supplierId: string | undefined, updates?: Pick<Transaction, 'supplierDueDate' | 'supplierPaid'>) => void;
   markSupplierTransactionPaid: (transactionId: string, paid: boolean) => void;
 
 employeeItems: EmployeeItem[];
-  addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string;
-  updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => void;
+  addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string | null;
+  updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => boolean;
   removeEmployeeItem: (id: string) => void;
 
   commissions: CommissionEntry[];
@@ -904,14 +908,23 @@ export const useAppStore = create<AppStore>((set) => ({
 
   clienteItems: [],
   addClienteItem: (item) => {
-    const id = generateId('cli_');
-    set((s) => ({ clienteItems: [{ ...item, id }, ...s.clienteItems] }));
+    let id: string | null = null;
+    set((s) => {
+      if (s.clienteItems.some((client) => normalizePersonName(client.name) === normalizePersonName(item.name))) return s;
+      id = generateId('cli_');
+      return { clienteItems: [{ ...item, id }, ...s.clienteItems] };
+    });
     return id;
   },
-  updateClienteItem: (id, item) =>
-    set((s) => ({
-      clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)),
-    })),
+  updateClienteItem: (id, item) => {
+    let updated = false;
+    set((s) => {
+      if (s.clienteItems.some((client) => client.id !== id && normalizePersonName(client.name) === normalizePersonName(item.name))) return s;
+      updated = true;
+      return { clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)) };
+    });
+    return updated;
+  },
   removeClienteItem: (id) =>
     set((s) => {
       const contractIds = new Set(s.contratos.filter((contrato) => contrato.clientId === id).map((contrato) => contrato.id));
@@ -994,12 +1007,23 @@ export const useAppStore = create<AppStore>((set) => ({
 
   fornecedorItems: [],
   addFornecedorItem: (item) => {
-    const id = generateId('sup_');
-    set((s) => ({ fornecedorItems: [{ ...item, id }, ...s.fornecedorItems] }));
+    let id: string | null = null;
+    set((s) => {
+      if (s.fornecedorItems.some((supplier) => normalizePersonName(supplier.name) === normalizePersonName(item.name))) return s;
+      id = generateId('sup_');
+      return { fornecedorItems: [{ ...item, id }, ...s.fornecedorItems] };
+    });
     return id;
   },
-  updateFornecedorItem: (id, item) =>
-    set((s) => ({ fornecedorItems: s.fornecedorItems.map((i) => i.id === id ? { ...item, id } : i) })),
+  updateFornecedorItem: (id, item) => {
+    let updated = false;
+    set((s) => {
+      if (s.fornecedorItems.some((supplier) => supplier.id !== id && normalizePersonName(supplier.name) === normalizePersonName(item.name))) return s;
+      updated = true;
+      return { fornecedorItems: s.fornecedorItems.map((i) => i.id === id ? { ...item, id } : i) };
+    });
+    return updated;
+  },
   removeFornecedorItem: (id) =>
     set((s) => ({
       fornecedorItems: s.fornecedorItems.filter((i) => i.id !== id),
@@ -1014,12 +1038,23 @@ export const useAppStore = create<AppStore>((set) => ({
 
   employeeItems: [],
   addEmployeeItem: (item) => {
-    const id = generateId('emp_');
-    set((s) => ({ employeeItems: [{ ...item, id }, ...s.employeeItems] }));
+    let id: string | null = null;
+    set((s) => {
+      if (s.employeeItems.some((employee) => normalizePersonName(employee.name) === normalizePersonName(item.name))) return s;
+      id = generateId('emp_');
+      return { employeeItems: [{ ...item, id }, ...s.employeeItems] };
+    });
     return id;
   },
-updateEmployeeItem: (id, item) =>
-    set((s) => ({ employeeItems: s.employeeItems.map((employee) => employee.id === id ? { ...item, id } : employee) })),
+  updateEmployeeItem: (id, item) => {
+    let updated = false;
+    set((s) => {
+      if (s.employeeItems.some((employee) => employee.id !== id && normalizePersonName(employee.name) === normalizePersonName(item.name))) return s;
+      updated = true;
+      return { employeeItems: s.employeeItems.map((employee) => employee.id === id ? { ...item, id } : employee) };
+    });
+    return updated;
+  },
   removeEmployeeItem: (id) =>
     set((s) => ({
       employeeItems: s.employeeItems.filter((employee) => employee.id !== id),

@@ -70,7 +70,7 @@ export default function EstoqueScreen() {
   };
 
   const saveItem = () => {
-    if (!form.name.trim() || !form.unit.trim()) return;
+    if (!form.name.trim()) return;
     const payload = {
       name: form.name.trim(),
       quantity: Math.max(0, Number(form.quantity) || 0),
@@ -290,7 +290,7 @@ export default function EstoqueScreen() {
               }
               keyboardType="decimal-pad"
             />
-            <RequiredLabel>Unidade</RequiredLabel>
+            <FormLabel>Unidade (opcional)</FormLabel>
             <TextInput
               style={styles.input}
               placeholder="Unidade (un, kg, cx...)"
