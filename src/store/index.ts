@@ -172,6 +172,7 @@ export interface EstoqueItem {
   id: string;
   name: string;
   quantity: number;
+  unitPrice: number;
   unit: string;
   category: string;
   minAlert: number;

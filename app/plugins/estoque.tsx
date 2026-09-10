@@ -19,8 +19,9 @@ import { useRouter } from "expo-router";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { EstoqueItem, useAppStore } from "../../src/store";
 
-const EMPTY_FORM = { name: "", quantity: "", unit: "", minAlert: "" };
+const EMPTY_FORM = { name: "", quantity: "", unitPrice: "", unit: "", minAlert: "" };
 const EMPTY_MOVEMENT = { amount: "", reason: "" };
+const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 
 export default function EstoqueScreen() {
   const router = useRouter();
@@ -63,6 +64,7 @@ export default function EstoqueScreen() {
     setForm({
       name: item.name,
       quantity: String(item.quantity),
+      unitPrice: String(item.unitPrice ?? ""),
       unit: item.unit,
       minAlert: String(item.minAlert),
     });
@@ -70,10 +72,12 @@ export default function EstoqueScreen() {
   };
 
   const saveItem = () => {
-    if (!form.name.trim()) return;
+    const unitPrice = Number(form.unitPrice.replace(",", "."));
+    if (!form.name.trim() || !form.unitPrice.trim() || !Number.isFinite(unitPrice) || unitPrice < 0) return;
     const payload = {
       name: form.name.trim(),
       quantity: Math.max(0, Number(form.quantity) || 0),
+      unitPrice,
       unit: form.unit.trim(),
       category: "",
       minAlert: Math.max(0, Number(form.minAlert) || 0),
@@ -202,6 +206,7 @@ export default function EstoqueScreen() {
                     {item.quantity} {item.unit} · mínimo {item.minAlert}{" "}
                     {item.unit}
                   </Text>
+                  <Text style={styles.cardPrice}>{money(item.unitPrice ?? 0)} por unidade</Text>
                 </View>
                 {isLow && (
                   <View style={styles.alertBadge}>
@@ -278,6 +283,17 @@ export default function EstoqueScreen() {
                 setForm((current) => ({ ...current, name }))
               }
               autoFocus
+            />
+            <RequiredLabel>Preço unitário</RequiredLabel>
+            <TextInput
+              style={styles.input}
+              placeholder="Preço unitário"
+              placeholderTextColor={Colors.textMuted}
+              value={form.unitPrice}
+              onChangeText={(unitPrice) =>
+                setForm((current) => ({ ...current, unitPrice }))
+              }
+              keyboardType="decimal-pad"
             />
             <FormLabel>Quantidade atual (opcional)</FormLabel>
             <TextInput
@@ -443,6 +459,12 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
+    marginTop: 2,
+  },
+  cardPrice: {
+    color: Colors.accent,
+    fontSize: FontSize.sm,
+    fontFamily: "PlusJakartaSans_600SemiBold",
     marginTop: 2,
   },
   alertBadge: {

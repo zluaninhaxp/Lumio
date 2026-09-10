@@ -4,7 +4,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Modal,
+  Keyboard,
   TextInput,
   Alert,
   Dimensions,
@@ -23,7 +23,7 @@ import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 
-type DraftItem = Omit<OrderItem, "id"> & { id: string };
+type DraftItem = Omit<OrderItem, "id"> & { id: string; addToStock?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 const todayLabel = () =>
   new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -32,9 +32,9 @@ const emptyItem = (): DraftItem => ({
   name: "",
   quantity: 1,
   unitPrice: 0,
+  addToStock: false,
 });
 const FORM_SHEET_MAX_HEIGHT = Dimensions.get("window").height * 0.8;
-const SHEET_CHROME_HEIGHT = Spacing.md + 4 + Spacing.lg + Spacing.xxxl;
 
 export default function VendasScreen() {
   const router = useRouter();
@@ -47,6 +47,7 @@ export default function VendasScreen() {
     pedidos,
     clienteItems,
     estoqueItems,
+    addEstoqueItem,
     addPedido,
     updatePedido,
     completePedido,
@@ -61,9 +62,7 @@ export default function VendasScreen() {
   const [items, setItems] = useState<DraftItem[]>([emptyItem()]);
   const [status, setStatus] = useState<OrderStatus>("aberto");
   const [employeeId, setEmployeeId] = useState<string | undefined>();
-  const [employeePickerVisible, setEmployeePickerVisible] = useState(false);
-  const [formBodyHeight, setFormBodyHeight] = useState(0);
-  const [formFooterHeight, setFormFooterHeight] = useState(0);
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
 
   useEffect(() => {
     if (returnToSales !== "1" || !createdId || !relation) return;
@@ -80,9 +79,6 @@ export default function VendasScreen() {
       setEmployeeId(draft.employeeId);
       setItems(draft.items);
       setStatus(draft.status);
-      setFormBodyHeight(0);
-      setFormFooterHeight(0);
-      setEmployeePickerVisible(false);
       setModalVisible(true);
     }
     clearRelationDraft("sales");
@@ -120,20 +116,13 @@ export default function VendasScreen() {
       sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
     0,
   );
-  const formSheetHeight = formBodyHeight > 0 && formFooterHeight > 0
-    ? Math.min(FORM_SHEET_MAX_HEIGHT, formBodyHeight + formFooterHeight + SHEET_CHROME_HEIGHT)
-    : undefined;
-  const formSheetBounded = formSheetHeight !== undefined;
   const openAdd = () => {
     setEditingId(null);
     setClientId(undefined);
     setEmployeeId(undefined);
     setItems([emptyItem()]);
     setStatus("aberto");
-    setFormBodyHeight(0);
-    setFormFooterHeight(0);
     setModalVisible(true);
-    setEmployeePickerVisible(true);
   };
   const openEdit = (order: Pedido) => {
     setEditingId(order.id);
@@ -141,22 +130,24 @@ export default function VendasScreen() {
     setEmployeeId(order.employeeId);
     setItems(order.items.map((item) => ({ ...item })));
     setStatus(order.status);
-    setFormBodyHeight(0);
-    setFormFooterHeight(0);
     setModalVisible(true);
-    setEmployeePickerVisible(true);
   };
   const updateItem = (id: string, updates: Partial<DraftItem>) =>
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...updates } : item)),
     );
+  const addDraftItem = () => {
+    const item = emptyItem();
+    setItems((current) => [...current, item]);
+    setFocusedItemId(item.id);
+  };
   const saveOrder = () => {
     const validItems = items
       .filter(
         (item) =>
           item.name.trim() &&
           Number(item.quantity) > 0 &&
-          Number(item.unitPrice) >= 0,
+          Number(item.unitPrice) > 0,
       )
       .map((item) => ({
         ...item,
@@ -175,7 +166,7 @@ export default function VendasScreen() {
     const payload = {
       clientId,
       employeeId,
-      items: validItems,
+      items: validItems.map(({ addToStock: _addToStock, ...item }) => item),
       total: orderTotal,
       status,
       date: current?.date ?? todayLabel(),
@@ -191,6 +182,18 @@ export default function VendasScreen() {
       );
       return;
     }
+    validItems
+      .filter((item) => item.addToStock && !item.stockItemId)
+      .forEach((item) =>
+        addEstoqueItem({
+          name: item.name,
+          quantity: 0,
+          unitPrice: item.unitPrice,
+          unit: "",
+          category: "",
+          minAlert: 0,
+        }),
+      );
     clearRelationDraft("sales");
     setModalVisible(false);
   };
@@ -353,38 +356,99 @@ export default function VendasScreen() {
         onClose={() => setModalVisible(false)}
         minHeight={0}
         maxHeight={FORM_SHEET_MAX_HEIGHT}
-        sheetHeight={formSheetHeight}
+        sheetHeight={FORM_SHEET_MAX_HEIGHT}
       >
-        <View style={[styles.modalOverlay, formSheetBounded && styles.formSheetOverlay]}>
-          <View style={[styles.modalCard, formSheetBounded && styles.formSheetCard]}>
+        <View style={[styles.modalOverlay, styles.formSheetOverlay]}>
+          <View style={[styles.modalCard, styles.formSheetCard]}>
             <ScrollView
-              style={[styles.formScroll, formSheetBounded && styles.formScrollBounded]}
+              style={[styles.formScroll, styles.formScrollBounded]}
               showsVerticalScrollIndicator={false}
-              onContentSizeChange={(_, height) => setFormBodyHeight((current) => current === height ? current : height)}
+              keyboardShouldPersistTaps="always"
             >
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar pedido" : "Novo pedido"}
               </Text>
               <TaskPeopleSelector
                 title={null}
-                relations={["client"]}
+                relations={["client", "employee"]}
                 clientId={clientId}
-                onChange={(_, id) => setClientId(id)}
+                employeeId={employeeId}
+                onChange={(relation, id) => {
+                  if (relation === "client") setClientId(id);
+                  if (relation === "employee") setEmployeeId(id);
+                }}
                 onBeforeNavigate={(relation) => navigateToRelationPlugin(relation, () => setModalVisible(false))}
               />
               <Text style={styles.label}>Itens vendidos</Text>
               {items.map((item, index) => (
-                <View key={item.id} style={styles.itemForm}>
+                <View
+                  key={item.id}
+                  style={[
+                    styles.itemForm,
+                    focusedItemId === item.id && styles.itemFormFocused,
+                  ]}
+                >
                   <RequiredLabel>Item {index + 1}</RequiredLabel>
-                  <TextInput
-                    style={styles.itemNameInput}
-                    value={item.name}
-                    onChangeText={(value) =>
-                      updateItem(item.id, { name: value })
-                    }
-                    placeholder={`Item ${index + 1}`}
-                    placeholderTextColor={Colors.textMuted}
-                  />
+                  <View style={styles.itemSearchWrap}>
+                    <TextInput
+                      style={[
+                        styles.itemNameInput,
+                        focusedItemId === item.id &&
+                          !item.stockItemId &&
+                          item.name.trim().length > 0 &&
+                          estoqueItems.some((stock) =>
+                            stock.name.toLowerCase().includes(item.name.trim().toLowerCase()),
+                          ) &&
+                          styles.itemNameInputActive,
+                      ]}
+                      value={item.name}
+                      autoFocus={focusedItemId === item.id && item.name.length === 0}
+                      onFocus={() => setFocusedItemId(item.id)}
+                      onChangeText={(value) => {
+                        updateItem(item.id, {
+                          name: value,
+                          stockItemId: undefined,
+                          unitPrice: 0,
+                        });
+                        setFocusedItemId(item.id);
+                      }}
+                      placeholder={`Item ${index + 1}`}
+                      placeholderTextColor={Colors.textMuted}
+                    />
+                    {focusedItemId === item.id &&
+                      !item.stockItemId &&
+                      item.name.trim().length > 0 &&
+                      estoqueItems.some((stock) =>
+                        stock.name.toLowerCase().includes(item.name.trim().toLowerCase()),
+                      ) && (
+                      <View style={styles.stockSuggestions}>
+                        {estoqueItems
+                          .filter((stock) =>
+                            stock.name.toLowerCase().includes(item.name.trim().toLowerCase()),
+                          )
+                          .slice(0, 5)
+                          .map((stock) => (
+                            <TouchableOpacity
+                              key={stock.id}
+                              style={styles.stockSuggestion}
+                              onPress={() => {
+                                updateItem(item.id, {
+                                  name: stock.name,
+                                  unitPrice: stock.unitPrice,
+                                  stockItemId: stock.id,
+                                  addToStock: false,
+                                });
+                                setFocusedItemId(null);
+                                Keyboard.dismiss();
+                              }}
+                            >
+                              <Text style={styles.stockSuggestionName} numberOfLines={1}>{stock.name}</Text>
+                              <Text style={styles.stockSuggestionPrice} numberOfLines={1}>{money(stock.unitPrice)}</Text>
+                            </TouchableOpacity>
+                          ))}
+                      </View>
+                    )}
+                  </View>
                   <View style={styles.numberRow}>
                     <View style={{ flex: 1 }}>
                       <RequiredLabel>Quantidade</RequiredLabel>
@@ -402,13 +466,14 @@ export default function VendasScreen() {
                       />
                     </View>
                     <View style={{ flex: 1 }}>
-                      <FormLabel>Preço unitário (opcional)</FormLabel>
+                      <RequiredLabel>Preço unitário</RequiredLabel>
                       <TextInput
                         style={styles.numberInput}
                         value={String(item.unitPrice || "")}
                         onChangeText={(value) =>
                           updateItem(item.id, {
                             unitPrice: Number(value.replace(",", ".")) || 0,
+                            stockItemId: undefined,
                           })
                         }
                         placeholder="Preço"
@@ -417,62 +482,22 @@ export default function VendasScreen() {
                       />
                     </View>
                   </View>
-                  <FormLabel>Vincular ao estoque (opcional)</FormLabel>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.chipRow}
+                  <TouchableOpacity
+                    style={styles.stockCheckboxRow}
+                    onPress={() =>
+                      updateItem(item.id, { addToStock: !item.addToStock })
+                    }
                   >
-                    <TouchableOpacity
-                      style={[
-                        styles.stockChip,
-                        !item.stockItemId && styles.stockChipActive,
-                      ]}
-                      onPress={() =>
-                        updateItem(item.id, { stockItemId: undefined })
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          !item.stockItemId && styles.chipTextActive,
-                        ]}
-                      >
-                        Sem estoque
-                      </Text>
-                    </TouchableOpacity>
-                    {estoqueItems.map((stock) => (
-                      <TouchableOpacity
-                        key={stock.id}
-                        style={[
-                          styles.stockChip,
-                          item.stockItemId === stock.id &&
-                            styles.stockChipActive,
-                        ]}
-                        onPress={() =>
-                          updateItem(item.id, {
-                            stockItemId: stock.id,
-                            name: item.name || stock.name,
-                          })
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            item.stockItemId === stock.id &&
-                              styles.chipTextActive,
-                          ]}
-                        >
-                          {stock.name}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                    <View style={[styles.checkbox, item.addToStock && styles.checkboxActive]}>
+                      {item.addToStock && <Ionicons name="checkmark" size={15} color="#FFFFFF" />}
+                    </View>
+                    <Text style={styles.stockCheckboxLabel}>Adicionar item ao estoque</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
               <TouchableOpacity
                 style={styles.addItemButton}
-                onPress={() => setItems((current) => [...current, emptyItem()])}
+                onPress={addDraftItem}
               >
                 <Ionicons name="add" size={17} color={Colors.accent} />
                 <Text style={styles.actionText}>Adicionar item</Text>
@@ -506,10 +531,9 @@ export default function VendasScreen() {
                 </>
               )}
             </ScrollView>
-            <View
-              style={styles.formFooter}
-              onLayout={(event) => setFormFooterHeight(event.nativeEvent.layout.height)}
-            >
+              <View
+                style={styles.formFooter}
+              >
               <Text style={styles.totalPreview}>Total: {money(total)}</Text>
               <View style={styles.modalActions}>
                 <TouchableOpacity
@@ -526,71 +550,11 @@ export default function VendasScreen() {
           </View>
         </View>
       </BottomSheet>
-      <BottomSheet
-        visible={employeePickerVisible}
-        onClose={() => setEmployeePickerVisible(false)}
-        height={420}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.employeePickerCard}>
-            <Text style={styles.modalTitle}>Quem atendeu esta venda?</Text>
-            <Text style={styles.pickerHint}>
-              Você pode alterar essa informação depois.
-            </Text>
-            <TouchableOpacity
-              style={styles.employeeOption}
-              onPress={() => {
-                setEmployeeId(undefined);
-                setEmployeePickerVisible(false);
-              }}
-            >
-              <Text style={styles.employeeOptionText}>Não informado</Text>
-            </TouchableOpacity>
-            <TaskPeopleSelector
-              title={null}
-              relations={["employee"]}
-              employeeId={employeeId}
-               onChange={(_, id) => {
-                 setEmployeeId(id);
-                 setEmployeePickerVisible(false);
-               }}
-               onBeforeNavigate={(relation) => navigateToRelationPlugin(relation, () => setEmployeePickerVisible(false))}
-             />
-          </View>
-        </View>
-      </BottomSheet>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  employeePickerCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.xl,
-    marginHorizontal: Spacing.xl,
-    padding: Spacing.xxl,
-    gap: Spacing.sm,
-  },
-  pickerHint: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    marginBottom: Spacing.sm,
-  },
-  employeeOption: {
-    paddingVertical: Spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  employeeOptionText: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-  },
-  employeeRoleText: {
-    color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    marginTop: 2,
-  },
   safe: { flex: 1, backgroundColor: Colors.bg },
   header: {
     flexDirection: "row",
@@ -753,17 +717,26 @@ const styles = StyleSheet.create({
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
   chipTextActive: { color: "#FFFFFF" },
   itemForm: {
+    position: "relative",
     backgroundColor: Colors.bg,
     borderRadius: Radius.md,
     padding: Spacing.md,
     marginTop: Spacing.sm,
     gap: Spacing.sm,
   },
+  itemFormFocused: { zIndex: 10 },
+  itemSearchWrap: { position: "relative", zIndex: 20 },
   itemNameInput: {
     backgroundColor: Colors.bgCard,
     borderRadius: Radius.sm,
     padding: Spacing.md,
     color: Colors.primary,
+  },
+  itemNameInputActive: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   },
   numberRow: { flexDirection: "row", gap: Spacing.sm },
   numberInput: {
@@ -773,16 +746,65 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     color: Colors.primary,
   },
-  stockChip: {
+  stockSuggestions: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.bgCard,
+    borderBottomLeftRadius: Radius.sm,
+    borderBottomRightRadius: Radius.sm,
     borderWidth: 1,
     borderColor: Colors.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 6,
+    borderTopWidth: 0,
+    overflow: "hidden",
+    zIndex: 20,
   },
-  stockChipActive: {
+  stockSuggestion: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 48,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  stockSuggestionName: {
+    flex: 1,
+    color: Colors.primary,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: FontSize.sm,
+  },
+  stockSuggestionPrice: {
+    color: Colors.accent,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: FontSize.xs,
+  },
+  stockCheckboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.bgCard,
+  },
+  checkboxActive: {
     backgroundColor: Colors.accent,
     borderColor: Colors.accent,
+  },
+  stockCheckboxLabel: {
+    color: Colors.primary,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontSize: FontSize.sm,
   },
   addItemButton: {
     flexDirection: "row",
