@@ -58,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         context: (record.context ?? null) as OnboardingContextDTO | null,
         structuredProfile: removeLegacyIntentMarkers(record.structuredProfile) as OnboardingExtractionResult | null,
         activatedPlugins: record.activatedPlugins ?? [],
+        pluginOrder: record.pluginOrder ?? [],
       });
       const cleanedProfile = removeLegacyIntentMarkers(record.structuredProfile);
       if (cleanedProfile !== record.structuredProfile) {

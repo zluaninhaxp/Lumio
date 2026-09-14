@@ -414,6 +414,9 @@ export interface AppStore {
    */
   activatedPlugins: string[];
   setPluginActivation: (pluginId: string, activated: boolean) => void;
+  /** Ordem explícita dos módulos na aba Apps; ids desconhecidos são ignorados pela tela. */
+  pluginOrder: string[];
+  setPluginOrder: (pluginIds: string[]) => void;
 
   /** Sugestões do onboarding dispensadas manualmente na aba Apps. */
   dismissedPluginSuggestions: string[];
@@ -512,6 +515,7 @@ employeeItems: EmployeeItem[];
     context: OnboardingContextDTO | null;
     structuredProfile: OnboardingExtractionResult | null;
     activatedPlugins: string[];
+    pluginOrder?: string[];
   }) => void;
   /**
    * Zera todos os dados derivados do onboarding no store. Usado pela
@@ -722,6 +726,7 @@ export const useAppStore = create<AppStore>((set) => ({
   keywordMap: {},
   recommendedPlugins: [],
   activatedPlugins: [],
+  pluginOrder: [],
   setPluginActivation: (pluginId, activated) =>
     set((s) => {
       if (activated) {
@@ -758,6 +763,7 @@ export const useAppStore = create<AppStore>((set) => ({
       };
       return { estoqueItems: [estoqueItem, ...s.estoqueItems], catalogItems: [catalogItem, ...s.catalogItems] };
     }),
+  setPluginOrder: (pluginIds) => set({ pluginOrder: [...new Set(pluginIds)] }),
   addEstoqueItemFromCatalog: (catalogItemId, quantity, minAlert) => {
     let added = false;
     set((s) => {
@@ -1260,7 +1266,7 @@ export const useAppStore = create<AppStore>((set) => ({
       customTaskTags: result.coreCategories.taskTags.map((c) => c.label),
       onboardingCompleted: true,
     })),
-  hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins }) =>
+  hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins, pluginOrder = [] }) =>
     set((s) => {
       const normalizedProfile = normalizeHydratedProfile(structuredProfile);
       return normalizedProfile ? {
@@ -1280,11 +1286,13 @@ export const useAppStore = create<AppStore>((set) => ({
        recommendedPlugins: normalizedProfile.extraction.recommendedPlugins,
        customTaskTags: normalizedProfile.extraction.coreCategories.taskTags.map((c) => c.label),
        activatedPlugins,
+       pluginOrder,
        onboardingCompleted: true,
       } : {
       openAnswers: responses,
       onboardingContext: context,
-      activatedPlugins,
+       activatedPlugins,
+       pluginOrder,
       onboardingCompleted: true,
        onboardingExtraction: null,
        taxonomy: null,
@@ -1320,6 +1328,7 @@ export const useAppStore = create<AppStore>((set) => ({
       recommendedPlugins: [],
       customTaskTags: [],
       activatedPlugins: [],
+      pluginOrder: [],
       dismissedPluginSuggestions: [],
     }),
 

@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
@@ -74,6 +75,7 @@ const INITIAL_MESSAGES: Message[] = [
 ];
 
 export default function ChatScreen() {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const [pendingFinancialText, setPendingFinancialText] = useState<string | null>(null);
@@ -82,14 +84,21 @@ export default function ChatScreen() {
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
-  const commandSuggestions = input.startsWith('/') && !input.includes(' ')
-    ? getCommandDefinitions().filter((item) => {
-        const query = input.slice(1).toLocaleLowerCase();
-        return item.menuOnly && (!query || item.name.includes(query) || item.label.toLocaleLowerCase().includes(query));
-      }).slice(0, 6)
-    : [];
 const { currentUser } = useAuth();
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
+  const isCommandMenuOpen = input.startsWith('/') && !input.includes(' ');
+  const commandSuggestions = isCommandMenuOpen
+    ? getCommandDefinitions().filter((item) => {
+        const query = input.slice(1).toLocaleLowerCase();
+        return item.menuOnly
+          && !!item.pluginId
+          && activatedPlugins.includes(item.pluginId)
+          && (!query || item.name.includes(query) || item.label.toLocaleLowerCase().includes(query));
+      }).slice(0, 6)
+    : [];
+  const hasAllCommandPlugins = getCommandDefinitions()
+    .filter((item) => item.menuOnly && item.pluginId)
+    .every((item) => activatedPlugins.includes(item.pluginId!));
 
   const learnTaxonomyTerm = useCallback((domain: TaxonomyDomain, rawTerm: string | null | undefined) => {
     if (!rawTerm) return;
@@ -1020,6 +1029,12 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setInput('');
   }, [input, processMessage, commitMessages]);
 
+  const runCommandSuggestion = useCallback((commandName: string) => {
+    const text = `/${commandName}`;
+    commitMessages(text, processMessage(text));
+    setInput('');
+  }, [processMessage, commitMessages]);
+
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
     commitMessages(transcript.trim(), processMessage(transcript.trim()));
@@ -1152,7 +1167,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
               <TouchableOpacity
                 key={command.name}
                 style={styles.commandSuggestion}
-                onPress={() => setInput(`/${command.name} `)}
+                onPress={() => runCommandSuggestion(command.name)}
                 accessibilityRole="button"
                 accessibilityLabel={command.label}
               >
@@ -1166,7 +1181,40 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
                 <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
               </TouchableOpacity>
             ))}
-            <Text style={styles.commandHint}>Você também pode escrever normalmente, sem comando.</Text>
+            {hasAllCommandPlugins ? (
+              <View style={styles.commandAllActive} accessibilityLabel="Todos os módulos com comando estão ativos">
+                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.accent} />
+                <Text style={styles.commandAppsLinkText}>Você já ativou todos os módulos</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.commandAppsLink}
+                onPress={() => router.push('/(tabs)/apps' as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Adicionar mais módulos"
+              >
+                <Ionicons name="add-circle-outline" size={16} color={Colors.accent} />
+                <Text style={styles.commandAppsLinkText}>Adicionar mais módulos</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        {isCommandMenuOpen && activatedPlugins.length === 0 && (
+          <View style={styles.commandMenu} accessibilityLabel="Nenhum módulo ativo">
+            <View style={styles.commandEmptyIcon}>
+              <Ionicons name="apps-outline" size={20} color={Colors.accent} />
+            </View>
+            <Text style={styles.commandEmptyTitle}>Ative seu primeiro módulo</Text>
+            <Text style={styles.commandEmptyText}>Os comandos aparecem aqui quando você ativar um módulo.</Text>
+            <TouchableOpacity
+              style={styles.commandEmptyButton}
+              onPress={() => router.push('/(tabs)/apps' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Ir para a tela de Apps"
+            >
+              <Text style={styles.commandEmptyButtonText}>Ver Apps</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -1309,6 +1357,36 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.xs,
     color: Colors.textMuted,
+  },
+  commandAppsLink: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
+    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+  },
+  commandAllActive: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
+    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+  },
+  commandAppsLinkText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent,
+  },
+  commandEmptyIcon: {
+    width: 36, height: 36, borderRadius: Radius.full, backgroundColor: Colors.accentLight,
+    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
+  },
+  commandEmptyTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.md, color: Colors.primary,
+  },
+  commandEmptyText: {
+    fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm, color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  commandEmptyButton: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md,
+    minHeight: 40, marginTop: Spacing.md,
+  },
+  commandEmptyButtonText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: '#FFFFFF',
   },
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
