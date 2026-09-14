@@ -25,18 +25,20 @@ import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 
-type DraftItem = Omit<OrderItem, "id"> & { id: string; addToCatalog?: boolean };
+type DraftItem = Omit<OrderItem, "id" | "unitPrice"> & { id: string; unitPrice: number | string; addToCatalog?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
+const parsePrice = (value: number | string) => Number(String(value).replace(",", "."));
 const todayLabel = () =>
   new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 const emptyItem = (): DraftItem => ({
   id: `${Date.now()}-${Math.random()}`,
   name: "",
   quantity: 1,
-  unitPrice: 0,
+  unitPrice: "",
   addToCatalog: false,
 });
 const FORM_SHEET_MAX_HEIGHT = Dimensions.get("window").height * 0.8;
+const SHEET_CHROME_HEIGHT = Spacing.md + 4 + Spacing.lg + Spacing.xxxl;
 
 export default function VendasScreen() {
   const router = useRouter();
@@ -64,7 +66,14 @@ export default function VendasScreen() {
   const [status, setStatus] = useState<OrderStatus>("aberto");
   const [employeeId, setEmployeeId] = useState<string | undefined>();
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const [formBodyHeight, setFormBodyHeight] = useState(0);
+  const [formFooterHeight, setFormFooterHeight] = useState(0);
   const formScrollRef = useRef<ScrollView>(null);
+
+  const formSheetHeight = formBodyHeight > 0 && formFooterHeight > 0
+    ? Math.min(FORM_SHEET_MAX_HEIGHT, formBodyHeight + formFooterHeight + SHEET_CHROME_HEIGHT)
+    : undefined;
+  const formSheetBounded = formSheetHeight !== undefined;
 
   useEffect(() => {
     if (returnToSales !== "1" || !createdId || !relation) return;
@@ -81,6 +90,8 @@ export default function VendasScreen() {
       setEmployeeId(draft.employeeId);
       setItems(draft.items);
       setStatus(draft.status);
+      setFormBodyHeight(0);
+      setFormFooterHeight(0);
       setModalVisible(true);
     }
     clearRelationDraft("sales");
@@ -115,7 +126,7 @@ export default function VendasScreen() {
 
   const total = items.reduce(
     (sum, item) =>
-      sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+      sum + (Number(item.quantity) || 0) * (parsePrice(item.unitPrice) || 0),
     0,
   );
   const openAdd = () => {
@@ -124,6 +135,8 @@ export default function VendasScreen() {
     setEmployeeId(undefined);
     setItems([emptyItem()]);
     setStatus("concluido");
+    setFormBodyHeight(0);
+    setFormFooterHeight(0);
     setModalVisible(true);
   };
   const openEdit = (order: Pedido) => {
@@ -132,6 +145,8 @@ export default function VendasScreen() {
     setEmployeeId(order.employeeId);
     setItems(order.items.map((item) => ({ ...item })));
     setStatus(order.status);
+    setFormBodyHeight(0);
+    setFormFooterHeight(0);
     setModalVisible(true);
   };
   const updateItem = (id: string, updates: Partial<DraftItem>) =>
@@ -151,13 +166,13 @@ export default function VendasScreen() {
         (item) =>
           item.name.trim() &&
           Number(item.quantity) > 0 &&
-          Number(item.unitPrice) > 0,
+           String(item.unitPrice).trim() !== "" && Number.isFinite(parsePrice(item.unitPrice)) && parsePrice(item.unitPrice) >= 0,
       )
       .map((item) => ({
         ...item,
         name: item.name.trim(),
         quantity: Number(item.quantity),
-        unitPrice: Number(item.unitPrice),
+         unitPrice: parsePrice(item.unitPrice),
       }));
     if (validItems.length === 0) return;
     const orderTotal = validItems.reduce(
@@ -337,15 +352,16 @@ export default function VendasScreen() {
         onClose={() => setModalVisible(false)}
         minHeight={0}
         maxHeight={FORM_SHEET_MAX_HEIGHT}
-        sheetHeight={FORM_SHEET_MAX_HEIGHT}
+        sheetHeight={formSheetHeight}
       >
-        <View style={[styles.modalOverlay, styles.formSheetOverlay]}>
-          <View style={[styles.modalCard, styles.formSheetCard]}>
+        <View style={[styles.modalOverlay, formSheetBounded && styles.formSheetOverlay]}>
+          <View style={[styles.modalCard, formSheetBounded && styles.formSheetCard]}>
             <ScrollView
               ref={formScrollRef}
-              style={[styles.formScroll, styles.formScrollBounded]}
+              style={[styles.formScroll, formSheetBounded && styles.formScrollBounded]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="always"
+              onContentSizeChange={(_, height) => setFormBodyHeight((current) => current === height ? current : height)}
             >
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar venda" : "Nova venda"}
@@ -404,11 +420,11 @@ export default function VendasScreen() {
                       <RequiredLabel>Preço unitário</RequiredLabel>
                       <TextInput
                         style={styles.numberInput}
-                        value={String(item.unitPrice || "")}
+                        value={String(item.unitPrice)}
                         onFocus={() => setFocusedItemId(item.id)}
                         onChangeText={(value) =>
                           updateItem(item.id, {
-                              unitPrice: Number(value.replace(",", ".")) || 0,
+                              unitPrice: value,
                               stockItemId: undefined,
                           })
                         }
@@ -430,6 +446,7 @@ export default function VendasScreen() {
             </ScrollView>
               <View
                 style={styles.formFooter}
+                onLayout={(event) => setFormFooterHeight(event.nativeEvent.layout.height)}
               >
               <Text style={styles.totalPreview}>Total: {money(total)}</Text>
               <View style={styles.modalActions}>

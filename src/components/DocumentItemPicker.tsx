@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Colors, FontSize, Radius, Spacing } from '../constants/theme';
 import type { CatalogItem, OrderItem } from '../store';
 
 type Props = {
-  item: OrderItem;
+  item: Omit<OrderItem, 'unitPrice'> & { unitPrice: number | string };
   catalogItems: CatalogItem[];
   onChange: (updates: Partial<OrderItem>) => void;
   allowStandalone?: boolean;
@@ -14,12 +14,39 @@ type Props = {
 
 const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
+const normalizeSearch = (value: string) => value
+  .toLocaleLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
+function searchRank(candidate: CatalogItem, query: string) {
+  const name = normalizeSearch(candidate.name);
+  const unit = normalizeSearch(candidate.unit);
+  const words = `${name} ${unit}`.split(/\s+/).filter(Boolean);
+  const startsWord = words.some((word) => word.startsWith(query));
+  const startsName = name.startsWith(query);
+  if (startsName) return 0;
+  if (startsWord) return 1;
+  if (query.length >= 3 && (name.includes(query) || unit.includes(query))) return 2;
+  return -1;
+}
+
 export function DocumentItemPicker({ item, catalogItems, onChange, allowStandalone = true, onCreateCatalog }: Props) {
   const [focused, setFocused] = useState(false);
   const [query, setQuery] = useState(item.catalogItemId ? item.name : '');
+  useEffect(() => {
+    if (!focused) setQuery(item.catalogItemId ? item.name : '');
+  }, [focused, item.catalogItemId, item.name]);
   const results = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    return catalogItems.filter((candidate) => candidate.active && (!normalized || candidate.name.toLowerCase().includes(normalized))).slice(0, 6);
+    const normalized = normalizeSearch(query.trim());
+    if (!normalized) return [];
+    return catalogItems
+      .filter((candidate) => candidate.active)
+      .map((candidate) => ({ candidate, rank: searchRank(candidate, normalized) }))
+      .filter(({ rank }) => rank >= 0)
+      .sort((a, b) => a.rank - b.rank || a.candidate.name.localeCompare(b.candidate.name, 'pt-BR', { sensitivity: 'base' }))
+      .slice(0, 6)
+      .map(({ candidate }) => candidate);
   }, [catalogItems, query]);
 
   const select = (candidate: CatalogItem) => {
@@ -42,7 +69,10 @@ export function DocumentItemPicker({ item, catalogItems, onChange, allowStandalo
         <TextInput
           style={styles.input}
           value={item.catalogItemId ? item.name : query || item.name}
-          onFocus={() => setFocused(true)}
+          onFocus={() => {
+            setFocused(true);
+            setQuery(item.catalogItemId ? '' : item.name);
+          }}
           onChangeText={(value) => {
             setQuery(value);
             onChange({ name: value, catalogItemId: undefined, kind: undefined, stockItemId: undefined });
