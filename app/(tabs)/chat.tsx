@@ -30,6 +30,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 import { BotMessageCard, type BotCard } from '../components/chat/BotMessageCard';
+import { parseCommand, buildCommandHelp, missingCommandFields, getCommandDefinitions, type ParsedCommand } from '../../src/engine/commandEngine';
 
 interface Message {
   id: string;
@@ -45,7 +46,23 @@ interface Message {
 }
 
 type ChatAmbiguity = FinancialDirectionAmbiguity | TaskEventAmbiguity;
-type QuickActionValue = ChatAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other';
+type QuickActionValue = ChatAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other' | 'command_add_client' | 'command_add_supplier' | 'command_add_employee' | 'command_add_stock' | 'command_add_catalog' | 'command_create_catalog_for_stock';
+type PendingCommandAction = Exclude<Extract<QuickActionValue, `command_${string}`>, 'command_create_catalog_for_stock'>;
+type PendingCommand = { action: PendingCommandAction; values: Record<string, string>; fieldIndex: number };
+
+const COMMAND_FIELDS: Record<PendingCommandAction, { key: string; prompt: string }[]> = {
+  command_add_client: [{ key: 'nome', prompt: 'Qual é o nome do cliente?' }],
+  command_add_supplier: [{ key: 'nome', prompt: 'Qual é o nome do fornecedor?' }],
+  command_add_employee: [
+    { key: 'nome', prompt: 'Qual é o nome do funcionário?' },
+    { key: 'funcao', prompt: 'Qual é a função dele na equipe?' },
+  ],
+  command_add_stock: [{ key: 'nome', prompt: 'Qual item do catálogo você quer adicionar ao estoque?' }],
+  command_add_catalog: [
+    { key: 'nome', prompt: 'Qual é o nome do produto ou serviço?' },
+    { key: 'preco', prompt: 'Qual é o preço padrão?' },
+  ],
+};
 
 const INITIAL_MESSAGES: Message[] = [
   {
@@ -62,9 +79,17 @@ export default function ChatScreen() {
   const [pendingFinancialText, setPendingFinancialText] = useState<string | null>(null);
   const [pendingIntentMarkerPhrase, setPendingIntentMarkerPhrase] = useState<string | null>(null);
   const [accountVisible, setAccountVisible] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
+  const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const commandSuggestions = input.startsWith('/') && !input.includes(' ')
+    ? getCommandDefinitions().filter((item) => {
+        const query = input.slice(1).toLocaleLowerCase();
+        return item.menuOnly && (!query || item.name.includes(query) || item.label.toLocaleLowerCase().includes(query));
+      }).slice(0, 6)
+    : [];
 const { currentUser } = useAuth();
-  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy } = useAppStore();
+  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
 
   const learnTaxonomyTerm = useCallback((domain: TaxonomyDomain, rawTerm: string | null | undefined) => {
     if (!rawTerm) return;
@@ -278,6 +303,83 @@ return date.toISOString().split('T')[0];
     ambiguity?: ChatAmbiguity;
     fallbackSourceText?: string;
   };
+
+  // Comandos são uma camada explícita e previsível para ações de cadastro.
+  // O parser não tenta adivinhar frases: apenas transforma /comando em uma
+  // ação tipada e deixa as validações de unicidade no store.
+  const applyCommand = useCallback((command: ParsedCommand): TaskOutcome => {
+    const missing = missingCommandFields(command);
+    if (missing.length) {
+      const nextAction: Record<ParsedCommand['action'], PendingCommandAction> = {
+        add_client: 'command_add_client', add_supplier: 'command_add_supplier', add_employee: 'command_add_employee',
+        add_stock: 'command_add_stock', add_catalog: 'command_add_catalog', add_generic: 'command_add_client',
+      };
+      const action = nextAction[command.action];
+      setPendingCommand({ action, values: {}, fieldIndex: 0 });
+      return { handled: true, botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' };
+    }
+    const a = command.args;
+    const createdAt = new Date().toISOString();
+    if (command.action === 'add_client') {
+      const id = addClienteItem({ name: a.nome, contact: a.contato ?? '', notes: a.observacoes ?? a.notas ?? '', createdAt });
+      return id
+        ? { handled: true, botText: '', cards: [{ kind: 'client', title: a.nome, context: a.contato ?? a.observacoes ?? a.notas }], botType: 'bot' }
+        : { handled: true, botText: `Já existe um cliente chamado ${a.nome}.`, botType: 'bot' };
+    }
+    if (command.action === 'add_supplier') {
+      const id = addFornecedorItem({ name: a.nome, contact: a.contato ?? '', paymentTerm: a.prazo ?? '', notes: a.observacoes ?? a.notas ?? '' });
+      return id
+        ? { handled: true, botText: '', cards: [{ kind: 'supplier', title: a.nome, context: a.contato ?? a.prazo ?? a.observacoes ?? a.notas }], botType: 'bot' }
+        : { handled: true, botText: `Já existe um fornecedor chamado ${a.nome}.`, botType: 'bot' };
+    }
+    if (command.action === 'add_employee') {
+      if (!(a.funcao ?? a.cargo)?.trim()) {
+        setPendingCommand({ action: 'command_add_employee', values: { nome: a.nome }, fieldIndex: 1 });
+        return { handled: true, botText: COMMAND_FIELDS.command_add_employee[1].prompt, botType: 'bot' };
+      }
+      const id = addEmployeeItem({ name: a.nome, role: a.funcao ?? a.cargo ?? '', contact: a.contato ?? '', commissionRate: a.comissao ? Number(a.comissao.replace(',', '.')) : 0, createdAt });
+      return id
+        ? { handled: true, botText: '', cards: [{ kind: 'employee', title: a.nome, context: a.funcao ?? a.cargo ?? a.contato }], botType: 'bot' }
+        : { handled: true, botText: `Já existe um funcionário chamado ${a.nome}.`, botType: 'bot' };
+    }
+    if (command.action === 'add_stock') {
+      const catalogItem = catalogItems.find((item) => item.kind === 'produto' && item.name.trim().toLocaleLowerCase() === a.nome.trim().toLocaleLowerCase());
+      if (!catalogItem) {
+        setPendingStockCatalogName(a.nome);
+        return {
+          handled: true,
+          botText: `Não encontrei "${a.nome}" no Catálogo. Deseja adicioná-lo agora?`,
+          quickActions: [
+            { label: 'Adicionar ao Catálogo', value: 'command_create_catalog_for_stock' },
+            { label: 'Agora não', value: 'other' },
+          ],
+          botType: 'bot',
+        };
+      }
+      const quantity = Math.max(0, Number((a.quantidade ?? '0').replace(',', '.')) || 0);
+      const minAlert = Math.max(0, Number((a.minimo ?? a.alerta ?? '0').replace(',', '.')) || 0);
+      const added = addEstoqueItemFromCatalog(catalogItem.id, quantity, minAlert);
+      return added
+        ? { handled: true, botText: '', cards: [{ kind: 'stock', title: catalogItem.name, context: `${quantity} ${catalogItem.unit} · alerta mínimo: ${minAlert}` }], botType: 'bot' }
+        : { handled: true, botText: `${catalogItem.name} já está no estoque.`, botType: 'bot' };
+    }
+    if (command.action === 'add_catalog') {
+      if (!a.preco?.trim()) {
+        const fieldIndex = 1;
+        setPendingCommand({ action: 'command_add_catalog', values: { nome: a.nome, preco: a.preco ?? '', controlaestoque: a.controlaestoque ?? '' }, fieldIndex });
+        return { handled: true, botText: COMMAND_FIELDS.command_add_catalog[fieldIndex].prompt, botType: 'bot' };
+      }
+      const normalizedType = a.tipo?.trim().toLocaleLowerCase();
+      const kind = normalizedType === 'servico' || normalizedType === 'serviço' ? 'servico' : 'produto';
+      const unit = a.unidade?.trim() ?? '';
+      const controlStock = a.controlaestoque === 'true' || a.controlaestoque === 'sim';
+      const needsReview = !normalizedType;
+      addCatalogItem({ name: a.nome, kind, unitPrice: Number((a.preco ?? a.valor ?? '0').replace(',', '.')) || 0, unit, controlStock, needsReview });
+      const details = [needsReview ? 'Tipo pendente de confirmação' : kind === 'servico' ? 'Serviço' : 'Produto', `R$ ${a.preco ?? a.valor ?? '0'}`, unit, controlStock ? 'estoque controlado' : ''].filter(Boolean).join(' · ');
+      return { handled: true, botText: '', cards: [{ kind: 'catalog', title: a.nome, context: details }], botType: 'bot' };
+    }
+    return { handled: true, botText: 'Comando reconhecido, mas esta ação ainda está sendo conectada.', botType: 'bot' };
+  }, [addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems]);
 
   const learnIntentMarker = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
     if (!ambiguity.candidatePhrase) return;
@@ -555,6 +657,19 @@ return date.toISOString().split('T')[0];
   }, [applyTaskEventChoice, commitMessages]);
 
   const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
+    if (value === 'command_create_catalog_for_stock') {
+      if (!pendingStockCatalogName) return;
+      setPendingCommand({ action: 'command_add_catalog', values: { nome: pendingStockCatalogName, controlaestoque: 'sim' }, fieldIndex: 1 });
+      setPendingStockCatalogName(null);
+      commitMessages('Adicionar ao Catálogo', { botText: COMMAND_FIELDS.command_add_catalog[1].prompt, botType: 'bot' });
+      return;
+    }
+    if (value.startsWith('command_')) {
+      const action = value as PendingCommandAction;
+      setPendingCommand({ action, values: {}, fieldIndex: 0 });
+      commitMessages('Cadastrar', { botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' });
+      return;
+    }
     if (value === 'register_expense') {
       setPendingFinancialText('gastei');
       // O fallback genérico não é evidência suficiente para aprender direção
@@ -600,7 +715,7 @@ return date.toISOString().split('T')[0];
     } else if (value === 'other') {
       commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
     }
-  }, [addTask, commitMessages, persistIntentMarker, taskHookFromText]);
+  }, [addTask, commitMessages, pendingStockCatalogName, persistIntentMarker, taskHookFromText]);
 
 
   /**
@@ -777,6 +892,60 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
    *  4. Fallback.
    */
   const processMessage = useCallback((text: string) => {
+    if (pendingCommand) {
+      const commandByAction: Record<string, { command: string; action: ParsedCommand['action'] }> = {
+        command_add_client: { command: 'adicionarcliente', action: 'add_client' },
+        command_add_supplier: { command: 'adicionarfornecedor', action: 'add_supplier' },
+        command_add_employee: { command: 'adicionarequipe', action: 'add_employee' },
+        command_add_stock: { command: 'adicionarestoque', action: 'add_stock' },
+        command_add_catalog: { command: 'adicionarcatalogo', action: 'add_catalog' },
+      };
+      const selected = commandByAction[pendingCommand.action];
+      const fields = COMMAND_FIELDS[pendingCommand.action];
+      const field = fields[pendingCommand.fieldIndex];
+      const submittedValue = text.trim();
+      const values = { ...pendingCommand.values, [field.key]: submittedValue };
+      if (selected) {
+        const nextIndex = pendingCommand.fieldIndex + 1;
+        if (nextIndex < fields.length) {
+          setPendingCommand({ action: pendingCommand.action, values, fieldIndex: nextIndex });
+          return { handled: true, botText: COMMAND_FIELDS[pendingCommand.action][nextIndex].prompt, botType: 'bot' as const };
+        }
+        setPendingCommand(null);
+        return applyCommand({ action: selected.action, command: selected.command, args: values, positional: [], raw: text.trim() });
+      }
+    }
+    const command = parseCommand(text);
+    if (command && 'help' in command) {
+      return { botText: buildCommandHelp(), actions: [], botType: 'bot' as const };
+    }
+    if (command && 'menu' in command) {
+      const moduleCards: Record<string, BotCard> = {
+        clientes: { kind: 'module', badgeLabel: 'Clientes', badgeIcon: 'people-outline', title: 'Gerencie seus clientes.', context: 'Cadastre contatos e acompanhe informações importantes.' },
+        fornecedores: { kind: 'module', badgeLabel: 'Fornecedores', badgeIcon: 'briefcase-outline', title: 'Gerencie seus fornecedores.', context: 'Registre contatos, prazos e valores pendentes.' },
+        equipe: { kind: 'module', badgeLabel: 'Equipe', badgeIcon: 'people-circle-outline', title: 'Gerencie sua equipe.', context: 'Mantenha funções, tarefas e comissões organizadas.' },
+        estoque: { kind: 'module', badgeLabel: 'Estoque', badgeIcon: 'cube-outline', title: 'Controle seu estoque.', context: 'Acompanhe itens, quantidades e movimentações.' },
+        catalogo: { kind: 'module', badgeLabel: 'Catálogo', badgeIcon: 'pricetags-outline', title: 'Gerencie seu catálogo.', context: 'Mantenha produtos e serviços prontos para vender.' },
+        vendas: { kind: 'module', badgeLabel: 'Vendas', badgeIcon: 'receipt-outline', title: 'Acompanhe suas vendas.', context: 'Consulte pedidos, valores e andamento.' },
+        orcamentos: { kind: 'module', badgeLabel: 'Orçamentos', badgeIcon: 'document-text-outline', title: 'Gerencie seus orçamentos.', context: 'Crie propostas e acompanhe cada negociação.' },
+        entregas: { kind: 'module', badgeLabel: 'Entregas', badgeIcon: 'bicycle-outline', title: 'Acompanhe suas entregas.', context: 'Consulte pedidos, prazos e status.' },
+        contratos: { kind: 'module', badgeLabel: 'Contratos', badgeIcon: 'document-lock-outline', title: 'Gerencie seus contratos.', context: 'Acompanhe cobranças recorrentes e vencimentos.' },
+        comissoes: { kind: 'module', badgeLabel: 'Comissões', badgeIcon: 'cash-outline', title: 'Acompanhe as comissões.', context: 'Consulte valores pendentes e pagamentos.' },
+        agenda: { kind: 'module', badgeLabel: 'Agenda', badgeIcon: 'calendar-outline', title: 'Organize sua agenda.', context: 'Acompanhe horários, clientes e compromissos.' },
+      };
+      const commandActions: Record<string, { label: string; value: QuickActionValue }[]> = {
+        clientes: [{ label: 'Cadastrar alguém', value: 'command_add_client' }],
+        fornecedores: [{ label: 'Cadastrar fornecedor', value: 'command_add_supplier' }],
+        equipe: [{ label: 'Cadastrar alguém', value: 'command_add_employee' }],
+        estoque: [{ label: 'Colocar item no estoque', value: 'command_add_stock' }],
+        catalogo: [{ label: 'Adicionar produto/serviço', value: 'command_add_catalog' }],
+      };
+      return { botText: '', cards: [moduleCards[command.menu]], actions: [], quickActions: commandActions[command.menu], botType: 'bot' as const };
+    }
+    if (command && !('help' in command) && !('menu' in command)) {
+      const outcome = applyCommand(command);
+      return { botText: outcome.botText ?? '', actions: outcome.actions ?? [], botType: outcome.botType ?? 'bot' as const, cards: outcome.cards };
+    }
     const parsed = parseMessage(text);
     let botText = buildBotResponse(parsed);
     let actions: string[] = [];
@@ -842,7 +1011,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     }
 
     return { botText, actions, botType, cards, fallbackSourceText: parsed.intent === 'UNKNOWN' ? text : undefined };
-  }, [applyFinancialEngine, applyTaskEngineResult, handlePluginIntent]);
+  }, [applyCommand, applyFinancialEngine, applyTaskEngineResult, handlePluginIntent, pendingCommand]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -863,6 +1032,13 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       <Image source={MASCOT_IMAGES[expression]} style={styles.botAvatarImage} resizeMode="contain" />
     );
 
+    const fallbackActions: { label: string; value: QuickActionValue; icon: keyof typeof Ionicons.glyphMap }[] = [
+      { label: 'Anotar um gasto', value: 'register_expense', icon: 'arrow-down-circle-outline' },
+      { label: 'Anotar uma entrada', value: 'register_income', icon: 'arrow-up-circle-outline' },
+      { label: 'Lembrar de algo', value: 'add_task', icon: 'checkmark-circle-outline' },
+      { label: 'Me explicar melhor', value: 'other', icon: 'chatbubble-ellipses-outline' },
+    ];
+
     if (item.type === 'user') {
       return (
         <View style={styles.userBubbleContainer}>
@@ -879,18 +1055,11 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {renderBotAvatar('confuso')}
           <View style={styles.botContent}>
             <View style={styles.botBubble}>
-              <Text style={styles.botText}>
-                Não consegui identificar o que você quer registrar. O que você quer fazer?
-              </Text>
+              <Text style={styles.botText}>{item.text || 'Não peguei isso direito 😅 O que você quer fazer?'}</Text>
             </View>
             <View style={styles.quickActionsRow}>
-              {[
-                { label: 'Registrar saída', value: 'register_expense' as const },
-                { label: 'Registrar entrada', value: 'register_income' as const },
-                { label: 'Adicionar tarefa', value: 'add_task' as const },
-                { label: 'Outra coisa', value: 'other' as const },
-              ].map(({ label, value }) => (
-                <TouchableOpacity key={label} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
+              {fallbackActions.map(({ label, value }) => (
+                <TouchableOpacity key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -920,9 +1089,11 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {item.quickActions && item.quickActions.length > 0 && (
             <View style={styles.quickActionsRow}>
               {item.quickActions.map((action) => (
-                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => item.ambiguity?.type === 'task_or_event'
-                  ? handleTaskEventChoice(item, action.value as 'task' | 'event')
-                  : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
+                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
+                  ? handleGenericQuickAction(item, action.value)
+                  : item.ambiguity?.type === 'task_or_event'
+                    ? handleTaskEventChoice(item, action.value as 'task' | 'event')
+                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
                   <Text style={styles.quickActionText}>{action.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -973,6 +1144,31 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           colors={['rgba(239,239,237,0)', Colors.bg]}
           style={styles.messageFade}
         />
+
+        {commandSuggestions.length > 0 && (
+          <View style={styles.commandMenu} accessibilityLabel="Ações disponíveis">
+            <Text style={styles.commandMenuTitle}>O que você quer fazer?</Text>
+            {commandSuggestions.map((command) => (
+              <TouchableOpacity
+                key={command.name}
+                style={styles.commandSuggestion}
+                onPress={() => setInput(`/${command.name} `)}
+                accessibilityRole="button"
+                accessibilityLabel={command.label}
+              >
+                <View style={styles.commandIcon}>
+                  <Ionicons name="add" size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.commandSuggestionText}>
+                  <Text style={styles.commandLabel}>{command.label}</Text>
+                  <Text style={styles.commandUsage} numberOfLines={1}>{command.usage.replace(/^\/\w+\s*/, '')}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+            <Text style={styles.commandHint}>Você também pode escrever normalmente, sem comando.</Text>
+          </View>
+        )}
 
         {/* Input bar */}
         <View style={[styles.inputBar, { marginBottom: Spacing.sm }]}>
@@ -1059,6 +1255,61 @@ const styles = StyleSheet.create({
     bottom: 76,
     height: 10,
   },
+  commandMenu: {
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.xs,
+    padding: Spacing.sm,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  commandMenuTitle: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+  },
+  commandSuggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+  commandIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commandSuggestionText: { flex: 1, gap: 2 },
+  commandLabel: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+  },
+  commandUsage: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  commandHint: {
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
   userBubble: {
@@ -1119,6 +1370,48 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.primary,
     lineHeight: 22,
+  },
+  conversationPrompt: { alignSelf: 'flex-start', maxWidth: '92%', gap: Spacing.xs },
+  conversationBubble: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    borderTopLeftRadius: 4,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  conversationTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+  },
+  conversationSubtitle: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  conversationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  conversationAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentLight,
+  },
+  conversationActionText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
   },
 
   actionsRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },

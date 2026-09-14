@@ -13,7 +13,7 @@ import { CatalogItem, useAppStore } from '../../src/store';
 import { clearRelationDraft } from '../../src/utils/relationDraft';
 
 type CatalogForm = { name: string; kind: 'produto' | 'servico'; unitPrice: string; unit: string; controlStock: boolean };
-const empty: CatalogForm = { name: '', kind: 'produto', unitPrice: '', unit: 'un', controlStock: false };
+const empty: CatalogForm = { name: '', kind: 'produto', unitPrice: '', unit: '', controlStock: false };
 const money = (value: number) => `R$ ${value.toFixed(2).replace('.', ',')}`;
 
 export default function CatalogoScreen() {
@@ -33,7 +33,7 @@ export default function CatalogoScreen() {
   const openTypeReview = (item: CatalogItem) => { setEditing(item.id); setTypeOnlyEditing(true); setForm({ name: item.name, kind: item.kind, unitPrice: String(item.unitPrice), unit: item.unit, controlStock: item.controlStock }); setVisible(true); };
   const save = () => {
     const unitPrice = Number(form.unitPrice.replace(',', '.'));
-    if (!form.name.trim() || !Number.isFinite(unitPrice) || unitPrice < 0 || !form.unit.trim()) return;
+    if (!form.name.trim() || !Number.isFinite(unitPrice) || unitPrice < 0) return;
     const payload = { name: form.name.trim(), kind: form.kind, unitPrice, unit: form.unit.trim(), controlStock: form.kind === 'produto' && form.controlStock };
     let createdId: string | null = null;
     if (editing) updateCatalogItem(editing, { ...payload, needsReview: false });
@@ -60,7 +60,7 @@ export default function CatalogoScreen() {
       <View style={styles.modalOverlay}>
         <View style={styles.modalCard}>
           <Text style={styles.modalTitle}>{reviewingType ? 'Confirmar tipo do item' : editing ? 'Editar item' : 'Novo item'}</Text>
-          {reviewingType && <Text style={styles.reviewHint}>Este item veio de uma venda avulsa. Confirme se ele é um produto ou serviço.</Text>}
+          {reviewingType && <Text style={styles.reviewHint}>Este item foi criado sem um tipo definido. Confirme se ele é um produto ou serviço.</Text>}
           {!typeOnlyEditing && <>
             <RequiredLabel>Nome do item</RequiredLabel>
             <TextInput autoFocus style={styles.input} value={form.name} onChangeText={(name) => setForm((current) => ({ ...current, name }))} placeholder="Nome do produto ou serviço" placeholderTextColor={Colors.textMuted} />
@@ -79,7 +79,7 @@ export default function CatalogoScreen() {
           {!typeOnlyEditing && <>
             <RequiredLabel>Preço padrão</RequiredLabel>
             <TextInput style={styles.input} value={form.unitPrice} onChangeText={(unitPrice) => setForm((current) => ({ ...current, unitPrice }))} placeholder="0,00" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" />
-            <RequiredLabel>Unidade</RequiredLabel>
+            <FormLabel>Unidade (opcional)</FormLabel>
             <TextInput style={styles.input} value={form.unit} onChangeText={(unit) => setForm((current) => ({ ...current, unit }))} placeholder="un, kg, hora, sessão..." placeholderTextColor={Colors.textMuted} />
           </>}
           {!typeOnlyEditing && form.kind === 'produto' && (
