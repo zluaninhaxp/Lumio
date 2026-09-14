@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
@@ -22,8 +23,9 @@ import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
+import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 
-type DraftItem = Omit<OrderItem, "id"> & { id: string; addToStock?: boolean };
+type DraftItem = Omit<OrderItem, "id"> & { id: string; addToCatalog?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 const todayLabel = () =>
   new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
@@ -32,7 +34,7 @@ const emptyItem = (): DraftItem => ({
   name: "",
   quantity: 1,
   unitPrice: 0,
-  addToStock: false,
+  addToCatalog: false,
 });
 const FORM_SHEET_MAX_HEIGHT = Dimensions.get("window").height * 0.8;
 
@@ -46,11 +48,10 @@ export default function VendasScreen() {
   const {
     pedidos,
     clienteItems,
-    estoqueItems,
-    addEstoqueItem,
-    addPedido,
+    catalogItems,
+    addCatalogItem,
+    addVenda,
     updatePedido,
-    completePedido,
     removePedido,
     setPluginActivation,
     activatedPlugins,
@@ -63,6 +64,7 @@ export default function VendasScreen() {
   const [status, setStatus] = useState<OrderStatus>("aberto");
   const [employeeId, setEmployeeId] = useState<string | undefined>();
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null);
+  const formScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (returnToSales !== "1" || !createdId || !relation) return;
@@ -121,7 +123,7 @@ export default function VendasScreen() {
     setClientId(undefined);
     setEmployeeId(undefined);
     setItems([emptyItem()]);
-    setStatus("aberto");
+    setStatus("concluido");
     setModalVisible(true);
   };
   const openEdit = (order: Pedido) => {
@@ -137,9 +139,11 @@ export default function VendasScreen() {
       current.map((item) => (item.id === id ? { ...item, ...updates } : item)),
     );
   const addDraftItem = () => {
+    Keyboard.dismiss();
+    setFocusedItemId(null);
     const item = emptyItem();
     setItems((current) => [...current, item]);
-    setFocusedItemId(item.id);
+    setTimeout(() => formScrollRef.current?.scrollToEnd({ animated: true }), 80);
   };
   const saveOrder = () => {
     const validItems = items
@@ -166,67 +170,46 @@ export default function VendasScreen() {
     const payload = {
       clientId,
       employeeId,
-      items: validItems.map(({ addToStock: _addToStock, ...item }) => item),
+       items: validItems.map(({ addToCatalog, ...item }) => {
+         if (!addToCatalog || item.catalogItemId) return item;
+         const catalogItemId = addCatalogItem({
+           name: item.name,
+           kind: "produto",
+           unitPrice: item.unitPrice,
+           unit: "un",
+           controlStock: false,
+           needsReview: true,
+         });
+         return { ...item, catalogItemId };
+       }),
       total: orderTotal,
-      status,
+      status: "concluido" as const,
       date: current?.date ?? todayLabel(),
       createdAt: current?.createdAt ?? new Date().toISOString(),
     };
-    const ok = editingId
-      ? updatePedido(editingId, payload)
-      : (addPedido(payload), true);
-    if (!ok) {
+    const saved = editingId
+      ? (updatePedido(editingId, payload) ? editingId : null)
+      : addVenda(payload);
+    if (!saved) {
       Alert.alert(
-        "Pedido não atualizado",
-        "A quantidade disponível no estoque não é suficiente para concluir este pedido.",
+        "Venda não registrada",
+        "A quantidade disponível no estoque controlado não é suficiente.",
       );
       return;
     }
-    validItems
-      .filter((item) => item.addToStock && !item.stockItemId)
-      .forEach((item) =>
-        addEstoqueItem({
-          name: item.name,
-          quantity: 0,
-          unitPrice: item.unitPrice,
-          unit: "",
-          category: "",
-          minAlert: 0,
-        }),
-      );
     clearRelationDraft("sales");
     setModalVisible(false);
   };
-  const conclude = (id: string) => {
-    if (!completePedido(id)) {
-      Alert.alert(
-        "Não foi possível concluir",
-        "Verifique se há quantidade suficiente no Estoque para os itens cadastrados.",
-      );
-      return;
-    }
-    Alert.alert(
-      "Pedido concluído",
-      "Quer gerar uma entrega vinculada a este pedido?",
-      [
-        {
-          text: "Agora",
-          onPress: () => router.push(`/plugins/entregas?orderId=${id}` as any),
-        },
-        { text: "Depois", style: "cancel" },
-      ],
-    );
-  };
   const cancel = (id: string) => {
     if (!updatePedido(id, { status: "cancelado" }))
-      Alert.alert("Não foi possível cancelar o pedido.");
+      Alert.alert("Não foi possível cancelar a venda.");
   };
   const clientName = (id?: string) =>
     id ? clienteItems.find((client) => client.id === id)?.name : undefined;
   const statusLabel: Record<OrderStatus, string> = {
-    aberto: "Aberto",
-    concluido: "Concluído",
-    cancelado: "Cancelado",
+    aberto: "Pendente",
+    concluido: "Realizada",
+    cancelado: "Cancelada",
   };
 
   return (
@@ -235,11 +218,11 @@ export default function VendasScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Pedidos / Vendas</Text>
+        <Text style={styles.headerTitle}>Vendas</Text>
         <TouchableOpacity
           onPress={() =>
             Alert.alert(
-              "Desativar Pedidos",
+              "Desativar Vendas",
               "O módulo sai da aba Apps, mas os dados continuam guardados.",
               [
                 { text: "Cancelar", style: "cancel" },
@@ -268,7 +251,7 @@ export default function VendasScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Buscar pedido ou item"
+          placeholder="Buscar venda ou item"
           placeholderTextColor={Colors.textMuted}
           style={styles.searchInput}
         />
@@ -286,13 +269,18 @@ export default function VendasScreen() {
             />
             <Text style={styles.emptyText}>
               {query
-                ? "Nenhum pedido encontrado."
-                : "Nenhum pedido cadastrado ainda."}
+                ? "Nenhuma venda encontrada."
+                : "Nenhuma venda cadastrada ainda."}
             </Text>
           </View>
         )}
         {visibleOrders.map((order) => (
-          <View key={order.id} style={styles.card}>
+          <SwipeableActions
+            key={order.id}
+            onEdit={() => openEdit(order)}
+            onDelete={() => removePedido(order.id)}
+          >
+          <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.orderIcon}>
                 <Ionicons
@@ -301,9 +289,9 @@ export default function VendasScreen() {
                   color={Colors.accent}
                 />
               </View>
-              <View style={styles.cardMain}>
-                <Text style={styles.cardTitle}>
-                  Pedido {order.id.slice(-6)}
+                <View style={styles.cardMain}>
+                  <Text style={styles.cardTitle}>
+                    Venda {order.id.slice(-6)}
                 </Text>
                 <Text style={styles.cardSubtitle}>
                   {order.date}
@@ -332,14 +320,6 @@ export default function VendasScreen() {
             <View style={styles.cardFooter}>
               <Text style={styles.total}>{money(order.total)}</Text>
               <View style={styles.actions}>
-                {order.status === "aberto" && (
-                  <TouchableOpacity onPress={() => conclude(order.id)}>
-                    <Text style={styles.concludeText}>Concluir</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity onPress={() => openEdit(order)}>
-                  <Text style={styles.actionText}>Editar</Text>
-                </TouchableOpacity>
                 {order.status !== "cancelado" && (
                   <TouchableOpacity onPress={() => cancel(order.id)}>
                     <Text style={styles.cancelText}>Cancelar</Text>
@@ -348,6 +328,7 @@ export default function VendasScreen() {
               </View>
             </View>
           </View>
+          </SwipeableActions>
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />
@@ -361,12 +342,13 @@ export default function VendasScreen() {
         <View style={[styles.modalOverlay, styles.formSheetOverlay]}>
           <View style={[styles.modalCard, styles.formSheetCard]}>
             <ScrollView
+              ref={formScrollRef}
               style={[styles.formScroll, styles.formScrollBounded]}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="always"
             >
               <Text style={styles.modalTitle}>
-                {editingId ? "Editar pedido" : "Novo pedido"}
+                {editingId ? "Editar venda" : "Nova venda"}
               </Text>
               <TaskPeopleSelector
                 title={null}
@@ -389,72 +371,25 @@ export default function VendasScreen() {
                   ]}
                 >
                   <RequiredLabel>Item {index + 1}</RequiredLabel>
-                  <View style={styles.itemSearchWrap}>
-                    <TextInput
-                      style={[
-                        styles.itemNameInput,
-                        focusedItemId === item.id &&
-                          !item.stockItemId &&
-                          item.name.trim().length > 0 &&
-                          estoqueItems.some((stock) =>
-                            stock.name.toLowerCase().includes(item.name.trim().toLowerCase()),
-                          ) &&
-                          styles.itemNameInputActive,
-                      ]}
-                      value={item.name}
-                      autoFocus={focusedItemId === item.id && item.name.length === 0}
-                      onFocus={() => setFocusedItemId(item.id)}
-                      onChangeText={(value) => {
-                        updateItem(item.id, {
-                          name: value,
-                          stockItemId: undefined,
-                          unitPrice: 0,
-                        });
-                        setFocusedItemId(item.id);
-                      }}
-                      placeholder={`Item ${index + 1}`}
-                      placeholderTextColor={Colors.textMuted}
-                    />
-                    {focusedItemId === item.id &&
-                      !item.stockItemId &&
-                      item.name.trim().length > 0 &&
-                      estoqueItems.some((stock) =>
-                        stock.name.toLowerCase().includes(item.name.trim().toLowerCase()),
-                      ) && (
-                      <View style={styles.stockSuggestions}>
-                        {estoqueItems
-                          .filter((stock) =>
-                            stock.name.toLowerCase().includes(item.name.trim().toLowerCase()),
-                          )
-                          .slice(0, 5)
-                          .map((stock) => (
-                            <TouchableOpacity
-                              key={stock.id}
-                              style={styles.stockSuggestion}
-                              onPress={() => {
-                                updateItem(item.id, {
-                                  name: stock.name,
-                                  unitPrice: stock.unitPrice,
-                                  stockItemId: stock.id,
-                                  addToStock: false,
-                                });
-                                setFocusedItemId(null);
-                                Keyboard.dismiss();
-                              }}
-                            >
-                              <Text style={styles.stockSuggestionName} numberOfLines={1}>{stock.name}</Text>
-                              <Text style={styles.stockSuggestionPrice} numberOfLines={1}>{money(stock.unitPrice)}</Text>
-                            </TouchableOpacity>
-                          ))}
+                  <DocumentItemPicker item={item} catalogItems={catalogItems} onChange={(updates) => updateItem(item.id, updates)} />
+                  {!item.catalogItemId && (
+                    <TouchableOpacity
+                      style={styles.stockCheckboxRow}
+                      onPress={() => updateItem(item.id, { addToCatalog: !item.addToCatalog })}
+                    >
+                      <View style={[styles.checkbox, item.addToCatalog && styles.checkboxActive]}>
+                        {item.addToCatalog && <Ionicons name="checkmark" size={15} color="#FFFFFF" />}
                       </View>
-                    )}
-                  </View>
+                      <Text style={styles.stockCheckboxLabel}>Vincular este item ao Catálogo</Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.numberRow}>
                     <View style={{ flex: 1 }}>
                       <RequiredLabel>Quantidade</RequiredLabel>
                       <TextInput
                         style={styles.numberInput}
                         value={String(item.quantity)}
+                        onFocus={() => setFocusedItemId(item.id)}
                         onChangeText={(value) =>
                           updateItem(item.id, {
                             quantity: Number(value.replace(",", ".")) || 0,
@@ -470,10 +405,11 @@ export default function VendasScreen() {
                       <TextInput
                         style={styles.numberInput}
                         value={String(item.unitPrice || "")}
+                        onFocus={() => setFocusedItemId(item.id)}
                         onChangeText={(value) =>
                           updateItem(item.id, {
-                            unitPrice: Number(value.replace(",", ".")) || 0,
-                            stockItemId: undefined,
+                              unitPrice: Number(value.replace(",", ".")) || 0,
+                              stockItemId: undefined,
                           })
                         }
                         placeholder="Preço"
@@ -482,17 +418,6 @@ export default function VendasScreen() {
                       />
                     </View>
                   </View>
-                  <TouchableOpacity
-                    style={styles.stockCheckboxRow}
-                    onPress={() =>
-                      updateItem(item.id, { addToStock: !item.addToStock })
-                    }
-                  >
-                    <View style={[styles.checkbox, item.addToStock && styles.checkboxActive]}>
-                      {item.addToStock && <Ionicons name="checkmark" size={15} color="#FFFFFF" />}
-                    </View>
-                    <Text style={styles.stockCheckboxLabel}>Adicionar item ao estoque</Text>
-                  </TouchableOpacity>
                 </View>
               ))}
               <TouchableOpacity
@@ -502,34 +427,6 @@ export default function VendasScreen() {
                 <Ionicons name="add" size={17} color={Colors.accent} />
                 <Text style={styles.actionText}>Adicionar item</Text>
               </TouchableOpacity>
-              {editingId && (
-                <>
-                  <Text style={styles.label}>Status</Text>
-                  <View style={styles.chipRow}>
-                    {(
-                      ["aberto", "concluido", "cancelado"] as OrderStatus[]
-                    ).map((option) => (
-                      <TouchableOpacity
-                        key={option}
-                        style={[
-                          styles.chip,
-                          status === option && styles.chipActive,
-                        ]}
-                        onPress={() => setStatus(option)}
-                      >
-                        <Text
-                          style={[
-                            styles.chipText,
-                            status === option && styles.chipTextActive,
-                          ]}
-                        >
-                          {statusLabel[option]}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </>
-              )}
             </ScrollView>
               <View
                 style={styles.formFooter}
@@ -724,8 +621,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     gap: Spacing.sm,
   },
-  itemFormFocused: { zIndex: 10 },
-  itemSearchWrap: { position: "relative", zIndex: 20 },
+  itemFormFocused: {},
+  itemSearchWrap: {},
   itemNameInput: {
     backgroundColor: Colors.bgCard,
     borderRadius: Radius.sm,
@@ -747,10 +644,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   stockSuggestions: {
-    position: "absolute",
-    top: "100%",
-    left: 0,
-    right: 0,
     backgroundColor: Colors.bgCard,
     borderBottomLeftRadius: Radius.sm,
     borderBottomRightRadius: Radius.sm,

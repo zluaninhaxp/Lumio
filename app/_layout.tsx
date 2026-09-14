@@ -16,10 +16,12 @@ export default function RootLayout() {
     PlusJakartaSans_800ExtraBold,
   });
   const refreshContratos = useAppStore((state) => state.refreshContratos);
+  const migrateCatalogItems = useAppStore((state) => state.migrateCatalogItems);
 
   useEffect(() => {
     refreshContratos();
-  }, [refreshContratos]);
+    migrateCatalogItems();
+  }, [refreshContratos, migrateCatalogItems]);
 
   if (!loaded) return null;
 
@@ -38,6 +40,7 @@ export default function RootLayout() {
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="plugins/store" />
             <Stack.Screen name="plugins/estoque" />
+            <Stack.Screen name="plugins/catalogo" />
             <Stack.Screen name="plugins/clientes" />
             <Stack.Screen name="plugins/fornecedores" />
             <Stack.Screen name="plugins/vendas" />

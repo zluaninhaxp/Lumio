@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -130,27 +131,27 @@ export default function GenericPluginScreen() {
           </View>
         )}
         {items.map((item) => (
-          <TouchableOpacity
+          <SwipeableActions
             key={item.id}
-            style={styles.card}
-            onLongPress={() => handleDelete(item.id)}
-            activeOpacity={0.7}
+            onDelete={() => handleDelete(item.id)}
           >
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>
-                {(primaryField && item.values[primaryField.key]) ||
-                  "Sem título"}
-              </Text>
-              <Text style={styles.cardSubtitle} numberOfLines={2}>
-                {def.fields
-                  .filter(
-                    (f) => f.key !== primaryField?.key && item.values[f.key],
-                  )
-                  .map((f) => `${f.label}: ${item.values[f.key]}`)
-                  .join(" · ")}
-              </Text>
-            </View>
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>
+                  {(primaryField && item.values[primaryField.key]) ||
+                    "Sem título"}
+                </Text>
+                <Text style={styles.cardSubtitle} numberOfLines={2}>
+                  {def.fields
+                    .filter(
+                      (f) => f.key !== primaryField?.key && item.values[f.key],
+                    )
+                    .map((f) => `${f.label}: ${item.values[f.key]}`)
+                    .join(" · ")}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </SwipeableActions>
         ))}
       </ScrollView>
 

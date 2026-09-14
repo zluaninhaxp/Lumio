@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
@@ -232,10 +233,29 @@ export default function ContratosScreen() {
           </View>
         )}
         {filteredContracts.map((contract) => {
-          const pending = predictedFor(contract.id);
-          const isOverdue = overdue.has(contract.id);
+          const isActive = contract.status === "ativo";
+          const pending = isActive ? predictedFor(contract.id) : [];
+          const isOverdue = isActive && overdue.has(contract.id);
           return (
-            <View key={contract.id} style={styles.card}>
+            <SwipeableActions
+              key={contract.id}
+              onEdit={() => openEdit(contract)}
+              onDelete={() =>
+                Alert.alert(
+                  "Excluir contrato",
+                  "As receitas previstas também serão removidas.",
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    {
+                      text: "Excluir",
+                      style: "destructive",
+                      onPress: () => removeContrato(contract.id),
+                    },
+                  ],
+                )
+              }
+            >
+            <View style={styles.card}>
               <View style={styles.cardTop}>
                 <View style={styles.iconCircle}>
                   <Ionicons
@@ -305,29 +325,9 @@ export default function ContratosScreen() {
                     <Text style={styles.cancel}>Cancelar</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={() => openEdit(contract)}>
-                  <Text style={styles.action}>Editar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() =>
-                    Alert.alert(
-                      "Excluir contrato",
-                      "As receitas previstas também serão removidas.",
-                      [
-                        { text: "Cancelar", style: "cancel" },
-                        {
-                          text: "Excluir",
-                          style: "destructive",
-                          onPress: () => removeContrato(contract.id),
-                        },
-                      ],
-                    )
-                  }
-                >
-                  <Text style={styles.delete}>Excluir</Text>
-                </TouchableOpacity>
               </View>
             </View>
+            </SwipeableActions>
           );
         })}
       </ScrollView>

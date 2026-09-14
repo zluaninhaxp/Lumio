@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -224,7 +225,12 @@ export default function ClientesScreen() {
           );
           const expanded = expandedId === client.id;
           return (
-            <View key={client.id} style={styles.card}>
+            <SwipeableActions
+              key={client.id}
+              onEdit={() => openEdit(client)}
+              onDelete={() => handleDelete(client.id)}
+            >
+            <View style={styles.card}>
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => setExpandedId(expanded ? null : client.id)}
@@ -285,17 +291,10 @@ export default function ClientesScreen() {
                       </View>
                     ))
                   )}
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity onPress={() => openEdit(client)}>
-                      <Text style={styles.actionText}>Editar cadastro</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => handleDelete(client.id)}>
-                      <Text style={styles.deleteText}>Excluir</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               )}
             </View>
+            </SwipeableActions>
           );
         })}
       </ScrollView>

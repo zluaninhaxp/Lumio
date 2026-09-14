@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Modal,
@@ -13,26 +13,32 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
 import { EstoqueItem, useAppStore } from "../../src/store";
+import { CatalogItemSelector } from "../components/CatalogItemSelector";
+import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../src/utils/relationDraft";
 
-const EMPTY_FORM = { name: "", quantity: "", unitPrice: "", unit: "", minAlert: "" };
+const EMPTY_FORM = { catalogItemId: "", quantity: "", minAlert: "" };
 const EMPTY_MOVEMENT = { amount: "", reason: "" };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 
 export default function EstoqueScreen() {
   const router = useRouter();
+  const { returnToStock, createdId } = useLocalSearchParams<{ returnToStock?: string; createdId?: string }>();
   const {
     estoqueItems,
+    catalogItems,
     stockMovements,
-    addEstoqueItem,
+    addEstoqueItemFromCatalog,
     updateEstoqueItem,
     removeEstoqueItem,
     moveEstoqueItem,
     setPluginActivation,
+    activatedPlugins,
   } = useAppStore();
   const [query, setQuery] = useState("");
   const [formVisible, setFormVisible] = useState(false);
@@ -44,6 +50,16 @@ export default function EstoqueScreen() {
   );
   const [form, setForm] = useState(EMPTY_FORM);
   const [movement, setMovement] = useState(EMPTY_MOVEMENT);
+
+  useEffect(() => {
+    if (returnToStock !== "1" || !createdId) return;
+    const draft = getRelationDraft<{ editingId: string | null; form: typeof EMPTY_FORM }>("stock");
+    if (draft) setEditingId(draft.editingId);
+    setForm({ ...(draft?.form ?? EMPTY_FORM), catalogItemId: createdId });
+    setFormVisible(true);
+    clearRelationDraft("stock");
+    router.setParams({ returnToStock: undefined, createdId: undefined });
+  }, [createdId, returnToStock, router]);
 
   const filteredItems = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -59,31 +75,34 @@ export default function EstoqueScreen() {
     setFormVisible(true);
   };
 
+  const openCatalog = () => {
+    saveRelationDraft("stock", { editingId, form });
+    setFormVisible(false);
+    const route = activatedPlugins.includes("catalogo")
+      ? "/plugins/catalogo"
+      : "/plugins/store?highlight=catalogo";
+    router.push(`${route}${route.includes("?") ? "&" : "?"}returnToStock=1` as any);
+  };
+
   const openEdit = (item: EstoqueItem) => {
     setEditingId(item.id);
     setForm({
-      name: item.name,
+      catalogItemId: catalogItems.find((catalog) => catalog.stockItemId === item.id)?.id ?? "",
       quantity: String(item.quantity),
-      unitPrice: String(item.unitPrice ?? ""),
-      unit: item.unit,
       minAlert: String(item.minAlert),
     });
     setFormVisible(true);
   };
 
   const saveItem = () => {
-    const unitPrice = Number(form.unitPrice.replace(",", "."));
-    if (!form.name.trim() || !form.unitPrice.trim() || !Number.isFinite(unitPrice) || unitPrice < 0) return;
-    const payload = {
-      name: form.name.trim(),
-      quantity: Math.max(0, Number(form.quantity) || 0),
-      unitPrice,
-      unit: form.unit.trim(),
-      category: "",
-      minAlert: Math.max(0, Number(form.minAlert) || 0),
-    };
-    if (editingId) updateEstoqueItem(editingId, payload);
-    else addEstoqueItem(payload);
+    const quantity = Math.max(0, Number(form.quantity) || 0);
+    const minAlert = Math.max(0, Number(form.minAlert) || 0);
+    if (!form.catalogItemId) return;
+    if (editingId) {
+      const current = estoqueItems.find((item) => item.id === editingId);
+      if (!current) return;
+      updateEstoqueItem(editingId, { ...current, quantity, minAlert });
+    } else if (!addEstoqueItemFromCatalog(form.catalogItemId, quantity, minAlert)) return;
     setFormVisible(false);
   };
 
@@ -181,12 +200,18 @@ export default function EstoqueScreen() {
           </View>
         )}
         {filteredItems.map((item) => {
-          const isLow = item.quantity < item.minAlert;
+          const controlsStock = item.controlStock !== false;
+          const isLow = controlsStock && item.quantity < item.minAlert;
           const movements = stockMovements
             .filter((entry) => entry.itemId === item.id)
             .slice(0, 3);
           return (
-            <View key={item.id} style={[styles.card, isLow && styles.cardLow]}>
+            <SwipeableActions
+              key={item.id}
+              onEdit={() => openEdit(item)}
+              onDelete={() => deleteItem(item.id)}
+            >
+            <View style={[styles.card, isLow && styles.cardLow]}>
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => openEdit(item)}
@@ -203,8 +228,9 @@ export default function EstoqueScreen() {
                 <View style={styles.cardMain}>
                   <Text style={styles.cardTitle}>{item.name}</Text>
                   <Text style={styles.cardSubtitle}>
-                    {item.quantity} {item.unit} · mínimo {item.minAlert}{" "}
-                    {item.unit}
+                    {controlsStock
+                      ? `${item.quantity} ${item.unit} · mínimo ${item.minAlert} ${item.unit}`
+                      : "Somente catálogo e preços"}
                   </Text>
                   <Text style={styles.cardPrice}>{money(item.unitPrice ?? 0)} por unidade</Text>
                 </View>
@@ -234,16 +260,6 @@ export default function EstoqueScreen() {
                   <Ionicons name="remove" size={16} color={Colors.danger} />
                   <Text style={styles.exitText}>Saída</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => deleteItem(item.id)}
-                  style={styles.deleteButton}
-                >
-                  <Ionicons
-                    name="trash-outline"
-                    size={17}
-                    color={Colors.textMuted}
-                  />
-                </TouchableOpacity>
               </View>
               {movements.length > 0 && (
                 <View style={styles.history}>
@@ -257,6 +273,7 @@ export default function EstoqueScreen() {
                 </View>
               )}
             </View>
+            </SwipeableActions>
           );
         })}
       </ScrollView>
@@ -273,27 +290,12 @@ export default function EstoqueScreen() {
             <Text style={styles.modalTitle}>
               {editingId ? "Editar item" : "Novo item"}
             </Text>
-            <RequiredLabel>Nome do item</RequiredLabel>
-            <TextInput
-              style={styles.input}
-              placeholder="Nome do item"
-              placeholderTextColor={Colors.textMuted}
-              value={form.name}
-              onChangeText={(name) =>
-                setForm((current) => ({ ...current, name }))
-              }
-              autoFocus
-            />
-            <RequiredLabel>Preço unitário</RequiredLabel>
-            <TextInput
-              style={styles.input}
-              placeholder="Preço unitário"
-              placeholderTextColor={Colors.textMuted}
-              value={form.unitPrice}
-              onChangeText={(unitPrice) =>
-                setForm((current) => ({ ...current, unitPrice }))
-              }
-              keyboardType="decimal-pad"
+            <RequiredLabel>Produto do catálogo</RequiredLabel>
+            <CatalogItemSelector
+              selectedId={form.catalogItemId || undefined}
+              items={catalogItems.filter((catalog) => catalog.kind === "produto" && (!catalog.stockItemId || catalog.stockItemId === editingId))}
+              onChange={(id) => setForm((current) => ({ ...current, catalogItemId: id ?? "" }))}
+              onBeforeNavigate={openCatalog}
             />
             <FormLabel>Quantidade atual (opcional)</FormLabel>
             <TextInput
@@ -305,16 +307,6 @@ export default function EstoqueScreen() {
                 setForm((current) => ({ ...current, quantity }))
               }
               keyboardType="decimal-pad"
-            />
-            <FormLabel>Unidade (opcional)</FormLabel>
-            <TextInput
-              style={styles.input}
-              placeholder="Unidade (un, kg, cx...)"
-              placeholderTextColor={Colors.textMuted}
-              value={form.unit}
-              onChangeText={(unit) =>
-                setForm((current) => ({ ...current, unit }))
-              }
             />
             <FormLabel>Quantidade mínima para alerta (opcional)</FormLabel>
             <TextInput
@@ -559,6 +551,38 @@ const styles = StyleSheet.create({
     borderRadius: Radius.md,
     padding: Spacing.lg,
     color: Colors.primary,
+  },
+  catalogChoices: { gap: Spacing.sm, maxHeight: 112 },
+  catalogChoice: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    backgroundColor: Colors.bg,
+  },
+  catalogChoiceActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  catalogChoiceName: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
+  catalogChoiceUnit: { color: Colors.textSecondary, fontSize: FontSize.xs },
+  catalogChoiceTextActive: { color: "#FFFFFF" },
+  catalogHint: { color: Colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20 },
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.md,
+    paddingVertical: Spacing.xs,
+  },
+  toggleCopy: { flex: 1, gap: 2 },
+  toggleTitle: {
+    color: Colors.primary,
+    fontFamily: "PlusJakartaSans_600SemiBold",
+  },
+  toggleDescription: {
+    color: Colors.textSecondary,
+    fontSize: FontSize.xs,
   },
   amountInput: {
     fontFamily: "PlusJakartaSans_700Bold",

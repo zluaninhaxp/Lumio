@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
@@ -239,7 +240,12 @@ export default function EntregasScreen() {
           </View>
         )}
         {filteredDeliveries.map((delivery) => (
-          <View key={delivery.id} style={styles.card}>
+          <SwipeableActions
+            key={delivery.id}
+            onEdit={() => openEdit(delivery)}
+            onDelete={() => removeEntrega(delivery.id)}
+          >
+          <View style={styles.card}>
             <View style={styles.cardTop}>
               <View style={styles.deliveryIcon}>
                 <Ionicons
@@ -286,9 +292,6 @@ export default function EntregasScreen() {
                   <Text style={styles.conclude}>Marcar entregue</Text>
                 </TouchableOpacity>
               )}
-              <TouchableOpacity onPress={() => openEdit(delivery)}>
-                <Text style={styles.action}>Editar</Text>
-              </TouchableOpacity>
               {delivery.status === "a caminho" && (
                 <TouchableOpacity
                   onPress={() =>
@@ -300,6 +303,7 @@ export default function EntregasScreen() {
               )}
             </View>
           </View>
+          </SwipeableActions>
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />

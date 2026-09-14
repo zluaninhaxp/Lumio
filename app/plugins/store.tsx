@@ -29,6 +29,7 @@ export default function PluginStoreScreen() {
     returnToContracts,
     returnToDeliveries,
     returnToSales,
+    returnToStock,
     relation,
   } = useLocalSearchParams<{
     highlight?: PluginId;
@@ -39,6 +40,7 @@ export default function PluginStoreScreen() {
     returnToContracts?: string;
     returnToDeliveries?: string;
     returnToSales?: string;
+    returnToStock?: string;
     relation?: "client" | "supplier" | "employee";
   }>();
   const { activatedPlugins, setPluginActivation } = useAppStore();
@@ -65,15 +67,15 @@ export default function PluginStoreScreen() {
     const route = getPluginDefinition(pluginId)?.route;
     if (route) {
       const returnParams =
-        relation &&
+        ((relation &&
         (returnToFinance === "1" ||
           returnToTasks === "1" ||
           returnToCalendar === "1" ||
           returnToQuotes === "1" ||
           returnToContracts === "1" ||
           returnToDeliveries === "1" ||
-          returnToSales === "1")
-          ? `?${returnToFinance === "1" ? "returnToFinance" : returnToTasks === "1" ? "returnToTasks" : returnToCalendar === "1" ? "returnToCalendar" : returnToQuotes === "1" ? "returnToQuotes" : returnToContracts === "1" ? "returnToContracts" : returnToDeliveries === "1" ? "returnToDeliveries" : "returnToSales"}=1&relation=${relation}`
+          returnToSales === "1")) || returnToStock === "1")
+          ? `?${returnToFinance === "1" ? "returnToFinance" : returnToTasks === "1" ? "returnToTasks" : returnToCalendar === "1" ? "returnToCalendar" : returnToQuotes === "1" ? "returnToQuotes" : returnToContracts === "1" ? "returnToContracts" : returnToDeliveries === "1" ? "returnToDeliveries" : returnToSales === "1" ? "returnToSales" : "returnToStock"}=1${relation ? `&relation=${relation}` : ""}`
           : "";
       router.push(`${route}${returnParams}` as any);
     }

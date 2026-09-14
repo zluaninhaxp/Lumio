@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -203,32 +204,33 @@ export default function EquipeScreen() {
           </View>
         )}
         {visible.map((employee) => (
-          <TouchableOpacity
+          <SwipeableActions
             key={employee.id}
-            style={styles.card}
-            onPress={() => openEdit(employee)}
-            onLongPress={() => remove(employee.id)}
+            onEdit={() => openEdit(employee)}
+            onDelete={() => remove(employee.id)}
           >
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
-                {employee.name.slice(0, 1).toUpperCase()}
-              </Text>
-            </View>
-            <View style={styles.main}>
-              <Text style={styles.name}>{employee.name}</Text>
-              <Text style={styles.detail}>
-                {employee.role} · {employee.contact || "Sem contato informado"}
-                {employee.commissionRate
-                  ? ` · ${employee.commissionRate}% comissão`
-                  : ""}
-              </Text>
-            </View>
-            <Ionicons
-              name="chevron-forward"
-              size={18}
-              color={Colors.textMuted}
-            />
-          </TouchableOpacity>
+            <TouchableOpacity style={styles.card} onPress={() => openEdit(employee)}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {employee.name.slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+              <View style={styles.main}>
+                <Text style={styles.name}>{employee.name}</Text>
+                <Text style={styles.detail}>
+                  {employee.role} · {employee.contact || "Sem contato informado"}
+                  {employee.commissionRate
+                    ? ` · ${employee.commissionRate}% comissão`
+                    : ""}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={Colors.textMuted}
+              />
+            </TouchableOpacity>
+          </SwipeableActions>
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />

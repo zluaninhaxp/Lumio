@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -241,7 +242,12 @@ export default function FornecedoresScreen() {
             );
           const expanded = expandedId === supplier.id;
           return (
-            <View key={supplier.id} style={styles.card}>
+            <SwipeableActions
+              key={supplier.id}
+              onEdit={() => openEdit(supplier)}
+              onDelete={() => deleteSupplier(supplier.id)}
+            >
+            <View style={styles.card}>
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => setExpandedId(expanded ? null : supplier.id)}
@@ -302,19 +308,10 @@ export default function FornecedoresScreen() {
                       </View>
                     ))
                   )}
-                  <View style={styles.cardActions}>
-                    <TouchableOpacity onPress={() => openEdit(supplier)}>
-                      <Text style={styles.actionText}>Editar cadastro</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => deleteSupplier(supplier.id)}
-                    >
-                      <Text style={styles.deleteText}>Excluir</Text>
-                    </TouchableOpacity>
-                  </View>
                 </View>
               )}
             </View>
+            </SwipeableActions>
           );
         })}
         {unlinkedExpenses.length > 0 && (

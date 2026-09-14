@@ -14,6 +14,7 @@
 
 export type PluginId =
   | 'estoque'
+  | 'catalogo'
   | 'clientes'
   | 'fornecedores'
   | 'agenda'
@@ -79,6 +80,17 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
       { key: 'category', label: 'Categoria', type: 'text', placeholder: 'Ex: Mercearia' },
       { key: 'minAlert', label: 'Alerta de mínimo', type: 'number', placeholder: '0' },
     ],
+  },
+  catalogo: {
+    id: 'catalogo',
+    label: 'Catálogo',
+    icon: 'pricetags',
+    description: 'Produtos e serviços com preço padrão para vender e orçar.',
+    route: '/plugins/catalogo',
+    implemented: true,
+    itemLabel: 'item',
+    itemLabelPlural: 'itens',
+    fields: [],
   },
   clientes: {
     id: 'clientes',
@@ -184,7 +196,7 @@ export const PLUGIN_REGISTRY: Record<PluginId, PluginDefinition> = {
   },
   vendas: {
     id: 'vendas',
-    label: 'Pedidos / Vendas',
+    label: 'Vendas',
     icon: 'receipt',
     description: 'Registre uma venda com os itens vendidos.',
     route: '/plugins/vendas',

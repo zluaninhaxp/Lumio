@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
 import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
@@ -21,6 +22,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
+import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 import {
   OrderItem,
   Orcamento,
@@ -56,10 +58,12 @@ export default function OrcamentosScreen() {
     clienteItems,
     addOrcamento,
     updateOrcamento,
+    removeOrcamento,
     approveOrcamento,
     refreshOrcamentos,
     activatedPlugins,
     setPluginActivation,
+    catalogItems,
   } = useAppStore();
   const [query, setQuery] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
@@ -256,7 +260,12 @@ export default function OrcamentosScreen() {
           </View>
         )}
         {visible.map((quote) => (
-          <View key={quote.id} style={styles.card}>
+          <SwipeableActions
+            key={quote.id}
+            onEdit={() => openEdit(quote)}
+            onDelete={() => removeOrcamento(quote.id)}
+          >
+          <View style={styles.card}>
             <View style={styles.cardHeader}>
               <View style={styles.iconCircle}>
                 <Ionicons
@@ -310,9 +319,6 @@ export default function OrcamentosScreen() {
                     <Text style={styles.rejectText}>Recusar</Text>
                   </TouchableOpacity>
                 )}
-                <TouchableOpacity onPress={() => openEdit(quote)}>
-                  <Text style={styles.actionText}>Editar</Text>
-                </TouchableOpacity>
               </View>
             </View>
             {quote.orderId && (
@@ -321,6 +327,7 @@ export default function OrcamentosScreen() {
               </Text>
             )}
           </View>
+          </SwipeableActions>
         ))}
       </ScrollView>
       <FAB onPress={openAdd} />
@@ -356,19 +363,11 @@ export default function OrcamentosScreen() {
                 placeholder="AAAA-MM-DD"
                 placeholderTextColor={Colors.textMuted}
               />
-              <Text style={styles.label}>Itens propostos</Text>
-              {items.map((item, index) => (
-                <View key={item.id} style={styles.itemForm}>
-                  <RequiredLabel>Item {index + 1}</RequiredLabel>
-                  <TextInput
-                    style={styles.input}
-                    value={item.name}
-                    onChangeText={(value) =>
-                      updateItem(item.id, { name: value })
-                    }
-                    placeholder={`Item ${index + 1}`}
-                    placeholderTextColor={Colors.textMuted}
-                  />
+                <Text style={styles.label}>Itens propostos</Text>
+                {items.map((item, index) => (
+                  <View key={item.id} style={styles.itemForm}>
+                    <RequiredLabel>Item {index + 1}</RequiredLabel>
+                    <DocumentItemPicker item={item} catalogItems={catalogItems} onChange={(updates) => updateItem(item.id, updates)} />
                   <View style={styles.numberRow}>
                     <View style={{ flex: 1 }}>
                       <RequiredLabel>Quantidade</RequiredLabel>
