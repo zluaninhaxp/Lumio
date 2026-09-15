@@ -55,7 +55,7 @@ export function normalizeMessage(raw: string): NormalizedText {
   // Pontuação: converter tudo que não carrega significado de tarefa em
   // espaço (inclusive ":", "."). Mantém "?" (detector de pergunta) e
   // "/" (datas) e "-" (intervalos).
-  text = text.replace(/[!._;,:'"`()]/g, ' ');
+  text = text.replace(/[!._;,:'"`´()]/g, ' ');
 
   // Colapsar espaços múltiplos.
   text = text.replace(/\s+/g, ' ').trim();

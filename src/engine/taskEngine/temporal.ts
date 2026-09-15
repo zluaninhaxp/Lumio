@@ -203,6 +203,15 @@ export function resolveTemporal(tokens: string[], now: Date): { resolution: Temp
         return { resolution: { dueDate: toISO(date), dueTime: null, expression: two, isDeadline: false }, span: [i, i + 2] };
       }
     }
+    // Forma escrita com espaço: "quinta feira" / "sexta feira".
+    const weekdayWithFeira = matchWeekday(stripAccents(tokens[i]));
+    if (weekdayWithFeira && tokens[i + 1] === 'feira') {
+      const lead = isDeadlineLead(tokens[i - 1]);
+      const date = nextWeekday(now, weekdayWithFeira.jsDay, true);
+      const time = parseTimeAt(tokens, i + 2);
+      if (time) return { resolution: { dueDate: toISO(date), dueTime: time.time, expression: `${tokens[i]} feira às ${time.time}`, isDeadline: lead }, span: [i, i + 2 + time.consumed] };
+      return { resolution: { dueDate: toISO(date), dueTime: null, expression: `${tokens[i]} feira`, isDeadline: lead }, span: [i, i + 2] };
+    }
     const wd = matchWeekday(stripAccents(tokens[i]).replace('-feira', ''));
     if (wd && !isDeadlineLead(tokens[i])) {
       const lead = isDeadlineLead(tokens[i - 1]);

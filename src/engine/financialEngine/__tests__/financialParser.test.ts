@@ -88,6 +88,15 @@ test('reaproveita a direção aprendida quando a nova frase contém só o termo-
   assert.equal(result.entries[0].amount, 40);
 });
 
+test('ignora marcador financeiro aprendido de frase sem sinal financeiro', () => {
+  const learnedIntentMarkers: LearnedIntentMarker[] = [{
+    phrase: 'coloque da obra do paulo', domain: 'financial', resolution: 'IN_REALIZED', occurrences: 1, lastSeenAt: NOW.toISOString(),
+  }];
+  const result = parse('700 reais da obra do paulo', { businessProfile: { learnedIntentMarkers } });
+  assert.ok(result.ambiguity, 'valor sem direção deve continuar ambíguo');
+  assert.equal(result.intent, 'none');
+});
+
 test('não deixa o token genérico pix herdar entrada em uma frase de saída', () => {
   const learnedIntentMarkers: LearnedIntentMarker[] = [{
     phrase: 'me fizeram um pix', domain: 'financial', resolution: 'IN_REALIZED', occurrences: 1, lastSeenAt: NOW.toISOString(),

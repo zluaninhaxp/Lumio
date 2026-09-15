@@ -39,6 +39,11 @@ import type { GenericNode, TaxonomyDomain } from '../taxonomy/types.ts';
 
 export const FINANCIAL_ENGINE_VERSION = '1.0.0';
 
+/** Marcadores financeiros aprendidos precisam conter um sinal financeiro real. */
+export function isSafeFinancialLearnedMarkerPhrase(phrase: string): boolean {
+  return /\b(?:calote|pagament\w*|receb\w*|receita\w*|vend\w*|pix|transfer\w*|cobran\w*|pag\w*|gast\w*|despes\w*|cust\w*|sal[aá]rio\w*|aluguel|compr\w*|entrad\w*|sa[ií]d\w*)/i.test(normalizeMessage(phrase).text);
+}
+
 /** Ponto único de entrada. */
 export function parseFinancialMessage(input: string, context: FinancialParserContext): FinancialParseResult {
   const normalized = normalizeMessage(input);
@@ -85,7 +90,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     const learnedMarker = context.businessProfile
       ? findLearnedIntentMarker(context.businessProfile, 'financial', text)
       : null;
-    if (learnedMarker) signal = signalFromResolution(learnedMarker.resolution);
+    if (learnedMarker && isSafeFinancialLearnedMarkerPhrase(learnedMarker.phrase)) signal = signalFromResolution(learnedMarker.resolution);
   }
   if (!signal.isFinancial) {
     const scan = scanMoneyTokens(normalized.tokens);
@@ -97,7 +102,7 @@ export function parseFinancialMessage(input: string, context: FinancialParserCon
     const marker = context.businessProfile && candidatePhrase
       ? findLearnedIntentMarker(context.businessProfile, 'financial', candidatePhrase)
       : null;
-    if (marker) {
+    if (marker && isSafeFinancialLearnedMarkerPhrase(marker.phrase)) {
       signal = signalFromResolution(marker.resolution);
     } else {
       const ambiguity: FinancialDirectionAmbiguity = {

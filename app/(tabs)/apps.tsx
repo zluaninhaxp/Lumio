@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
 import { useAuth } from '../../src/hooks/useAuth';
+import { onboardingService } from '../../src/services/onboardingService';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 
@@ -19,6 +20,8 @@ export default function AppsScreen() {
     recommendedPlugins,
     dismissedPluginSuggestions,
     setPluginActivation,
+    pluginOrder,
+    setPluginOrder,
     dismissPluginSuggestion,
   } = useAppStore();
 
@@ -36,9 +39,60 @@ export default function AppsScreen() {
     setPluginActivation(pluginId, true);
   };
 
-  const activeDefs = activatedPlugins
+  const orderedPluginIds = useMemo(() => {
+    const active = new Set(activatedPlugins);
+    return [
+      ...pluginOrder.filter((id) => active.has(id)),
+      ...activatedPlugins.filter((id) => !pluginOrder.includes(id)),
+    ];
+  }, [activatedPlugins, pluginOrder]);
+
+  const activeDefs = orderedPluginIds
     .map((id) => getPluginDefinition(id))
     .filter((d): d is NonNullable<typeof d> => !!d);
+
+  const [isOrganizing, setIsOrganizing] = useState(false);
+
+  const movePlugin = async (fromIndex: number, direction: -1 | 1) => {
+    const toIndex = fromIndex + direction;
+    if (toIndex < 0 || toIndex >= orderedPluginIds.length) return;
+    const nextOrder = [...orderedPluginIds];
+    [nextOrder[fromIndex], nextOrder[toIndex]] = [nextOrder[toIndex], nextOrder[fromIndex]];
+    setPluginOrder(nextOrder);
+    if (!currentUser) return;
+    try {
+      await onboardingService.savePluginPreferences(currentUser.id, activatedPlugins, nextOrder);
+    } catch (error) {
+      console.warn('Falha ao salvar a ordem dos módulos:', error);
+      Alert.alert('Não foi possível salvar', 'A nova ordem ficará disponível nesta sessão. Tente novamente mais tarde.');
+    }
+  };
+
+  const deactivateAllPlugins = () => {
+    Alert.alert(
+      'Desativar todos os módulos?',
+      'Eles sairão da sua lista de Apps, mas seus dados continuarão guardados para quando você quiser reativá-los.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desativar todos',
+          style: 'destructive',
+          onPress: async () => {
+            activatedPlugins.forEach((pluginId) => setPluginActivation(pluginId, false));
+            setPluginOrder([]);
+            setIsOrganizing(false);
+            if (!currentUser) return;
+            try {
+              await onboardingService.savePluginPreferences(currentUser.id, [], []);
+            } catch (error) {
+              console.warn('Falha ao salvar a desativação dos módulos:', error);
+              Alert.alert('Não foi possível salvar', 'Os módulos foram desativados nesta sessão. Tente novamente mais tarde.');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const suggestions = recommendedPlugins.filter(
     (p) => !activatedPlugins.includes(p.plugin) && !dismissedPluginSuggestions.includes(p.plugin)
@@ -55,24 +109,59 @@ export default function AppsScreen() {
         <Text style={styles.sectionLabel}>
           SEUS MÓDULOS
         </Text>
+        {activeDefs.length > 1 && (
+          <>
+            <TouchableOpacity
+              style={styles.organizeButton}
+              onPress={() => setIsOrganizing((value) => !value)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: isOrganizing }}
+              accessibilityLabel={isOrganizing ? 'Concluir organização dos módulos' : 'Organizar módulos'}
+            >
+              <Ionicons name={isOrganizing ? 'checkmark' : 'swap-vertical'} size={16} color={Colors.accent} />
+              <Text style={styles.organizeButtonText}>{isOrganizing ? 'Concluir' : 'Organizar'}</Text>
+            </TouchableOpacity>
+            {isOrganizing && <Text style={styles.organizeHint}>Use as setas para definir a ordem dos módulos.</Text>}
+            {isOrganizing && (
+              <TouchableOpacity
+                style={styles.deactivateAllButton}
+                onPress={deactivateAllPlugins}
+                accessibilityRole="button"
+                accessibilityLabel="Desativar todos os módulos"
+              >
+                <Ionicons name="remove-circle-outline" size={16} color={Colors.danger} />
+                <Text style={styles.deactivateAllText}>Desativar todos</Text>
+              </TouchableOpacity>
+            )}
+          </>
+        )}
         {activeDefs.length === 0 && (
           <View style={styles.empty}>
             <Ionicons name="apps-outline" size={40} color={Colors.textMuted} />
             <Text style={styles.emptyText}>Nenhum módulo ativado ainda.</Text>
           </View>
         )}
-        {activeDefs.map((def) => (
+        {activeDefs.map((def, index) => (
           <TouchableOpacity
             key={def.id}
             style={styles.moduleCard}
-            onPress={() => router.push(def.route as any)}
+            onPress={() => !isOrganizing && router.push(def.route as any)}
             activeOpacity={0.7}
           >
             <View style={styles.moduleIcon}>
               <Ionicons name={def.icon as any} size={20} color={Colors.primary} />
             </View>
             <Text style={styles.moduleName}>{def.label}</Text>
-            <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+            {isOrganizing ? (
+              <View style={styles.reorderActions}>
+                <TouchableOpacity style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]} onPress={() => movePlugin(index, -1)} disabled={index === 0} accessibilityRole="button" accessibilityLabel={`Mover ${def.label} para cima`}>
+                  <Ionicons name="chevron-up" size={20} color={index === 0 ? Colors.textMuted : Colors.accent} />
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.reorderButton, index === activeDefs.length - 1 && styles.reorderButtonDisabled]} onPress={() => movePlugin(index, 1)} disabled={index === activeDefs.length - 1} accessibilityRole="button" accessibilityLabel={`Mover ${def.label} para baixo`}>
+                  <Ionicons name="chevron-down" size={20} color={index === activeDefs.length - 1 ? Colors.textMuted : Colors.accent} />
+                </TouchableOpacity>
+              </View>
+            ) : <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />}
           </TouchableOpacity>
         ))}
 
@@ -157,6 +246,24 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     marginTop: Spacing.sm,
   },
+  organizeButton: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4,
+    minHeight: 44, paddingHorizontal: Spacing.sm, marginBottom: Spacing.xs,
+  },
+  organizeButtonText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent,
+  },
+  organizeHint: {
+    fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm,
+    color: Colors.textSecondary, marginBottom: Spacing.sm,
+  },
+  deactivateAllButton: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4,
+    minHeight: 44, paddingHorizontal: Spacing.sm, marginBottom: Spacing.sm,
+  },
+  deactivateAllText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.danger,
+  },
   suggestionCard: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -224,6 +331,9 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.md, color: Colors.primary,
   },
+  reorderActions: { flexDirection: 'row', alignItems: 'center' },
+  reorderButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  reorderButtonDisabled: { opacity: 0.45 },
   empty: {
     alignItems: 'center',
     paddingVertical: Spacing.xxl,

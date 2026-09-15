@@ -1,16 +1,19 @@
-import React from 'react';
-import { StyleSheet, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing } from '../../../src/constants/theme';
+import React from "react";
+import { StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Colors, Spacing } from "../../../src/constants/theme";
 
 interface FABProps {
   onPress: () => void;
 }
 
 export function FAB({ onPress }: FABProps) {
+  const insets = useSafeAreaInsets();
+
   return (
     <TouchableOpacity
-      style={styles.fab}
+      style={[styles.fab, { bottom: Spacing.xl + insets.bottom }]}
       onPress={onPress}
       activeOpacity={0.8}
     >
@@ -21,15 +24,15 @@ export function FAB({ onPress }: FABProps) {
 
 const styles = StyleSheet.create({
   fab: {
-    position: 'absolute',
+    position: "absolute",
     bottom: Spacing.xl,
     right: Spacing.xl,
     width: 56,
     height: 56,
     borderRadius: 28,
     backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     zIndex: 20,
     shadowColor: Colors.accent,
     shadowOffset: { width: 0, height: 4 },

@@ -10,6 +10,10 @@ import { generateId } from '../utils/id';
 import type { BusinessTaxonomy, LearnedIntentMarker } from '../engine/taxonomy/types';
 import { migrateV1toV2 } from '../engine/taxonomy/migrateV1toV2';
 
+function normalizePersonName(name: string) {
+  return name.trim().toLocaleLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function isBusinessTaxonomy(value: unknown): value is BusinessTaxonomy {
   return !!value && typeof value === 'object'
     && (value as { taxonomyVersion?: unknown }).taxonomyVersion === 2
@@ -168,9 +172,24 @@ export interface EstoqueItem {
   id: string;
   name: string;
   quantity: number;
+  unitPrice: number;
   unit: string;
   category: string;
   minAlert: number;
+  controlStock: boolean;
+}
+
+export interface CatalogItem {
+  id: string;
+  name: string;
+  kind: 'produto' | 'servico';
+  unitPrice: number;
+  unit: string;
+  controlStock: boolean;
+  stockItemId?: string;
+  active: boolean;
+  createdAt: string;
+  needsReview?: boolean;
 }
 
 export interface ClienteItem {
@@ -197,6 +216,8 @@ export interface OrderItem {
   quantity: number;
   unitPrice: number;
   stockItemId?: string;
+  catalogItemId?: string;
+  kind?: 'produto' | 'servico';
 }
 
 export type OrderStatus = 'aberto' | 'concluido' | 'cancelado';
@@ -393,6 +414,9 @@ export interface AppStore {
    */
   activatedPlugins: string[];
   setPluginActivation: (pluginId: string, activated: boolean) => void;
+  /** Ordem explícita dos módulos na aba Apps; ids desconhecidos são ignorados pela tela. */
+  pluginOrder: string[];
+  setPluginOrder: (pluginIds: string[]) => void;
 
   /** Sugestões do onboarding dispensadas manualmente na aba Apps. */
   dismissedPluginSuggestions: string[];
@@ -401,14 +425,23 @@ export interface AppStore {
   /** Dados dos 2 plugins com CRUD completo. */
   estoqueItems: EstoqueItem[];
   addEstoqueItem: (item: Omit<EstoqueItem, 'id'>) => void;
+  addEstoqueItemFromCatalog: (catalogItemId: string, quantity: number, minAlert: number) => boolean;
   updateEstoqueItem: (id: string, item: Omit<EstoqueItem, 'id'>) => void;
   removeEstoqueItem: (id: string) => void;
   stockMovements: StockMovement[];
   moveEstoqueItem: (itemId: string, quantity: number, reason?: string, sourceTransactionId?: string) => boolean;
   receiveStockFromPurchase: (transactionId: string, itemId: string, quantity: number) => boolean;
 
+  catalogItems: CatalogItem[];
+  addCatalogItem: (item: Omit<CatalogItem, 'id' | 'createdAt' | 'active'>) => string;
+  updateCatalogItem: (id: string, item: Partial<Omit<CatalogItem, 'id'>>) => void;
+  archiveCatalogItem: (id: string) => void;
+  unarchiveCatalogItem: (id: string) => void;
+  migrateCatalogItems: () => void;
+
   pedidos: Pedido[];
   addPedido: (pedido: Omit<Pedido, 'id' | 'financeTransactionId' | 'stockDeductions'>) => string;
+  addVenda: (venda: Omit<Pedido, 'id' | 'financeTransactionId' | 'stockDeductions'>) => string | null;
   updatePedido: (id: string, updates: Partial<Omit<Pedido, 'id'>>) => boolean;
   completePedido: (id: string) => boolean;
   removePedido: (id: string) => void;
@@ -427,12 +460,13 @@ export interface AppStore {
   orcamentos: Orcamento[];
   addOrcamento: (orcamento: Omit<Orcamento, 'id' | 'orderId'>) => string;
   updateOrcamento: (id: string, updates: Partial<Omit<Orcamento, 'id'>>) => void;
+  removeOrcamento: (id: string) => void;
   approveOrcamento: (id: string) => string | null;
   refreshOrcamentos: () => void;
 
   clienteItems: ClienteItem[];
-  addClienteItem: (item: Omit<ClienteItem, 'id'>) => string;
-  updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => void;
+  addClienteItem: (item: Omit<ClienteItem, 'id'>) => string | null;
+  updateClienteItem: (id: string, item: Omit<ClienteItem, 'id'>) => boolean;
   removeClienteItem: (id: string) => void;
   linkTransactionToClient: (transactionId: string, clientId: string | undefined) => void;
 
@@ -444,15 +478,15 @@ export interface AppStore {
   markTransactionReceived: (transactionId: string, received: boolean) => void;
 
   fornecedorItems: FornecedorItem[];
-  addFornecedorItem: (item: Omit<FornecedorItem, 'id'>) => string;
-  updateFornecedorItem: (id: string, item: Omit<FornecedorItem, 'id'>) => void;
+  addFornecedorItem: (item: Omit<FornecedorItem, 'id'>) => string | null;
+  updateFornecedorItem: (id: string, item: Omit<FornecedorItem, 'id'>) => boolean;
   removeFornecedorItem: (id: string) => void;
   linkTransactionToSupplier: (transactionId: string, supplierId: string | undefined, updates?: Pick<Transaction, 'supplierDueDate' | 'supplierPaid'>) => void;
   markSupplierTransactionPaid: (transactionId: string, paid: boolean) => void;
 
 employeeItems: EmployeeItem[];
-  addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string;
-  updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => void;
+  addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string | null;
+  updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => boolean;
   removeEmployeeItem: (id: string) => void;
 
   commissions: CommissionEntry[];
@@ -481,6 +515,7 @@ employeeItems: EmployeeItem[];
     context: OnboardingContextDTO | null;
     structuredProfile: OnboardingExtractionResult | null;
     activatedPlugins: string[];
+    pluginOrder?: string[];
   }) => void;
   /**
    * Zera todos os dados derivados do onboarding no store. Usado pela
@@ -552,14 +587,22 @@ function addCategorySuggestion(
   return { [key]: [...state[key], { label: normalized, origin: 'mentioned' as const }] };
 }
 
-function getOrderStockDeductions(order: Pedido, stockItems: EstoqueItem[]): Array<{ stockItemId: string; quantity: number }> {
+function getOrderStockDeductions(order: Pedido, stockItems: EstoqueItem[], catalogItems: CatalogItem[]): Array<{ stockItemId: string; quantity: number }> {
   const deductions = new Map<string, number>();
   order.items.forEach((item) => {
-    const normalizedName = item.name.trim().toLowerCase();
-    const stockItem = item.stockItemId
-      ? stockItems.find((candidate) => candidate.id === item.stockItemId)
-      : stockItems.find((candidate) => candidate.name.trim().toLowerCase() === normalizedName);
-    if (stockItem && item.quantity > 0) deductions.set(stockItem.id, (deductions.get(stockItem.id) ?? 0) + item.quantity);
+    const catalogItem = item.catalogItemId
+      ? catalogItems.find((candidate) => candidate.id === item.catalogItemId)
+      : undefined;
+    const stockItem = catalogItem
+      ? catalogItem.kind === 'produto' && catalogItem.controlStock && catalogItem.stockItemId
+        ? stockItems.find((candidate) => candidate.id === catalogItem.stockItemId)
+        : undefined
+      : item.stockItemId
+        ? stockItems.find((candidate) => candidate.id === item.stockItemId)
+        : undefined;
+    if (stockItem && stockItem.controlStock !== false && item.quantity > 0) {
+      deductions.set(stockItem.id, (deductions.get(stockItem.id) ?? 0) + item.quantity);
+    }
   });
   return [...deductions].map(([stockItemId, quantity]) => ({ stockItemId, quantity }));
 }
@@ -598,7 +641,7 @@ function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Ped
   const wasCompleted = current.status === 'concluido';
   const willBeCompleted = next.status === 'concluido';
   const oldDeductions = current.stockDeductions ?? [];
-  const newDeductions = willBeCompleted ? getOrderStockDeductions(next, state.estoqueItems) : [];
+  const newDeductions = willBeCompleted ? getOrderStockDeductions(next, state.estoqueItems, state.catalogItems) : [];
   const deltas = new Map<string, number>();
   oldDeductions.forEach((entry) => deltas.set(entry.stockItemId, (deltas.get(entry.stockItemId) ?? 0) + entry.quantity));
   newDeductions.forEach((entry) => deltas.set(entry.stockItemId, (deltas.get(entry.stockItemId) ?? 0) - entry.quantity));
@@ -612,13 +655,13 @@ function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Ped
   });
   const nextMovements = [...state.stockMovements];
   deltas.forEach((delta, stockItemId) => {
-    if (delta !== 0) nextMovements.unshift({ id: generateId('mov_'), itemId: stockItemId, quantity: delta, reason: 'Pedido concluído atualizado', createdAt: new Date().toISOString(), sourceOrderId: id });
+    if (delta !== 0) nextMovements.unshift({ id: generateId('mov_'), itemId: stockItemId, quantity: delta, reason: 'Venda atualizada', createdAt: new Date().toISOString(), sourceOrderId: id });
   });
   let transactionId = current.financeTransactionId;
   let transactions = state.transactions;
   if (willBeCompleted) {
     transactionId = transactionId ?? generateId('txn_');
-    const transaction: Transaction = { id: transactionId, date: next.date, description: `Pedido ${id}`, amount: next.total, category: 'Receita', clientId: next.clientId, orderId: id };
+    const transaction: Transaction = { id: transactionId, date: next.date, description: `Venda ${id}`, amount: next.total, category: 'Receita', clientId: next.clientId, orderId: id };
     const exists = transactions.some((item) => item.id === transactionId);
     transactions = exists ? transactions.map((item) => item.id === transactionId ? transaction : item) : [transaction, ...transactions];
   } else if (wasCompleted && transactionId) {
@@ -683,6 +726,7 @@ export const useAppStore = create<AppStore>((set) => ({
   keywordMap: {},
   recommendedPlugins: [],
   activatedPlugins: [],
+  pluginOrder: [],
   setPluginActivation: (pluginId, activated) =>
     set((s) => {
       if (activated) {
@@ -703,12 +747,53 @@ export const useAppStore = create<AppStore>((set) => ({
 
   estoqueItems: [],
   addEstoqueItem: (item) =>
-    set((s) => ({
-      estoqueItems: [{ ...item, id: Date.now().toString() }, ...s.estoqueItems],
-    })),
+    set((s) => {
+      const id = generateId('stk_');
+      const estoqueItem = { ...item, id };
+      const catalogItem: CatalogItem = {
+        id: generateId('cat_'),
+        name: item.name,
+        kind: 'produto',
+        unitPrice: 0,
+        unit: item.unit,
+        controlStock: true,
+        stockItemId: id,
+        active: true,
+        createdAt: new Date().toISOString(),
+      };
+      return { estoqueItems: [estoqueItem, ...s.estoqueItems], catalogItems: [catalogItem, ...s.catalogItems] };
+    }),
+  setPluginOrder: (pluginIds) => set({ pluginOrder: [...new Set(pluginIds)] }),
+  addEstoqueItemFromCatalog: (catalogItemId, quantity, minAlert) => {
+    let added = false;
+    set((s) => {
+      const catalog = s.catalogItems.find((item) => item.id === catalogItemId && item.active && item.kind === 'produto');
+      if (!catalog || s.estoqueItems.some((item) => item.id === catalog.stockItemId)) return s;
+      const stockItemId = generateId('stk_');
+      const estoqueItem: EstoqueItem = {
+        id: stockItemId,
+        name: catalog.name,
+        quantity: Math.max(0, quantity || 0),
+        unitPrice: 0,
+        unit: catalog.unit,
+        category: '',
+        minAlert: Math.max(0, minAlert || 0),
+        controlStock: true,
+      };
+      added = true;
+      return {
+        estoqueItems: [estoqueItem, ...s.estoqueItems],
+        catalogItems: s.catalogItems.map((item) => item.id === catalog.id ? { ...item, controlStock: true, stockItemId } : item),
+      };
+    });
+    return added;
+  },
   updateEstoqueItem: (id, item) =>
     set((s) => ({
       estoqueItems: s.estoqueItems.map((i) => (i.id === id ? { ...item, id } : i)),
+      catalogItems: s.catalogItems.map((catalog) => catalog.stockItemId === id
+        ? { ...catalog, name: item.name, unit: item.unit }
+        : catalog),
     })),
   removeEstoqueItem: (id) =>
     set((s) => ({ estoqueItems: s.estoqueItems.filter((i) => i.id !== id) })),
@@ -742,10 +827,81 @@ export const useAppStore = create<AppStore>((set) => ({
     return received;
   },
 
+  catalogItems: [],
+  addCatalogItem: (item) => {
+    let id = '';
+    set((s) => {
+      id = generateId('cat_');
+      const isControlledProduct = item.kind === 'produto' && item.controlStock;
+      let estoqueItems = s.estoqueItems;
+      let stockItemId = item.stockItemId;
+      if (isControlledProduct && !stockItemId) {
+        stockItemId = generateId('stk_');
+        estoqueItems = [{
+          id: stockItemId,
+          name: item.name,
+          quantity: 0,
+          unitPrice: 0,
+          unit: item.unit,
+          category: '',
+          minAlert: 0,
+          controlStock: true,
+        }, ...estoqueItems];
+      }
+      const catalogItem: CatalogItem = {
+        ...item,
+        id,
+        stockItemId: isControlledProduct ? stockItemId : undefined,
+        controlStock: isControlledProduct,
+        active: true,
+        createdAt: new Date().toISOString(),
+      };
+      return { catalogItems: [catalogItem, ...s.catalogItems], estoqueItems };
+    });
+    return id;
+  },
+  updateCatalogItem: (id, updates) => set((s) => {
+    const current = s.catalogItems.find((item) => item.id === id);
+    if (!current) return s;
+    const next = { ...current, ...updates, id, controlStock: updates.kind === 'servico' ? false : (updates.controlStock ?? current.controlStock) };
+    let estoqueItems = s.estoqueItems;
+    let stockItemId = next.stockItemId;
+    if (next.kind === 'produto' && next.controlStock && !stockItemId) {
+      stockItemId = generateId('stk_');
+      estoqueItems = [{ id: stockItemId, name: next.name, quantity: 0, unitPrice: 0, unit: next.unit, category: '', minAlert: 0, controlStock: true }, ...estoqueItems];
+    }
+    if (stockItemId) {
+      estoqueItems = estoqueItems.map((item) => item.id === stockItemId ? { ...item, name: next.name, unit: next.unit, controlStock: true } : item);
+    }
+    return { catalogItems: s.catalogItems.map((item) => item.id === id ? { ...next, stockItemId: next.kind === 'produto' && next.controlStock ? stockItemId : undefined } : item), estoqueItems };
+  }),
+  archiveCatalogItem: (id) => set((s) => ({ catalogItems: s.catalogItems.map((item) => item.id === id ? { ...item, active: false } : item) })),
+  unarchiveCatalogItem: (id) => set((s) => ({ catalogItems: s.catalogItems.map((item) => item.id === id ? { ...item, active: true } : item) })),
+  migrateCatalogItems: () => set((s) => {
+    const linkedStockIds = new Set(s.catalogItems.map((item) => item.stockItemId).filter(Boolean));
+    const additions = s.estoqueItems.filter((item) => !linkedStockIds.has(item.id)).map((item): CatalogItem => ({
+      id: generateId('cat_'), name: item.name, kind: 'produto', unitPrice: 0, unit: item.unit,
+      controlStock: true, stockItemId: item.id, active: true, createdAt: new Date().toISOString(),
+    }));
+    return additions.length ? { catalogItems: [...additions, ...s.catalogItems] } : s;
+  }),
+
   pedidos: [],
   addPedido: (pedido) => {
     const id = generateId('ord_');
     set((s) => ({ pedidos: [{ ...pedido, id }, ...s.pedidos] }));
+    return id;
+  },
+  addVenda: (venda) => {
+    let id: string | null = null;
+    set((s) => {
+      const saleId = generateId('sale_');
+      const sale = { ...venda, id: saleId, status: 'concluido' as const };
+      const result = applyOrderUpdate({ ...s, pedidos: [sale, ...s.pedidos] }, saleId, {});
+      if (!result) return s;
+      id = saleId;
+      return result;
+    });
     return id;
   },
   updatePedido: (id, updates) => {
@@ -888,6 +1044,8 @@ export const useAppStore = create<AppStore>((set) => ({
   },
   updateOrcamento: (id, updates) =>
     set((s) => ({ orcamentos: s.orcamentos.map((orcamento) => orcamento.id === id ? { ...orcamento, ...updates, id } : orcamento) })),
+  removeOrcamento: (id) =>
+    set((s) => ({ orcamentos: s.orcamentos.filter((orcamento) => orcamento.id !== id) })),
   approveOrcamento: (id) => {
     let orderId: string | null = null;
     set((s) => {
@@ -904,14 +1062,23 @@ export const useAppStore = create<AppStore>((set) => ({
 
   clienteItems: [],
   addClienteItem: (item) => {
-    const id = generateId('cli_');
-    set((s) => ({ clienteItems: [{ ...item, id }, ...s.clienteItems] }));
+    let id: string | null = null;
+    set((s) => {
+      if (s.clienteItems.some((client) => normalizePersonName(client.name) === normalizePersonName(item.name))) return s;
+      id = generateId('cli_');
+      return { clienteItems: [{ ...item, id }, ...s.clienteItems] };
+    });
     return id;
   },
-  updateClienteItem: (id, item) =>
-    set((s) => ({
-      clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)),
-    })),
+  updateClienteItem: (id, item) => {
+    let updated = false;
+    set((s) => {
+      if (s.clienteItems.some((client) => client.id !== id && normalizePersonName(client.name) === normalizePersonName(item.name))) return s;
+      updated = true;
+      return { clienteItems: s.clienteItems.map((i) => (i.id === id ? { ...item, id } : i)) };
+    });
+    return updated;
+  },
   removeClienteItem: (id) =>
     set((s) => {
       const contractIds = new Set(s.contratos.filter((contrato) => contrato.clientId === id).map((contrato) => contrato.id));
@@ -994,12 +1161,23 @@ export const useAppStore = create<AppStore>((set) => ({
 
   fornecedorItems: [],
   addFornecedorItem: (item) => {
-    const id = generateId('sup_');
-    set((s) => ({ fornecedorItems: [{ ...item, id }, ...s.fornecedorItems] }));
+    let id: string | null = null;
+    set((s) => {
+      if (s.fornecedorItems.some((supplier) => normalizePersonName(supplier.name) === normalizePersonName(item.name))) return s;
+      id = generateId('sup_');
+      return { fornecedorItems: [{ ...item, id }, ...s.fornecedorItems] };
+    });
     return id;
   },
-  updateFornecedorItem: (id, item) =>
-    set((s) => ({ fornecedorItems: s.fornecedorItems.map((i) => i.id === id ? { ...item, id } : i) })),
+  updateFornecedorItem: (id, item) => {
+    let updated = false;
+    set((s) => {
+      if (s.fornecedorItems.some((supplier) => supplier.id !== id && normalizePersonName(supplier.name) === normalizePersonName(item.name))) return s;
+      updated = true;
+      return { fornecedorItems: s.fornecedorItems.map((i) => i.id === id ? { ...item, id } : i) };
+    });
+    return updated;
+  },
   removeFornecedorItem: (id) =>
     set((s) => ({
       fornecedorItems: s.fornecedorItems.filter((i) => i.id !== id),
@@ -1014,12 +1192,23 @@ export const useAppStore = create<AppStore>((set) => ({
 
   employeeItems: [],
   addEmployeeItem: (item) => {
-    const id = generateId('emp_');
-    set((s) => ({ employeeItems: [{ ...item, id }, ...s.employeeItems] }));
+    let id: string | null = null;
+    set((s) => {
+      if (s.employeeItems.some((employee) => normalizePersonName(employee.name) === normalizePersonName(item.name))) return s;
+      id = generateId('emp_');
+      return { employeeItems: [{ ...item, id }, ...s.employeeItems] };
+    });
     return id;
   },
-updateEmployeeItem: (id, item) =>
-    set((s) => ({ employeeItems: s.employeeItems.map((employee) => employee.id === id ? { ...item, id } : employee) })),
+  updateEmployeeItem: (id, item) => {
+    let updated = false;
+    set((s) => {
+      if (s.employeeItems.some((employee) => employee.id !== id && normalizePersonName(employee.name) === normalizePersonName(item.name))) return s;
+      updated = true;
+      return { employeeItems: s.employeeItems.map((employee) => employee.id === id ? { ...item, id } : employee) };
+    });
+    return updated;
+  },
   removeEmployeeItem: (id) =>
     set((s) => ({
       employeeItems: s.employeeItems.filter((employee) => employee.id !== id),
@@ -1077,7 +1266,7 @@ updateEmployeeItem: (id, item) =>
       customTaskTags: result.coreCategories.taskTags.map((c) => c.label),
       onboardingCompleted: true,
     })),
-  hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins }) =>
+  hydrateOnboarding: ({ responses, context, structuredProfile, activatedPlugins, pluginOrder = [] }) =>
     set((s) => {
       const normalizedProfile = normalizeHydratedProfile(structuredProfile);
       return normalizedProfile ? {
@@ -1097,11 +1286,13 @@ updateEmployeeItem: (id, item) =>
        recommendedPlugins: normalizedProfile.extraction.recommendedPlugins,
        customTaskTags: normalizedProfile.extraction.coreCategories.taskTags.map((c) => c.label),
        activatedPlugins,
+       pluginOrder,
        onboardingCompleted: true,
       } : {
       openAnswers: responses,
       onboardingContext: context,
-      activatedPlugins,
+       activatedPlugins,
+       pluginOrder,
       onboardingCompleted: true,
        onboardingExtraction: null,
        taxonomy: null,
@@ -1137,6 +1328,7 @@ updateEmployeeItem: (id, item) =>
       recommendedPlugins: [],
       customTaskTags: [],
       activatedPlugins: [],
+      pluginOrder: [],
       dismissedPluginSuggestions: [],
     }),
 

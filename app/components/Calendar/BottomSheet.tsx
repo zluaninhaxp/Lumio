@@ -4,6 +4,7 @@ import {
   StyleSheet,
   Modal,
   Animated,
+  PanResponder,
   TouchableWithoutFeedback,
   Dimensions,
   KeyboardAvoidingView,
@@ -11,17 +12,31 @@ import {
 } from 'react-native';
 import { Colors, Radius, Spacing } from '../../../src/constants/theme';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHEET_HEIGHT = 420;
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface BottomSheetProps {
   visible: boolean;
   onClose: () => void;
   children: React.ReactNode;
   height?: number;
+  minHeight?: number;
+  maxHeight?: number;
+  sheetHeight?: number | `${number}%`;
 }
 
-export function BottomSheet({ visible, onClose, children, height = SHEET_HEIGHT }: BottomSheetProps) {
+export function BottomSheet({
+  visible,
+  onClose,
+  children,
+  height = SHEET_HEIGHT,
+  minHeight = 0,
+  maxHeight,
+  sheetHeight,
+}: BottomSheetProps) {
+  const resolvedSheetHeight = typeof sheetHeight === 'string'
+    ? SCREEN_HEIGHT * (parseFloat(sheetHeight) / 100)
+    : sheetHeight;
   const translateY = useRef(new Animated.Value(height)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -62,6 +77,34 @@ export function BottomSheet({ visible, onClose, children, height = SHEET_HEIGHT 
     [translateY, backdropOpacity, onClose, height]
   );
 
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(0, gesture.dy)),
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > 90 || gesture.vy > 0.8) {
+          close();
+          return;
+        }
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 70,
+          friction: 10,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(translateY, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 70,
+          friction: 10,
+        }).start();
+      },
+    }),
+  ).current;
+
   useEffect(() => {
     if (visible) {
       open();
@@ -89,10 +132,20 @@ export function BottomSheet({ visible, onClose, children, height = SHEET_HEIGHT 
           <Animated.View
             style={[
               styles.sheet,
+              { minHeight },
+              maxHeight !== undefined && { maxHeight },
+              resolvedSheetHeight !== undefined && { height: resolvedSheetHeight },
+              (maxHeight !== undefined || sheetHeight !== undefined) && styles.sizedSheet,
               { transform: [{ translateY }] },
             ]}
           >
-             <View style={styles.handle} />
+             <View
+               style={styles.handleHitArea}
+               hitSlop={{ top: 16, bottom: 16, left: 48, right: 48 }}
+               {...panResponder.panHandlers}
+             >
+               <View style={styles.handle} />
+             </View>
             {children}
           </Animated.View>
         </KeyboardAvoidingView>
@@ -116,7 +169,9 @@ const styles = StyleSheet.create({
     borderTopRightRadius: Radius.xl,
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.xxxl,
-    minHeight: SHEET_HEIGHT,
+  },
+  sizedSheet: {
+    overflow: 'hidden',
   },
   handle: {
     width: 36,
@@ -126,5 +181,10 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginTop: Spacing.md,
     marginBottom: Spacing.lg,
+  },
+  handleHitArea: {
+    width: '100%',
+    height: 32,
+    alignItems: 'center',
   },
 });

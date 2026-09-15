@@ -27,8 +27,6 @@ export function resolvePerson(text: string, people: PersonRef[]): {
   id: string | null;
   ambiguous: boolean;
 } {
-  if (!people || people.length === 0) return { name: null, id: null, ambiguous: false };
-
   const norm = (s: string) => stripAccents(s.toLowerCase().trim());
   const search = norm(text);
   const keys: PersonaKey[] = people.map((p) => {

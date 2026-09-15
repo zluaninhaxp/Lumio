@@ -43,4 +43,9 @@ export const onboardingService = {
   async saveStructuredProfile(userId: string, structuredProfile: unknown): Promise<OnboardingRecord> {
     return onboardingRepository.save(userId, { structuredProfile });
   },
+
+  /** Salva preferências da aba Apps sem substituir os dados do onboarding. */
+  async savePluginPreferences(userId: string, activatedPlugins: string[], pluginOrder: string[]): Promise<OnboardingRecord> {
+    return onboardingRepository.save(userId, { activatedPlugins, pluginOrder });
+  },
 };

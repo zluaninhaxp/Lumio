@@ -25,6 +25,8 @@ export interface OnboardingRecord {
   /** Reservado para a futura extração via IA. Não preenchido nesta etapa. */
   structuredProfile?: unknown;
   activatedPlugins?: string[];
+  /** Ordem escolhida pelo usuário para os módulos ativos. */
+  pluginOrder?: string[];
   updatedAt: string;
 }
 
@@ -32,25 +34,46 @@ function keyFor(userId: string): string {
   return `${StorageKeys.ONBOARDING_PREFIX}${userId}`;
 }
 
+const PLUGIN_ORDER_KEY = '__lumioPluginOrder';
+
+function readPluginOrder(responses: unknown): string[] {
+  if (!responses || typeof responses !== 'object') return [];
+  const value = (responses as Record<string, unknown>)[PLUGIN_ORDER_KEY];
+  return Array.isArray(value)
+    ? [...new Set(value.filter((id): id is string => typeof id === 'string'))]
+    : [];
+}
+
+function withPluginOrder(responses: unknown, pluginOrder: string[]): Record<string, unknown> {
+  return {
+    ...(responses && typeof responses === 'object' ? responses as Record<string, unknown> : {}),
+    [PLUGIN_ORDER_KEY]: [...new Set(pluginOrder)],
+  };
+}
+
 export const onboardingRepository = {
   async get(userId: string): Promise<OnboardingRecord | null> {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase!.from('onboarding_records').select('user_id, responses, context, structured_profile, activated_plugins, updated_at').eq('user_id', userId).maybeSingle();
       if (error) throw new Error(error.message);
-      return data ? { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], updatedAt: data.updated_at } : null;
+      return data ? { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], pluginOrder: readPluginOrder(data.responses), updatedAt: data.updated_at } : null;
     }
     return storageService.getItem<OnboardingRecord>(keyFor(userId));
   },
 
   async save(userId: string, partial: Partial<Omit<OnboardingRecord, 'userId'>>): Promise<OnboardingRecord> {
     const existing = await this.get(userId);
+    const { pluginOrder: requestedOrder, ...partialWithoutOrder } = partial;
     const record: OnboardingRecord = {
       userId,
-      responses: existing?.responses ?? {},
       context: existing?.context,
       structuredProfile: existing?.structuredProfile,
       activatedPlugins: existing?.activatedPlugins ?? [],
-      ...partial,
+      ...partialWithoutOrder,
+      responses: requestedOrder === undefined
+        ? (partial.responses ?? existing?.responses ?? {})
+        : withPluginOrder(partial.responses ?? existing?.responses, requestedOrder),
+      pluginOrder: requestedOrder ?? existing?.pluginOrder ?? [],
       updatedAt: new Date().toISOString(),
     };
     if (isSupabaseConfigured) {
@@ -63,7 +86,7 @@ export const onboardingRepository = {
         updated_at: record.updatedAt,
       }).select('user_id, responses, context, structured_profile, activated_plugins, updated_at').single();
       if (error) throw new Error(error.message);
-      return { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], updatedAt: data.updated_at };
+      return { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], pluginOrder: readPluginOrder(data.responses), updatedAt: data.updated_at };
     }
     await storageService.setItem(keyFor(userId), record);
     return record;

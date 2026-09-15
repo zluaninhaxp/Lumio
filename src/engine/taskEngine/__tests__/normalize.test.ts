@@ -13,6 +13,10 @@ test('normaliza abreviações pra/pro/vc/q', () => {
   assert.ok(n.text.includes('que comprar cimento para o'));
 });
 
+test('normaliza apóstrofo agudo usado como separador em voz/texto', () => {
+  assert.equal(normalizeMessage('medir metragem até´dia 10').text, 'medir metragem até dia 10');
+});
+
 test('mantém ? para detectar pergunta', () => {
   const n = normalizeMessage('quanto custa comprar cimento?');
   assert.ok(n.text.includes('?'));

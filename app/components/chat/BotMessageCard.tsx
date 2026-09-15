@@ -19,7 +19,7 @@ import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme'
  * Radius.lg, sombra suave, fontes PlusJakartaSans, paleta Colors.
  */
 
-export type BotCardKind = 'task' | 'event' | 'deadline' | 'finance';
+export type BotCardKind = 'task' | 'event' | 'deadline' | 'finance' | 'client' | 'supplier' | 'employee' | 'stock' | 'catalog' | 'module';
 
 export interface BotCard {
   kind: BotCardKind;
@@ -37,6 +37,9 @@ export interface BotCard {
   pending?: boolean;
   category?: string;
   counterparty?: string;
+  /** Personaliza o selo quando o card apresenta um módulo do Lumio. */
+  badgeLabel?: string;
+  badgeIcon?: keyof typeof Ionicons.glyphMap;
 }
 
 interface BotMessageCardProps {
@@ -48,6 +51,12 @@ const KIND_CONFIG: Record<BotCardKind, { icon: keyof typeof Ionicons.glyphMap; l
   event: { icon: 'calendar-outline', label: 'Evento', color: Colors.accent, bg: Colors.accentLight },
   deadline: { icon: 'time-outline', label: 'Prazo', color: Colors.warning, bg: '#FEF3C7' },
   finance: { icon: 'wallet-outline', label: 'Financeiro', color: Colors.accent, bg: Colors.accentLight },
+  client: { icon: 'person-outline', label: 'Cliente cadastrado', color: Colors.accent, bg: Colors.accentLight },
+  supplier: { icon: 'briefcase-outline', label: 'Fornecedor cadastrado', color: Colors.accent, bg: Colors.accentLight },
+  employee: { icon: 'people-outline', label: 'Funcionário cadastrado', color: Colors.accent, bg: Colors.accentLight },
+  stock: { icon: 'cube-outline', label: 'Item no estoque', color: Colors.accent, bg: Colors.accentLight },
+  catalog: { icon: 'pricetags-outline', label: 'Item no catálogo', color: Colors.accent, bg: Colors.accentLight },
+  module: { icon: 'apps-outline', label: 'Módulo', color: Colors.accent, bg: Colors.accentLight },
 };
 
 function formatAmount(value: number): string {
@@ -71,6 +80,8 @@ function getTagColor(tag: string) {
 
 export function BotMessageCard({ card }: BotMessageCardProps) {
   const cfg = KIND_CONFIG[card.kind];
+  const badgeIcon = card.badgeIcon ?? cfg.icon;
+  const badgeLabel = card.badgeLabel ?? cfg.label;
   const dateColor = card.kind === 'deadline' ? Colors.warning : Colors.accent;
   // Tags em TAREFAS e FINANÇAS (categoria como chip); eventos não têm.
   const showTags = card.kind !== 'event' && card.tags && card.tags.length > 0;
@@ -81,8 +92,8 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
       {/* Header: ícone + tipo */}
       <View style={styles.cardHeader}>
         <View style={[styles.kindBadge, { backgroundColor: cfg.bg }]}>
-          <Ionicons name={cfg.icon} size={13} color={cfg.color} />
-          <Text style={[styles.kindLabel, { color: cfg.color }]}>{cfg.label}</Text>
+          <Ionicons name={badgeIcon} size={13} color={cfg.color} />
+          <Text style={[styles.kindLabel, { color: cfg.color }]}>{badgeLabel}</Text>
         </View>
       </View>
 

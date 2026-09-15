@@ -5,16 +5,19 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
+import { normalizeMessage } from '../../src/engine/taskEngine/normalize';
 import type { TaskParserContext, TaskParseResult } from '../../src/engine/taskEngine/types';
-import { parseCalendarMessage, decideHybrid } from '../../src/engine/calendarEngine/calendarParser';
+import { parseCalendarMessage, decideHybrid, humanizeDueDate, resolveTemporal } from '../../src/engine/calendarEngine/calendarParser';
+import { buildTaskEventAmbiguity, type TaskEventAmbiguity } from '../../src/engine/calendarEngine/domainAmbiguity';
 import type { CalendarParserContext } from '../../src/engine/calendarEngine/types';
 import {
   parseFinancialMessage, applyFinancialResult, buildFinanceCards,
-  buildFinancialBotText, answerFinancialQuery, formatBRL, applyFinancialAmbiguity,
+  buildFinancialBotText, answerFinancialQuery, formatBRL, applyFinancialAmbiguity, isSafeFinancialLearnedMarkerPhrase,
 } from '../../src/engine/financialEngine';
 import type { FinancialDirectionAmbiguity, FinancialParserContext } from '../../src/engine/financialEngine';
 import { useAppStore } from '../../src/store';
@@ -28,6 +31,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 import { BotMessageCard, type BotCard } from '../components/chat/BotMessageCard';
+import { parseCommand, buildCommandHelp, missingCommandFields, getCommandDefinitions, type ParsedCommand } from '../../src/engine/commandEngine';
 
 interface Message {
   id: string;
@@ -35,14 +39,31 @@ interface Message {
   text: string;
   actions?: string[];
   quickActions?: { label: string; value: QuickActionValue }[];
-  ambiguity?: FinancialDirectionAmbiguity;
+  ambiguity?: ChatAmbiguity;
   fallbackSourceText?: string;
   /** Cards visuais (substituem `text` quando presentes). */
   cards?: BotCard[];
   timestamp: Date;
 }
 
-type QuickActionValue = FinancialDirectionAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other';
+type ChatAmbiguity = FinancialDirectionAmbiguity | TaskEventAmbiguity;
+type QuickActionValue = ChatAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other' | 'command_add_client' | 'command_add_supplier' | 'command_add_employee' | 'command_add_stock' | 'command_add_catalog' | 'command_create_catalog_for_stock';
+type PendingCommandAction = Exclude<Extract<QuickActionValue, `command_${string}`>, 'command_create_catalog_for_stock'>;
+type PendingCommand = { action: PendingCommandAction; values: Record<string, string>; fieldIndex: number };
+
+const COMMAND_FIELDS: Record<PendingCommandAction, { key: string; prompt: string }[]> = {
+  command_add_client: [{ key: 'nome', prompt: 'Qual é o nome do cliente?' }],
+  command_add_supplier: [{ key: 'nome', prompt: 'Qual é o nome do fornecedor?' }],
+  command_add_employee: [
+    { key: 'nome', prompt: 'Qual é o nome do funcionário?' },
+    { key: 'funcao', prompt: 'Qual é a função dele na equipe?' },
+  ],
+  command_add_stock: [{ key: 'nome', prompt: 'Qual item do catálogo você quer adicionar ao estoque?' }],
+  command_add_catalog: [
+    { key: 'nome', prompt: 'Qual é o nome do produto ou serviço?' },
+    { key: 'preco', prompt: 'Qual é o preço padrão?' },
+  ],
+};
 
 const INITIAL_MESSAGES: Message[] = [
   {
@@ -54,14 +75,30 @@ const INITIAL_MESSAGES: Message[] = [
 ];
 
 export default function ChatScreen() {
+  const router = useRouter();
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [input, setInput] = useState('');
   const [pendingFinancialText, setPendingFinancialText] = useState<string | null>(null);
   const [pendingIntentMarkerPhrase, setPendingIntentMarkerPhrase] = useState<string | null>(null);
   const [accountVisible, setAccountVisible] = useState(false);
+  const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
+  const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
 const { currentUser } = useAuth();
-  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy } = useAppStore();
+  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
+  const isCommandMenuOpen = input.startsWith('/') && !input.includes(' ');
+  const commandSuggestions = isCommandMenuOpen
+    ? getCommandDefinitions().filter((item) => {
+        const query = input.slice(1).toLocaleLowerCase();
+        return item.menuOnly
+          && !!item.pluginId
+          && activatedPlugins.includes(item.pluginId)
+          && (!query || item.name.includes(query) || item.label.toLocaleLowerCase().includes(query));
+      }).slice(0, 6)
+    : [];
+  const hasAllCommandPlugins = getCommandDefinitions()
+    .filter((item) => item.menuOnly && item.pluginId)
+    .every((item) => activatedPlugins.includes(item.pluginId!));
 
   const learnTaxonomyTerm = useCallback((domain: TaxonomyDomain, rawTerm: string | null | undefined) => {
     if (!rawTerm) return;
@@ -177,10 +214,21 @@ return date.toISOString().split('T')[0];
     };
   }, []);
 
-  const persistIntentMarker = useCallback((phrase: string, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
+  const persistIntentMarker = useCallback((domain: 'financial' | 'calendar' | 'task', phrase: string, resolution: string) => {
     const state = useAppStore.getState();
-    const markers = state.learnedIntentMarkers.map((marker) => ({ ...marker }));
-    recordLearnedIntentMarker({ learnedIntentMarkers: markers }, 'financial', phrase, resolution);
+    const markers = state.learnedIntentMarkers
+      .filter((marker) => marker.domain !== 'financial' || isSafeFinancialLearnedMarkerPhrase(marker.phrase))
+      .map((marker) => ({ ...marker }));
+    if (domain === 'financial' && !isSafeFinancialLearnedMarkerPhrase(phrase)) {
+      state.updateLearnedIntentMarkers(markers);
+      if (currentUser) {
+        void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
+          console.warn('Falha ao limpar intenção financeira aprendida:', error);
+        });
+      }
+      return;
+    }
+    recordLearnedIntentMarker({ learnedIntentMarkers: markers }, domain, phrase, resolution);
     state.updateLearnedIntentMarkers(markers);
     if (currentUser) {
       void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
@@ -188,6 +236,11 @@ return date.toISOString().split('T')[0];
       });
     }
   }, [currentUser]);
+
+  const taskHookFromText = useCallback((text: string): string | null => {
+    const token = normalizeMessage(text).tokens.find((item) => /^[\p{L}][\p{L}'-]{2,}$/u.test(item));
+    return token ?? null;
+  }, []);
 
   const applyFinancialEngine = useCallback((text: string): TaskOutcome => {
     const sourceText = pendingFinancialText ? `${pendingFinancialText} ${text}` : text;
@@ -232,7 +285,7 @@ return date.toISOString().split('T')[0];
           const entry = result.entries[0];
           const direction = entry.direction === 'income' ? 'IN' : 'OUT';
           const tense = entry.tense === 'future' ? 'FUTURE' : 'REALIZED';
-          persistIntentMarker(learnedPhrase, `${direction}_${tense}` as FinancialDirectionAmbiguity['options'][number]['value']);
+          persistIntentMarker('financial', learnedPhrase, `${direction}_${tense}` as FinancialDirectionAmbiguity['options'][number]['value']);
         }
        for (const entry of result.entries) {
          learnTaxonomyTerm(`financial.${entry.direction}`, entry.unresolvedTaxonomyTerm);
@@ -256,13 +309,90 @@ return date.toISOString().split('T')[0];
     botType?: 'bot' | 'fallback';
     cards?: BotCard[];
     quickActions?: { label: string; value: QuickActionValue }[];
-    ambiguity?: FinancialDirectionAmbiguity;
+    ambiguity?: ChatAmbiguity;
     fallbackSourceText?: string;
   };
 
+  // Comandos são uma camada explícita e previsível para ações de cadastro.
+  // O parser não tenta adivinhar frases: apenas transforma /comando em uma
+  // ação tipada e deixa as validações de unicidade no store.
+  const applyCommand = useCallback((command: ParsedCommand): TaskOutcome => {
+    const missing = missingCommandFields(command);
+    if (missing.length) {
+      const nextAction: Record<ParsedCommand['action'], PendingCommandAction> = {
+        add_client: 'command_add_client', add_supplier: 'command_add_supplier', add_employee: 'command_add_employee',
+        add_stock: 'command_add_stock', add_catalog: 'command_add_catalog', add_generic: 'command_add_client',
+      };
+      const action = nextAction[command.action];
+      setPendingCommand({ action, values: {}, fieldIndex: 0 });
+      return { handled: true, botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' };
+    }
+    const a = command.args;
+    const createdAt = new Date().toISOString();
+    if (command.action === 'add_client') {
+      const id = addClienteItem({ name: a.nome, contact: a.contato ?? '', notes: a.observacoes ?? a.notas ?? '', createdAt });
+      return id
+        ? { handled: true, botText: '', cards: [{ kind: 'client', title: a.nome, context: a.contato ?? a.observacoes ?? a.notas }], botType: 'bot' }
+        : { handled: true, botText: `Já existe um cliente chamado ${a.nome}.`, botType: 'bot' };
+    }
+    if (command.action === 'add_supplier') {
+      const id = addFornecedorItem({ name: a.nome, contact: a.contato ?? '', paymentTerm: a.prazo ?? '', notes: a.observacoes ?? a.notas ?? '' });
+      return id
+        ? { handled: true, botText: '', cards: [{ kind: 'supplier', title: a.nome, context: a.contato ?? a.prazo ?? a.observacoes ?? a.notas }], botType: 'bot' }
+        : { handled: true, botText: `Já existe um fornecedor chamado ${a.nome}.`, botType: 'bot' };
+    }
+    if (command.action === 'add_employee') {
+      if (!(a.funcao ?? a.cargo)?.trim()) {
+        setPendingCommand({ action: 'command_add_employee', values: { nome: a.nome }, fieldIndex: 1 });
+        return { handled: true, botText: COMMAND_FIELDS.command_add_employee[1].prompt, botType: 'bot' };
+      }
+      const id = addEmployeeItem({ name: a.nome, role: a.funcao ?? a.cargo ?? '', contact: a.contato ?? '', commissionRate: a.comissao ? Number(a.comissao.replace(',', '.')) : 0, createdAt });
+      return id
+        ? { handled: true, botText: '', cards: [{ kind: 'employee', title: a.nome, context: a.funcao ?? a.cargo ?? a.contato }], botType: 'bot' }
+        : { handled: true, botText: `Já existe um funcionário chamado ${a.nome}.`, botType: 'bot' };
+    }
+    if (command.action === 'add_stock') {
+      const catalogItem = catalogItems.find((item) => item.kind === 'produto' && item.name.trim().toLocaleLowerCase() === a.nome.trim().toLocaleLowerCase());
+      if (!catalogItem) {
+        setPendingStockCatalogName(a.nome);
+        return {
+          handled: true,
+          botText: `Não encontrei "${a.nome}" no Catálogo. Deseja adicioná-lo agora?`,
+          quickActions: [
+            { label: 'Adicionar ao Catálogo', value: 'command_create_catalog_for_stock' },
+            { label: 'Agora não', value: 'other' },
+          ],
+          botType: 'bot',
+        };
+      }
+      const quantity = Math.max(0, Number((a.quantidade ?? '0').replace(',', '.')) || 0);
+      const minAlert = Math.max(0, Number((a.minimo ?? a.alerta ?? '0').replace(',', '.')) || 0);
+      const added = addEstoqueItemFromCatalog(catalogItem.id, quantity, minAlert);
+      return added
+        ? { handled: true, botText: '', cards: [{ kind: 'stock', title: catalogItem.name, context: `${quantity} ${catalogItem.unit} · alerta mínimo: ${minAlert}` }], botType: 'bot' }
+        : { handled: true, botText: `${catalogItem.name} já está no estoque.`, botType: 'bot' };
+    }
+    if (command.action === 'add_catalog') {
+      if (!a.preco?.trim()) {
+        const fieldIndex = 1;
+        setPendingCommand({ action: 'command_add_catalog', values: { nome: a.nome, preco: a.preco ?? '', controlaestoque: a.controlaestoque ?? '' }, fieldIndex });
+        return { handled: true, botText: COMMAND_FIELDS.command_add_catalog[fieldIndex].prompt, botType: 'bot' };
+      }
+      const normalizedType = a.tipo?.trim().toLocaleLowerCase();
+      const kind = normalizedType === 'servico' || normalizedType === 'serviço' ? 'servico' : 'produto';
+      const unit = a.unidade?.trim() ?? '';
+      const controlStock = a.controlaestoque === 'true' || a.controlaestoque === 'sim';
+      const needsReview = !normalizedType;
+      addCatalogItem({ name: a.nome, kind, unitPrice: Number((a.preco ?? a.valor ?? '0').replace(',', '.')) || 0, unit, controlStock, needsReview });
+      const details = [needsReview ? 'Tipo pendente de confirmação' : kind === 'servico' ? 'Serviço' : 'Produto', `R$ ${a.preco ?? a.valor ?? '0'}`, unit, controlStock ? 'estoque controlado' : ''].filter(Boolean).join(' · ');
+      return { handled: true, botText: '', cards: [{ kind: 'catalog', title: a.nome, context: details }], botType: 'bot' };
+    }
+    return { handled: true, botText: 'Comando reconhecido, mas esta ação ainda está sendo conectada.', botType: 'bot' };
+  }, [addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems]);
+
   const learnIntentMarker = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']) => {
     if (!ambiguity.candidatePhrase) return;
-    persistIntentMarker(ambiguity.candidatePhrase, resolution);
+    persistIntentMarker('financial', ambiguity.candidatePhrase, resolution);
   }, [persistIntentMarker]);
 
   const applyFinancialChoice = useCallback((ambiguity: FinancialDirectionAmbiguity, resolution: FinancialDirectionAmbiguity['options'][number]['value']): TaskOutcome => {
@@ -271,6 +401,27 @@ return date.toISOString().split('T')[0];
     learnIntentMarker(ambiguity, resolution);
     return { handled: true, botText: buildFinancialBotText(result.entries), cards: buildFinanceCards(result.entries), botType: 'bot' };
   }, [learnIntentMarker]);
+
+  const applyTaskEventChoice = useCallback((ambiguity: TaskEventAmbiguity, resolution: 'task' | 'event'): TaskOutcome => {
+    if (resolution === 'task') {
+      const taskId = addTask({
+        description: ambiguity.sourceText,
+        source: 'chat',
+        done: false,
+        dueDate: ambiguity.date,
+        dueDateLabel: humanizeDueDate(ambiguity.date, new Date()),
+        priority: 'media',
+        subtasks: [],
+        tags: [],
+        createdAt: new Date().toISOString(),
+      });
+      persistIntentMarker('calendar', ambiguity.candidatePhrase, 'task');
+      return { handled: true, botText: `Tarefa criada: "${ambiguity.sourceText}".`, botType: 'bot' };
+    }
+    addEvent({ date: ambiguity.date, time: ambiguity.time, description: ambiguity.sourceText, type: 'event', source: 'chat' });
+    persistIntentMarker('calendar', ambiguity.candidatePhrase, 'event');
+    return { handled: true, botText: `Evento criado: "${ambiguity.sourceText}".`, botType: 'bot' };
+  }, [addTask, addEvent, persistIntentMarker]);
 
   /**
    * Cria as tarefas devolvidas pelo motor e monta a resposta do bot.
@@ -293,6 +444,67 @@ return date.toISOString().split('T')[0];
     const result = runTaskEngine(returnText);
     const cal = runCalendarEngine(returnText);
     const minconf = 0.5;
+
+    // Hooks aprendidos no fallback promovem frases desconhecidas a tarefas
+    // sem alterar o regex/dicionário fixo do motor.
+    const taskHook = taskHookFromText(returnText);
+    const learnedTaskHook = taskHook
+      ? findLearnedIntentMarker({ learnedIntentMarkers: useAppStore.getState().learnedIntentMarkers }, 'task', taskHook)
+      : null;
+    if ((result.intent !== 'create_task' || result.tasks.length === 0) && learnedTaskHook?.resolution === 'task') {
+      const normalized = normalizeMessage(returnText);
+      const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
+      const taskId = addTask({
+        description: returnText,
+        source: 'chat',
+        done: false,
+        dueDate: temporal.dueDate,
+        dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
+        priority: 'media',
+        subtasks: [],
+        tags: [],
+        createdAt: new Date().toISOString(),
+      });
+      if (taskId) persistIntentMarker('task', taskHook!, 'task');
+      return {
+        handled: true,
+        botText: taskId ? '' : 'Não foi possível criar a tarefa.',
+        botType: 'bot',
+        cards: taskId ? [{
+          kind: temporal.isDeadline ? 'deadline' : 'task',
+          title: returnText,
+          date: temporal.dueDate ?? undefined,
+          dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
+          time: temporal.dueTime ?? undefined,
+        }] : undefined,
+      };
+    }
+
+    const learnedDomainMarker = findLearnedIntentMarker(
+      { learnedIntentMarkers: useAppStore.getState().learnedIntentMarkers },
+      'calendar',
+      returnText,
+    );
+    const temporal = resolveTemporal(cal.normalized.tokens, new Date()).resolution;
+    if (learnedDomainMarker && (learnedDomainMarker.resolution === 'task' || learnedDomainMarker.resolution === 'event') && (temporal.dueDate || temporal.dueTime)) {
+      const learnedAmbiguity: TaskEventAmbiguity = {
+        type: 'task_or_event', sourceText: returnText, candidatePhrase: returnText,
+        date: temporal.dueDate ?? new Date().toISOString().split('T')[0], time: temporal.dueTime,
+        options: [{ label: 'Tarefa', value: 'task' }, { label: 'Evento', value: 'event' }],
+      };
+      return applyTaskEventChoice(learnedAmbiguity, learnedDomainMarker.resolution);
+    }
+
+    const domainAmbiguity = buildTaskEventAmbiguity(returnText, result, cal, new Date());
+    if (domainAmbiguity) {
+      return {
+        handled: true,
+        botText: 'Isso é uma tarefa pra fazer ou um compromisso marcado?',
+        quickActions: domainAmbiguity.options,
+        ambiguity: domainAmbiguity,
+        botType: 'bot',
+      };
+    }
 
     // ─── CASO 1: calendar diz create_event PURO (compromissos/eventos) ───
     // A intenção dominante é compromisso. NÃO criar tarefas (evita
@@ -407,15 +619,15 @@ return date.toISOString().split('T')[0];
     }
     if (taskCards.length === 0 && eventCards.length === 0) return { handled: false };
     const allCards = [...taskCards, ...eventCards];
-    return { handled: true, botText: '', cards: allCards, actions: ['Concluir'], botType: 'bot' };
-  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm]);
+    return { handled: true, botText: '', cards: allCards, botType: 'bot' };
+  }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice, persistIntentMarker, taskHookFromText]);
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
   /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
-  const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: FinancialDirectionAmbiguity; fallbackSourceText?: string }) => {
+  const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: ChatAmbiguity; fallbackSourceText?: string }) => {
     refreshOrcamentos();
     refreshContratos();
     const userMsg: Message = {
@@ -440,27 +652,79 @@ return date.toISOString().split('T')[0];
   }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
 
   const handleFinancialChoice = useCallback((message: Message, value: FinancialDirectionAmbiguity['options'][number]['value']) => {
-    if (!message.ambiguity) return;
+    if (!message.ambiguity || message.ambiguity.type !== 'financial_direction') return;
     const option = message.ambiguity.options.find((item) => item.value === value);
     if (!option) return;
     commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
   }, [applyFinancialChoice, commitMessages]);
 
+  const handleTaskEventChoice = useCallback((message: Message, value: 'task' | 'event') => {
+    if (!message.ambiguity || message.ambiguity.type !== 'task_or_event') return;
+    const option = message.ambiguity.options.find((item) => item.value === value);
+    if (!option) return;
+    commitMessages(option.label, applyTaskEventChoice(message.ambiguity, value));
+  }, [applyTaskEventChoice, commitMessages]);
+
   const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
+    if (value === 'command_create_catalog_for_stock') {
+      if (!pendingStockCatalogName) return;
+      setPendingCommand({ action: 'command_add_catalog', values: { nome: pendingStockCatalogName, controlaestoque: 'sim' }, fieldIndex: 1 });
+      setPendingStockCatalogName(null);
+      commitMessages('Adicionar ao Catálogo', { botText: COMMAND_FIELDS.command_add_catalog[1].prompt, botType: 'bot' });
+      return;
+    }
+    if (value.startsWith('command_')) {
+      const action = value as PendingCommandAction;
+      setPendingCommand({ action, values: {}, fieldIndex: 0 });
+      commitMessages('Cadastrar', { botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' });
+      return;
+    }
     if (value === 'register_expense') {
       setPendingFinancialText('gastei');
-      setPendingIntentMarkerPhrase(message.fallbackSourceText ?? null);
+      // O fallback genérico não é evidência suficiente para aprender direção
+      // financeira: a frase pode ser uma tarefa, como "coloque 700 da obra".
+      setPendingIntentMarkerPhrase(null);
       commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
     } else if (value === 'register_income') {
       setPendingFinancialText('recebi');
-      setPendingIntentMarkerPhrase(message.fallbackSourceText ?? null);
+      setPendingIntentMarkerPhrase(null);
       commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
     } else if (value === 'add_task') {
-      commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+      const sourceText = message.fallbackSourceText?.trim();
+      if (!sourceText) {
+        commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+        return;
+      }
+      const normalized = normalizeMessage(sourceText);
+      const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
+      const taskId = addTask({
+        description: sourceText,
+        source: 'chat',
+        done: false,
+        dueDate: temporal.dueDate,
+        dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
+        priority: 'media',
+        subtasks: [],
+        tags: [],
+        createdAt: new Date().toISOString(),
+      });
+      const hook = taskHookFromText(sourceText);
+      if (taskId && hook) persistIntentMarker('task', hook, 'task');
+      commitMessages('Adicionar tarefa', {
+        botText: taskId ? '' : 'Não foi possível criar a tarefa.',
+        botType: 'bot',
+        cards: taskId ? [{
+          kind: temporal.isDeadline ? 'deadline' : 'task',
+          title: sourceText,
+          date: temporal.dueDate ?? undefined,
+          dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
+          time: temporal.dueTime ?? undefined,
+        }] : undefined,
+      });
     } else if (value === 'other') {
       commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
     }
-  }, [commitMessages]);
+  }, [addTask, commitMessages, pendingStockCatalogName, persistIntentMarker, taskHookFromText]);
 
 
   /**
@@ -637,6 +901,60 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
    *  4. Fallback.
    */
   const processMessage = useCallback((text: string) => {
+    if (pendingCommand) {
+      const commandByAction: Record<string, { command: string; action: ParsedCommand['action'] }> = {
+        command_add_client: { command: 'adicionarcliente', action: 'add_client' },
+        command_add_supplier: { command: 'adicionarfornecedor', action: 'add_supplier' },
+        command_add_employee: { command: 'adicionarequipe', action: 'add_employee' },
+        command_add_stock: { command: 'adicionarestoque', action: 'add_stock' },
+        command_add_catalog: { command: 'adicionarcatalogo', action: 'add_catalog' },
+      };
+      const selected = commandByAction[pendingCommand.action];
+      const fields = COMMAND_FIELDS[pendingCommand.action];
+      const field = fields[pendingCommand.fieldIndex];
+      const submittedValue = text.trim();
+      const values = { ...pendingCommand.values, [field.key]: submittedValue };
+      if (selected) {
+        const nextIndex = pendingCommand.fieldIndex + 1;
+        if (nextIndex < fields.length) {
+          setPendingCommand({ action: pendingCommand.action, values, fieldIndex: nextIndex });
+          return { handled: true, botText: COMMAND_FIELDS[pendingCommand.action][nextIndex].prompt, botType: 'bot' as const };
+        }
+        setPendingCommand(null);
+        return applyCommand({ action: selected.action, command: selected.command, args: values, positional: [], raw: text.trim() });
+      }
+    }
+    const command = parseCommand(text);
+    if (command && 'help' in command) {
+      return { botText: buildCommandHelp(), actions: [], botType: 'bot' as const };
+    }
+    if (command && 'menu' in command) {
+      const moduleCards: Record<string, BotCard> = {
+        clientes: { kind: 'module', badgeLabel: 'Clientes', badgeIcon: 'people-outline', title: 'Gerencie seus clientes.', context: 'Cadastre contatos e acompanhe informações importantes.' },
+        fornecedores: { kind: 'module', badgeLabel: 'Fornecedores', badgeIcon: 'briefcase-outline', title: 'Gerencie seus fornecedores.', context: 'Registre contatos, prazos e valores pendentes.' },
+        equipe: { kind: 'module', badgeLabel: 'Equipe', badgeIcon: 'people-circle-outline', title: 'Gerencie sua equipe.', context: 'Mantenha funções, tarefas e comissões organizadas.' },
+        estoque: { kind: 'module', badgeLabel: 'Estoque', badgeIcon: 'cube-outline', title: 'Controle seu estoque.', context: 'Acompanhe itens, quantidades e movimentações.' },
+        catalogo: { kind: 'module', badgeLabel: 'Catálogo', badgeIcon: 'pricetags-outline', title: 'Gerencie seu catálogo.', context: 'Mantenha produtos e serviços prontos para vender.' },
+        vendas: { kind: 'module', badgeLabel: 'Vendas', badgeIcon: 'receipt-outline', title: 'Acompanhe suas vendas.', context: 'Consulte pedidos, valores e andamento.' },
+        orcamentos: { kind: 'module', badgeLabel: 'Orçamentos', badgeIcon: 'document-text-outline', title: 'Gerencie seus orçamentos.', context: 'Crie propostas e acompanhe cada negociação.' },
+        entregas: { kind: 'module', badgeLabel: 'Entregas', badgeIcon: 'bicycle-outline', title: 'Acompanhe suas entregas.', context: 'Consulte pedidos, prazos e status.' },
+        contratos: { kind: 'module', badgeLabel: 'Contratos', badgeIcon: 'document-lock-outline', title: 'Gerencie seus contratos.', context: 'Acompanhe cobranças recorrentes e vencimentos.' },
+        comissoes: { kind: 'module', badgeLabel: 'Comissões', badgeIcon: 'cash-outline', title: 'Acompanhe as comissões.', context: 'Consulte valores pendentes e pagamentos.' },
+        agenda: { kind: 'module', badgeLabel: 'Agenda', badgeIcon: 'calendar-outline', title: 'Organize sua agenda.', context: 'Acompanhe horários, clientes e compromissos.' },
+      };
+      const commandActions: Record<string, { label: string; value: QuickActionValue }[]> = {
+        clientes: [{ label: 'Cadastrar alguém', value: 'command_add_client' }],
+        fornecedores: [{ label: 'Cadastrar fornecedor', value: 'command_add_supplier' }],
+        equipe: [{ label: 'Cadastrar alguém', value: 'command_add_employee' }],
+        estoque: [{ label: 'Colocar item no estoque', value: 'command_add_stock' }],
+        catalogo: [{ label: 'Adicionar produto/serviço', value: 'command_add_catalog' }],
+      };
+      return { botText: '', cards: [moduleCards[command.menu]], actions: [], quickActions: commandActions[command.menu], botType: 'bot' as const };
+    }
+    if (command && !('help' in command) && !('menu' in command)) {
+      const outcome = applyCommand(command);
+      return { botText: outcome.botText ?? '', actions: outcome.actions ?? [], botType: outcome.botType ?? 'bot' as const, cards: outcome.cards };
+    }
     const parsed = parseMessage(text);
     let botText = buildBotResponse(parsed);
     let actions: string[] = [];
@@ -681,6 +999,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           actions: [],
           botType: 'fallback' as const,
           cards: undefined,
+          fallbackSourceText: text,
         };
       }
     }
@@ -701,7 +1020,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     }
 
     return { botText, actions, botType, cards, fallbackSourceText: parsed.intent === 'UNKNOWN' ? text : undefined };
-  }, [applyFinancialEngine, applyTaskEngineResult, handlePluginIntent]);
+  }, [applyCommand, applyFinancialEngine, applyTaskEngineResult, handlePluginIntent, pendingCommand]);
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -709,6 +1028,12 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     commitMessages(text, processMessage(text));
     setInput('');
   }, [input, processMessage, commitMessages]);
+
+  const runCommandSuggestion = useCallback((commandName: string) => {
+    const text = `/${commandName}`;
+    commitMessages(text, processMessage(text));
+    setInput('');
+  }, [processMessage, commitMessages]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
@@ -721,6 +1046,13 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     const renderBotAvatar = (expression: 'neutro' | 'confuso' | 'piscando') => (
       <Image source={MASCOT_IMAGES[expression]} style={styles.botAvatarImage} resizeMode="contain" />
     );
+
+    const fallbackActions: { label: string; value: QuickActionValue; icon: keyof typeof Ionicons.glyphMap }[] = [
+      { label: 'Anotar um gasto', value: 'register_expense', icon: 'arrow-down-circle-outline' },
+      { label: 'Anotar uma entrada', value: 'register_income', icon: 'arrow-up-circle-outline' },
+      { label: 'Lembrar de algo', value: 'add_task', icon: 'checkmark-circle-outline' },
+      { label: 'Me explicar melhor', value: 'other', icon: 'chatbubble-ellipses-outline' },
+    ];
 
     if (item.type === 'user') {
       return (
@@ -738,18 +1070,11 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {renderBotAvatar('confuso')}
           <View style={styles.botContent}>
             <View style={styles.botBubble}>
-              <Text style={styles.botText}>
-                Não consegui identificar o que você quer registrar. O que você quer fazer?
-              </Text>
+              <Text style={styles.botText}>{item.text || 'Não peguei isso direito 😅 O que você quer fazer?'}</Text>
             </View>
             <View style={styles.quickActionsRow}>
-              {[
-                { label: 'Registrar saída', value: 'register_expense' as const },
-                { label: 'Registrar entrada', value: 'register_income' as const },
-                { label: 'Adicionar tarefa', value: 'add_task' as const },
-                { label: 'Outra coisa', value: 'other' as const },
-              ].map(({ label, value }) => (
-                <TouchableOpacity key={label} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
+              {fallbackActions.map(({ label, value }) => (
+                <TouchableOpacity key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -779,7 +1104,11 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {item.quickActions && item.quickActions.length > 0 && (
             <View style={styles.quickActionsRow}>
               {item.quickActions.map((action) => (
-                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
+                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
+                  ? handleGenericQuickAction(item, action.value)
+                  : item.ambiguity?.type === 'task_or_event'
+                    ? handleTaskEventChoice(item, action.value as 'task' | 'event')
+                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
                   <Text style={styles.quickActionText}>{action.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -830,6 +1159,64 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           colors={['rgba(239,239,237,0)', Colors.bg]}
           style={styles.messageFade}
         />
+
+        {commandSuggestions.length > 0 && (
+          <View style={styles.commandMenu} accessibilityLabel="Ações disponíveis">
+            <Text style={styles.commandMenuTitle}>O que você quer fazer?</Text>
+            {commandSuggestions.map((command) => (
+              <TouchableOpacity
+                key={command.name}
+                style={styles.commandSuggestion}
+                onPress={() => runCommandSuggestion(command.name)}
+                accessibilityRole="button"
+                accessibilityLabel={command.label}
+              >
+                <View style={styles.commandIcon}>
+                  <Ionicons name="add" size={18} color={Colors.primary} />
+                </View>
+                <View style={styles.commandSuggestionText}>
+                  <Text style={styles.commandLabel}>{command.label}</Text>
+                  <Text style={styles.commandUsage} numberOfLines={1}>{command.usage.replace(/^\/\w+\s*/, '')}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+              </TouchableOpacity>
+            ))}
+            {hasAllCommandPlugins ? (
+              <View style={styles.commandAllActive} accessibilityLabel="Todos os módulos com comando estão ativos">
+                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.accent} />
+                <Text style={styles.commandAppsLinkText}>Você já ativou todos os módulos</Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.commandAppsLink}
+                onPress={() => router.push('/(tabs)/apps' as any)}
+                accessibilityRole="button"
+                accessibilityLabel="Adicionar mais módulos"
+              >
+                <Ionicons name="add-circle-outline" size={16} color={Colors.accent} />
+                <Text style={styles.commandAppsLinkText}>Adicionar mais módulos</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+        {isCommandMenuOpen && activatedPlugins.length === 0 && (
+          <View style={styles.commandMenu} accessibilityLabel="Nenhum módulo ativo">
+            <View style={styles.commandEmptyIcon}>
+              <Ionicons name="apps-outline" size={20} color={Colors.accent} />
+            </View>
+            <Text style={styles.commandEmptyTitle}>Ative seu primeiro módulo</Text>
+            <Text style={styles.commandEmptyText}>Os comandos aparecem aqui quando você ativar um módulo.</Text>
+            <TouchableOpacity
+              style={styles.commandEmptyButton}
+              onPress={() => router.push('/(tabs)/apps' as any)}
+              accessibilityRole="button"
+              accessibilityLabel="Ir para a tela de Apps"
+            >
+              <Text style={styles.commandEmptyButtonText}>Ver Apps</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Input bar */}
         <View style={[styles.inputBar, { marginBottom: Spacing.sm }]}>
@@ -916,6 +1303,91 @@ const styles = StyleSheet.create({
     bottom: 76,
     height: 10,
   },
+  commandMenu: {
+    marginHorizontal: Spacing.xl,
+    marginBottom: Spacing.xs,
+    padding: Spacing.sm,
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  commandMenuTitle: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+  },
+  commandSuggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.md,
+  },
+  commandIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.full,
+    backgroundColor: Colors.accentLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  commandSuggestionText: { flex: 1, gap: 2 },
+  commandLabel: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+  },
+  commandUsage: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  commandHint: {
+    paddingHorizontal: Spacing.sm,
+    paddingTop: Spacing.xs,
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.xs,
+    color: Colors.textMuted,
+  },
+  commandAppsLink: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
+    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+  },
+  commandAllActive: {
+    flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
+    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+  },
+  commandAppsLinkText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent,
+  },
+  commandEmptyIcon: {
+    width: 36, height: 36, borderRadius: Radius.full, backgroundColor: Colors.accentLight,
+    alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs,
+  },
+  commandEmptyTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.md, color: Colors.primary,
+  },
+  commandEmptyText: {
+    fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm, color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  commandEmptyButton: {
+    alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md,
+    minHeight: 40, marginTop: Spacing.md,
+  },
+  commandEmptyButtonText: {
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: '#FFFFFF',
+  },
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
   userBubble: {
@@ -976,6 +1448,48 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.primary,
     lineHeight: 22,
+  },
+  conversationPrompt: { alignSelf: 'flex-start', maxWidth: '92%', gap: Spacing.xs },
+  conversationBubble: {
+    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg,
+    borderTopLeftRadius: 4,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    gap: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  conversationTitle: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: FontSize.md,
+    color: Colors.primary,
+  },
+  conversationSubtitle: {
+    fontFamily: 'PlusJakartaSans_400Regular',
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+  },
+  conversationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  conversationAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 9,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.accent,
+    backgroundColor: Colors.accentLight,
+  },
+  conversationActionText: {
+    fontFamily: 'PlusJakartaSans_500Medium',
+    fontSize: FontSize.sm,
+    color: Colors.primary,
   },
 
   actionsRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
