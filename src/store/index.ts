@@ -371,6 +371,8 @@ export interface AppStore {
   onboardingExtraction: OnboardingExtractionResult | null;
   taxonomy: BusinessTaxonomy | null;
   updateTaxonomy: (taxonomy: BusinessTaxonomy) => void;
+  /** Atualiza só a identidade do negócio; não recria categorias nem recomendações do onboarding. */
+  updateBusinessDetails: (businessName: string, businessType: string) => void;
   learnedIntentMarkers: LearnedIntentMarker[];
   hydrateLearnedIntentMarkers: (markers: LearnedIntentMarker[]) => void;
   updateLearnedIntentMarkers: (markers: LearnedIntentMarker[]) => void;
@@ -709,6 +711,17 @@ export const useAppStore = create<AppStore>((set) => ({
   onboardingExtraction: null,
   taxonomy: null,
   updateTaxonomy: (taxonomy) => set((s) => ({ taxonomy, onboardingExtraction: s.onboardingExtraction ? { ...s.onboardingExtraction, taxonomy } : null })),
+  updateBusinessDetails: (businessName, businessType) => set((s) => {
+    const nextTaxonomy = s.taxonomy ? { ...s.taxonomy, businessName: businessName || null, segment: businessType || null } : null;
+    return {
+      businessName,
+      businessType,
+      taxonomy: nextTaxonomy,
+      onboardingExtraction: s.onboardingExtraction
+        ? { ...s.onboardingExtraction, businessName: businessName || null, segment: businessType || null, taxonomy: nextTaxonomy ?? s.onboardingExtraction.taxonomy }
+        : null,
+    };
+  }),
   learnedIntentMarkers: [],
   hydrateLearnedIntentMarkers: (markers) => set({ learnedIntentMarkers: markers }),
   updateLearnedIntentMarkers: (markers) => set({ learnedIntentMarkers: markers }),

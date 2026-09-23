@@ -32,6 +32,8 @@ export default function RootLayout() {
           <StatusBar style="dark" />
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
+            <Stack.Screen name="welcome" />
+            <Stack.Screen name="auth" options={{ animation: 'fade_from_bottom', animationDuration: 520 }} />
             <Stack.Screen name="login" />
             <Stack.Screen name="register" />
             <Stack.Screen name="onboarding" />

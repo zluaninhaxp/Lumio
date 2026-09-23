@@ -88,6 +88,18 @@ export const authService = {
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
     assertValidPassword(newPassword);
     if (isSupabaseConfigured) {
+      // Supabase aceita trocar a senha de uma sessão válida sem pedir a
+      // senha anterior. Reautenticar aqui mantém a promessa da interface e
+      // evita que alguém com uma sessão desbloqueada a troque silenciosamente.
+      const { data: sessionData, error: sessionError } = await supabase!.auth.getUser();
+      if (sessionError || !sessionData.user?.email || !currentPassword) {
+        throw new AuthError('INVALID_PASSWORD');
+      }
+      const { error: reauthError } = await supabase!.auth.signInWithPassword({
+        email: sessionData.user.email,
+        password: currentPassword,
+      });
+      if (reauthError) throw new AuthError('INVALID_PASSWORD');
       const { error } = await supabase!.auth.updateUser({ password: newPassword });
       if (error) throw new Error(error.message);
       return;
