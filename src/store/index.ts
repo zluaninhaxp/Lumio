@@ -429,7 +429,7 @@ export interface AppStore {
   addEstoqueItem: (item: Omit<EstoqueItem, 'id'>) => void;
   addEstoqueItemFromCatalog: (catalogItemId: string, quantity: number, minAlert: number) => boolean;
   updateEstoqueItem: (id: string, item: Omit<EstoqueItem, 'id'>) => void;
-  removeEstoqueItem: (id: string) => void;
+  removeEstoqueItem: (id: string) => boolean;
   stockMovements: StockMovement[];
   moveEstoqueItem: (itemId: string, quantity: number, reason?: string, sourceTransactionId?: string) => boolean;
   receiveStockFromPurchase: (transactionId: string, itemId: string, quantity: number) => boolean;
@@ -446,7 +446,7 @@ export interface AppStore {
   addVenda: (venda: Omit<Pedido, 'id' | 'financeTransactionId' | 'stockDeductions'>) => string | null;
   updatePedido: (id: string, updates: Partial<Omit<Pedido, 'id'>>) => boolean;
   completePedido: (id: string) => boolean;
-  removePedido: (id: string) => void;
+  removePedido: (id: string) => boolean;
 
   atendimentos: Atendimento[];
   addAtendimento: (atendimento: Omit<Atendimento, 'id' | 'calendarEventId'>) => string | null;
@@ -489,7 +489,7 @@ export interface AppStore {
 employeeItems: EmployeeItem[];
   addEmployeeItem: (item: Omit<EmployeeItem, 'id'>) => string | null;
   updateEmployeeItem: (id: string, item: Omit<EmployeeItem, 'id'>) => boolean;
-  removeEmployeeItem: (id: string) => void;
+  removeEmployeeItem: (id: string) => boolean;
 
   commissions: CommissionEntry[];
   /**
@@ -808,8 +808,16 @@ export const useAppStore = create<AppStore>((set) => ({
         ? { ...catalog, name: item.name, unit: item.unit }
         : catalog),
     })),
-  removeEstoqueItem: (id) =>
-    set((s) => ({ estoqueItems: s.estoqueItems.filter((i) => i.id !== id) })),
+  removeEstoqueItem: (id) => {
+    const state = useAppStore.getState();
+    if (state.stockMovements.some((movement) => movement.itemId === id) ||
+        state.pedidos.some((order) => order.items.some((item) => item.stockItemId === id))) return false;
+    set((s) => ({
+      estoqueItems: s.estoqueItems.filter((i) => i.id !== id),
+      catalogItems: s.catalogItems.map((item) => item.stockItemId === id ? { ...item, stockItemId: undefined, controlStock: false } : item),
+    }));
+    return true;
+  },
   stockMovements: [],
   moveEstoqueItem: (itemId, quantity, reason = 'Ajuste manual', sourceTransactionId) => {
     let moved = false;
@@ -937,7 +945,11 @@ export const useAppStore = create<AppStore>((set) => ({
     });
     return completed;
   },
-  removePedido: (id) => set((s) => {
+  removePedido: (id) => {
+    const state = useAppStore.getState();
+    if (state.commissions.some((entry) => entry.orderId === id && entry.paid) ||
+        state.entregas.some((delivery) => delivery.orderId === id && state.pedidos.find((order) => order.id === id)?.status !== 'concluido')) return false;
+    set((s) => {
     const pedido = s.pedidos.find((item) => item.id === id);
     if (!pedido) return s;
     if (pedido.status === 'concluido') {
@@ -948,10 +960,12 @@ export const useAppStore = create<AppStore>((set) => ({
       const deliveries = s.entregas.filter((delivery) => delivery.orderId === id);
       const deliveryEventIds = new Set(deliveries.map((delivery) => delivery.calendarEventId).filter(Boolean));
       const deliveryTransactionIds = new Set(deliveries.map((delivery) => delivery.financeTransactionId).filter(Boolean));
-      return { pedidos: s.pedidos.filter((item) => item.id !== id), entregas: s.entregas.filter((delivery) => delivery.orderId !== id), events: s.events.filter((event) => !deliveryEventIds.has(event.id)), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId && !deliveryTransactionIds.has(item.id)) : s.transactions.filter((item) => !deliveryTransactionIds.has(item.id)), commissions: s.commissions.filter((c) => !(c.orderId === id && !c.paid)) };
+      return { pedidos: s.pedidos.filter((item) => item.id !== id), orcamentos: s.orcamentos.map((quote) => quote.orderId === id ? { ...quote, orderId: undefined } : quote), entregas: s.entregas.filter((delivery) => delivery.orderId !== id), events: s.events.filter((event) => !deliveryEventIds.has(event.id)), estoqueItems: restoredItems, transactions: pedido.financeTransactionId ? s.transactions.filter((item) => item.id !== pedido.financeTransactionId && !deliveryTransactionIds.has(item.id)) : s.transactions.filter((item) => !deliveryTransactionIds.has(item.id)), commissions: s.commissions.filter((c) => !(c.orderId === id && !c.paid)) };
     }
-    return { pedidos: s.pedidos.filter((item) => item.id !== id) };
-  }),
+    return { pedidos: s.pedidos.filter((item) => item.id !== id), orcamentos: s.orcamentos.map((quote) => quote.orderId === id ? { ...quote, orderId: undefined } : quote) };
+    });
+    return true;
+  },
 
   atendimentos: [],
   addAtendimento: (atendimento) => {
@@ -1098,8 +1112,11 @@ export const useAppStore = create<AppStore>((set) => ({
       const appointmentEventIds = new Set(s.atendimentos.filter((atendimento) => atendimento.clientId === id).map((atendimento) => atendimento.calendarEventId));
       return {
         clienteItems: s.clienteItems.filter((i) => i.id !== id),
+        tasks: s.tasks.map((task) => task.clientId === id ? { ...task, clientId: undefined } : task),
+        pedidos: s.pedidos.map((pedido) => pedido.clientId === id ? { ...pedido, clientId: undefined } : pedido),
+        orcamentos: s.orcamentos.map((quote) => quote.clientId === id ? { ...quote, clientId: undefined } : quote),
         transactions: s.transactions.filter((transaction) => !contractIds.has(transaction.contractId ?? '')).map((transaction) => transaction.clientId === id ? { ...transaction, clientId: undefined } : transaction),
-        events: s.events.filter((event) => !appointmentEventIds.has(event.id) && ![...contractIds].some((contractId) => event.id.startsWith(`contract-due:${contractId}:`))),
+        events: s.events.filter((event) => !appointmentEventIds.has(event.id) && ![...contractIds].some((contractId) => event.id.startsWith(`contract-due:${contractId}:`))).map((event) => event.clientId === id ? { ...event, clientId: undefined } : event),
         contratos: s.contratos.filter((contrato) => !contractIds.has(contrato.id)),
         atendimentos: s.atendimentos.filter((atendimento) => atendimento.clientId !== id),
       };
@@ -1194,6 +1211,8 @@ export const useAppStore = create<AppStore>((set) => ({
   removeFornecedorItem: (id) =>
     set((s) => ({
       fornecedorItems: s.fornecedorItems.filter((i) => i.id !== id),
+      tasks: s.tasks.map((task) => task.supplierId === id ? { ...task, supplierId: undefined } : task),
+      events: s.events.map((event) => event.supplierId === id ? { ...event, supplierId: undefined } : event),
       transactions: s.transactions.map((t) => t.supplierId === id ? { ...t, supplierId: undefined, supplierDueDate: undefined, supplierPaid: undefined } : t),
     })),
   linkTransactionToSupplier: (transactionId, supplierId, updates = {}) =>
@@ -1222,14 +1241,18 @@ export const useAppStore = create<AppStore>((set) => ({
     });
     return updated;
   },
-  removeEmployeeItem: (id) =>
+  removeEmployeeItem: (id) => {
+    if (useAppStore.getState().commissions.some((entry) => entry.employeeId === id && entry.paid)) return false;
     set((s) => ({
       employeeItems: s.employeeItems.filter((employee) => employee.id !== id),
       tasks: s.tasks.map((task) => task.employeeId === id ? { ...task, employeeId: undefined } : task),
       pedidos: s.pedidos.map((pedido) => pedido.employeeId === id ? { ...pedido, employeeId: undefined } : pedido),
       entregas: s.entregas.map((delivery) => delivery.employeeId === id ? { ...delivery, employeeId: undefined } : delivery),
+      events: s.events.map((event) => event.employeeId === id ? { ...event, employeeId: undefined } : event),
       commissions: s.commissions.filter((c) => !(c.employeeId === id && !c.paid)),
-    })),
+    }));
+    return true;
+  },
 
   commissions: [],
   closeEmployeeCommission: (employeeId) =>

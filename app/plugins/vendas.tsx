@@ -293,7 +293,7 @@ export default function VendasScreen() {
           <SwipeableActions
             key={order.id}
             onEdit={() => openEdit(order)}
-            onDelete={() => removePedido(order.id)}
+            onDelete={() => { if (!removePedido(order.id)) Alert.alert('Venda vinculada', 'Há entregas ou comissões pagas vinculadas. O histórico foi preservado.'); }}
           >
           <View style={styles.card}>
             <View style={styles.cardHeader}>

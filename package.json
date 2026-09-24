@@ -10,6 +10,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test \"src/engine/__tests__/*.test.ts\" \"src/engine/taskEngine/__tests__/*.test.ts\" \"src/engine/calendarEngine/__tests__/*.test.ts\" \"src/engine/financialEngine/__tests__/*.test.ts\" \"src/engine/taxonomy/__tests__/*.test.ts\" \"src/store/__tests__/*.test.ts\"",
+    "test:security:remote": "node scripts/security-smoke.mjs",
+    "test:security:local": "node --experimental-strip-types src/services/legacyMigrationCore.test.mjs && node --experimental-strip-types supabase/functions/_shared/webp.test.mjs",
     "expand-dictionaries": "tsx scripts/expand-dictionaries.ts"
   },
   "dependencies": {
@@ -21,6 +23,7 @@
     "expo-audio": "~1.1.1",
     "expo-constants": "~18.0.13",
     "expo-font": "~14.0.12",
+    "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",
     "expo-linear-gradient": "~15.0.8",
     "expo-linking": "~8.0.12",

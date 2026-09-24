@@ -134,7 +134,7 @@ export default function EstoqueScreen() {
       {
         text: "Excluir",
         style: "destructive",
-        onPress: () => removeEstoqueItem(id),
+        onPress: () => { if (!removeEstoqueItem(id)) Alert.alert('Item vinculado', 'Pedidos ou movimentos dependem deste item. O histórico foi preservado.'); },
       },
     ]);
 

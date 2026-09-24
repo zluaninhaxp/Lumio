@@ -37,7 +37,7 @@ export class AuthError extends Error {
   }
 }
 
-/** Erro genérico de leitura/escrita do AsyncStorage (camada de storageService). */
+/** Erro de leitura ou limpeza dos registros locais legados. */
 export class StorageError extends Error {
   cause?: unknown;
 

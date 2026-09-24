@@ -26,11 +26,8 @@ type TestState = 'idle' | 'testing' | 'ok' | 'error';
 /**
  * Tela de configurações de IA (BYOK — Bring Your Own Key).
  *
- * Cada usuário cola A SUA PRÓPRIA chave do Google AI Studio aqui. A chave é
- * salva no Keychain/Keystore via `expo-secure-store` (ver
- * `secureKeyStorage.ts`) — nunca em AsyncStorage em texto plano, nunca no
- * Zustand persistido, nunca no bundle do app. NENHUMA chave de
- * desenvolvedor é embutida nesta tela ou em qualquer outro arquivo.
+ * Cada usuário cadastra sua chave no serviço de IA autenticado. O aplicativo
+ * recebe apenas o estado configurado/ausente, sem consultar o valor salvo.
  *
  * Depois de salva, a chave é exibida só mascarada (`...ab12`) — o campo de
  * edição nunca reabre com a chave completa (o usuário cola de novo só se
@@ -54,13 +51,12 @@ export default function AiSettingsScreen() {
   const [testMessage, setTestMessage] = useState<string | null>(null);
 
   const refreshKeyInfo = useCallback(async () => {
-    const [exists, maskedValue, isSupported] = await Promise.all([
+    const [exists, isSupported] = await Promise.all([
       secureKeyStorage.hasApiKey(),
-      secureKeyStorage.getMaskedApiKey(),
       secureKeyStorage.isSupported(),
     ]);
     setHasKey(exists);
-    setMasked(maskedValue);
+    setMasked(exists ? '•••• configurada' : null);
     setSupported(isSupported);
   }, []);
 
@@ -158,9 +154,9 @@ export default function AiSettingsScreen() {
           <View style={styles.providerText}>
             <Text style={styles.providerName}>Google Gemini</Text>
             <Text style={styles.providerDesc}>
-              O Lumio gera o relatório do seu negócio com IA direto do seu
-              aparelho. Você usa a própria chave grátis do Google AI Studio
-              — o Lumio não paga nem controla o seu consumo.
+              O Lumio usa sua chave do Google AI Studio por meio de um serviço
+              autenticado. A chave fica protegida no servidor e pode ser usada
+              depois do login em outro dispositivo.
             </Text>
           </View>
         </View>
@@ -201,8 +197,8 @@ export default function AiSettingsScreen() {
             textContentType="password"
           />
           <Text style={styles.hint}>
-            Pegue sua chave grátis no Google AI Studio. Ela fica salva só
-            neste aparelho e é enviada apenas para o Google.
+            Pegue sua chave no Google AI Studio. Depois de salva, o aplicativo
+            não consegue consultar seu valor completo.
           </Text>
 
           {!!saveError && <Text style={s.error}>{saveError}</Text>}
@@ -221,7 +217,7 @@ export default function AiSettingsScreen() {
           </TouchableOpacity>
 
           {saveState === 'saved' && (
-            <Text style={styles.savedLabel}>Chave salva com segurança no aparelho.</Text>
+            <Text style={styles.savedLabel}>Chave salva no serviço de IA.</Text>
           )}
         </View>
 
@@ -265,7 +261,7 @@ export default function AiSettingsScreen() {
             <Text style={[s.sectionTitle, { marginTop: Spacing.xxl, color: Colors.danger }]}>REMOVER</Text>
             <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} activeOpacity={0.7}>
               <Ionicons name="trash-outline" size={18} color={Colors.danger} />
-              <Text style={styles.removeBtnText}>Remover chave deste aparelho</Text>
+              <Text style={styles.removeBtnText}>Remover chave da conta</Text>
             </TouchableOpacity>
           </>
         )}

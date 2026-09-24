@@ -1,5 +1,3 @@
-import { storageService } from '../services/storageService';
-import { StorageKeys } from '../constants/storageKeys';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 
 /**
@@ -30,10 +28,6 @@ export interface OnboardingRecord {
   updatedAt: string;
 }
 
-function keyFor(userId: string): string {
-  return `${StorageKeys.ONBOARDING_PREFIX}${userId}`;
-}
-
 const PLUGIN_ORDER_KEY = '__lumioPluginOrder';
 
 function readPluginOrder(responses: unknown): string[] {
@@ -53,15 +47,17 @@ function withPluginOrder(responses: unknown, pluginOrder: string[]): Record<stri
 
 export const onboardingRepository = {
   async get(userId: string): Promise<OnboardingRecord | null> {
+    if (!isSupabaseConfigured) throw new Error('Supabase não configurado.');
     if (isSupabaseConfigured) {
       const { data, error } = await supabase!.from('onboarding_records').select('user_id, responses, context, structured_profile, activated_plugins, updated_at').eq('user_id', userId).maybeSingle();
       if (error) throw new Error(error.message);
       return data ? { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], pluginOrder: readPluginOrder(data.responses), updatedAt: data.updated_at } : null;
     }
-    return storageService.getItem<OnboardingRecord>(keyFor(userId));
+    throw new Error('Supabase não configurado.');
   },
 
   async save(userId: string, partial: Partial<Omit<OnboardingRecord, 'userId'>>): Promise<OnboardingRecord> {
+    if (!isSupabaseConfigured) throw new Error('Supabase não configurado.');
     const existing = await this.get(userId);
     const { pluginOrder: requestedOrder, ...partialWithoutOrder } = partial;
     const record: OnboardingRecord = {
@@ -88,16 +84,15 @@ export const onboardingRepository = {
       if (error) throw new Error(error.message);
       return { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], pluginOrder: readPluginOrder(data.responses), updatedAt: data.updated_at };
     }
-    await storageService.setItem(keyFor(userId), record);
-    return record;
+    throw new Error('Supabase não configurado.');
   },
 
   async clear(userId: string): Promise<void> {
+    if (!isSupabaseConfigured) throw new Error('Supabase não configurado.');
     if (isSupabaseConfigured) {
       const { error } = await supabase!.from('onboarding_records').delete().eq('user_id', userId);
       if (error) throw new Error(error.message);
       return;
     }
-    await storageService.removeItem(keyFor(userId));
   },
 };

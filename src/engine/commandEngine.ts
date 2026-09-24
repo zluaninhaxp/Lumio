@@ -78,7 +78,11 @@ export function parseCommand(input: string): ParsedCommand | CommandMenuRequest 
   const tokens = tokenize(raw.slice(1));
   const command = normalize(tokens.shift() ?? '');
   if (!command || command === 'ajuda' || command === 'help') return { help: true, raw };
-  const definition = definitions.find((item) => item.name === command || item.aliases.includes(command));
+  const definition = tokens.length > 0
+    ? definitions.find((item) => item.action && (item.name === command || item.aliases.includes(command)))
+      ?? definitions.find((item) => item.name === command || item.aliases.includes(command))
+    : definitions.find((item) => item.action && (item.name === command || command === 'fornecedor' && item.aliases.includes(command)))
+      ?? definitions.find((item) => item.name === command || item.aliases.includes(command));
   if (!definition?.action && definition?.menuOnly) {
     const menuNames: Record<string, CommandMenuRequest['menu']> = {
       cliente: 'clientes', fornecedor: 'fornecedores', funcionario: 'equipe', estoque: 'estoque',
@@ -88,7 +92,7 @@ export function parseCommand(input: string): ParsedCommand | CommandMenuRequest 
     return { menu: menuNames[definition.name] ?? 'clientes', raw };
   }
   if (!definition?.action) return { help: true, raw };
-  if (tokens.length === 0 && definition.aliases.includes(command)) {
+  if (tokens.length === 0 && definition.aliases.includes(command) && command !== 'fornecedor') {
     const menu = definition.action === 'add_client' ? 'clientes'
       : definition.action === 'add_supplier' ? 'fornecedores'
       : definition.action === 'add_employee' ? 'equipe'
@@ -117,6 +121,6 @@ export function buildCommandHelp(): string {
 }
 
 export function missingCommandFields(command: ParsedCommand): string[] {
-  const definition = definitions.find((item) => item.name === command.command || item.aliases.includes(command.command));
+  const definition = definitions.find((item) => item.action === command.action && (item.name === command.command || item.aliases.includes(command.command)));
   return (definition?.required ?? []).filter((field) => !command.args[field]);
 }
