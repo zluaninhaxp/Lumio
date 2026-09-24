@@ -5,6 +5,11 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/lumio-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#00A878"
+    },
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
@@ -35,6 +40,15 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#00A878",
+          "image": "./assets/lumio-splash.png",
+          "resizeMode": "contain",
+          "imageWidth": 220
+        }
+      ],
       [
         "expo-image-picker",
         {
