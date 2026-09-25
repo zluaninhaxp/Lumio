@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView, Image, useWindowDimensions,
+  KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, FontSize } from '../src/constants/theme';
 import { useAppStore } from '../src/store';
 import { useAuth } from '../src/hooks/useAuth';
 import {
@@ -16,20 +15,17 @@ import {
 } from '../src/engine/openOnboardingEngine';
 import { ONBOARDING_INTRO } from '../src/data/onboardingQuestions';
 import {
-  MASCOT_IMAGES,
   BLOCK_MASCOT_EXPRESSION,
   INTERACTION_MASCOT,
   MascotExpressionKey,
 } from '../src/data/mascotExpressions';
 import Svg, { Path } from 'react-native-svg';
 import LumioMessageAsset from './components/onboarding/LumioMessageAsset';
-import SpeechBubble from './components/onboarding/SpeechBubble';
 import UserReply from './components/onboarding/UserReply';
 import VoiceInput from './components/onboarding/VoiceInput';
-import StageProgress from './components/onboarding/StageProgress';
 
 const BLOCK_COUNT = OPEN_QUESTIONS.length;
-const TOTAL_STAGES = Math.max(...OPEN_QUESTIONS.map((question) => question.stage));
+const TOTAL_STAGES = BLOCK_COUNT + 1;
 
 interface Line {
   key: string;
@@ -58,6 +54,7 @@ export default function OnboardingScreen() {
   const followUpUsedRef = useRef<Record<string, boolean>>({});
   const attemptCountRef = useRef<Record<string, number>>({});
   const queueTokenRef = useRef(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   const [blockIndex, setBlockIndex] = useState(0);
   const [showIntro, setShowIntro] = useState(true);
@@ -184,13 +181,19 @@ export default function OnboardingScreen() {
   }, [advanceFromBlock]);
 
   const currentBlock = blockIndex < BLOCK_COUNT ? OPEN_QUESTIONS[blockIndex] : null;
-  const stage = currentBlock?.stage ?? TOTAL_STAGES;
+  const stage = showIntro ? 1 : blockIndex + 2;
+  const fallbackVisible = !showIntro && !!currentBlock &&
+    currentLine?.key.startsWith(`${currentBlock.id}-followup-`) === true;
+
+  useEffect(() => {
+    if (!showIntro) scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [showIntro, blockIndex]);
 
   return (
     <View style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={styles.flex}>
-          <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={() => { if (showIntro) scrollRef.current?.scrollToEnd({ animated: true }); }}>
             <View style={[styles.hero, { height: heroHeight + insets.top }]}>
               <Image source={require('../assets/onboarding-hero.png')} style={styles.heroImage} resizeMode="cover" />
               <LinearGradient pointerEvents="none" colors={['rgba(249,255,252,0.94)', 'rgba(249,255,252,0.68)', 'rgba(249,255,252,0)']} locations={[0, 0.45, 1]} style={styles.headerVeil} />
@@ -206,8 +209,24 @@ export default function OnboardingScreen() {
             </View>
             <View style={styles.conversation}>
               <View pointerEvents="none" style={styles.waves}><Svg width={width} height={150} viewBox="0 0 400 150" preserveAspectRatio="none"><Path d="M0 47 C75 35 135 118 225 102 C305 88 330 30 400 15 L400 150 L0 150Z" fill="#D6F5E8" /><Path d="M0 76 C95 75 140 153 245 120 C316 101 340 117 400 91 L400 150 L0 150Z" fill="#78D5BA" /><Path d="M0 115 C80 88 135 144 220 137 C310 126 338 132 400 113 L400 150 L0 150Z" fill="#39B99A" /></Svg></View>
-              <LumioMessageAsset messageKey={isTyping ? 'typing' : currentLine?.key ?? 'empty'} text={isTyping ? '...'  : currentLine?.text ?? ''} />
-              {lastUserReply && <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />}
+              <View style={[styles.messageStack, !showIntro && styles.messageStackTop]}>
+                <LumioMessageAsset
+                  key={`stage-${stage}-A`}
+                  stage={stage}
+                  variant="A"
+                  accessibilityLabel={showIntro ? ONBOARDING_INTRO.lines[0] : currentBlock?.question ?? ''}
+                />
+                {(showIntro || fallbackVisible) && (
+                  <LumioMessageAsset
+                    key={`stage-${stage}-B`}
+                    stage={stage}
+                    variant="B"
+                    delayMs={showIntro ? 160 : 0}
+                    accessibilityLabel={showIntro ? ONBOARDING_INTRO.lines[1] : currentBlock?.followUp ?? ''}
+                  />
+                )}
+                {lastUserReply && <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />}
+              </View>
             </View>
           </ScrollView>
           {showIntro ? <View style={[styles.composerArea, { paddingBottom: Math.max(insets.bottom, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
@@ -230,12 +249,14 @@ const styles = StyleSheet.create({
   headerCenter: { flex: 1, minWidth: 0, paddingTop: 1 }, headerTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, lineHeight: 21, color: '#202B38' },
   progressRow: { flexDirection: 'row', gap: 5, marginTop: 9 }, progressSegment: { flex: 1, height: 8, borderRadius: 9, backgroundColor: 'rgba(213,232,224,0.88)' }, progressActive: { backgroundColor: '#079D80' },
   keyButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 20, backgroundColor: 'rgba(247,255,251,0.72)', borderWidth: 1, borderColor: 'rgba(222,242,233,0.76)', shadowColor: '#3D8C75', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.045, shadowRadius: 8, elevation: 1 }, keyButtonText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: '#16816C' },
-  conversation: { flex: 1, minHeight: 210, paddingTop: 12, paddingBottom: 54 }, waves: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },
+  conversation: { flex: 1, minHeight: 210, paddingTop: 12, paddingBottom: 100 }, waves: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },
+  messageStack: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 8, transform: [{ translateX: -18 }] },
+  messageStackTop: { justifyContent: 'flex-start' },
   composerArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, paddingHorizontal: 18, paddingTop: 14, backgroundColor: '#F3FFF9', borderTopLeftRadius: 44, borderTopRightRadius: 44 },
   composerRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   inputWrapper: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: 'row', alignItems: 'center', paddingLeft: 11, paddingRight: 5, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9EEE5' },
   attachIcon: { marginRight: 10 },
-  input: { flex: 1, minWidth: 0, maxHeight: 100, minHeight: 42, paddingVertical: 9, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, color: '#202B38' }, inputDivider: { width: 1, height: 20, backgroundColor: '#DCECE6', marginHorizontal: 9 },
+  input: { flex: 1, minWidth: 0, maxHeight: 100, minHeight: 42, paddingVertical: 9, textAlignVertical: 'center', fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, color: '#202B38' }, inputDivider: { width: 1, height: 20, backgroundColor: '#DCECE6', marginHorizontal: 9 },
   sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#00A878', alignItems: 'center', justifyContent: 'center', shadowColor: '#007F64', shadowOpacity: 0.11, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, sendBtnDisabled: { backgroundColor: '#A9D9CA', shadowOpacity: 0.035 },
   startBtn: { height: 54, borderRadius: 30, backgroundColor: '#00A878', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, startBtnText: { fontFamily: 'PlusJakartaSans_700Bold', color: '#FFFFFF', fontSize: 16 },
   optionsBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, optionChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: '#00A878' }, optionChipText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: '#FFFFFF', fontSize: 14 },
