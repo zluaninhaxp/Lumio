@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, ScrollView, Image, useWindowDimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../src/constants/theme';
 import { useAppStore } from '../src/store';
@@ -20,14 +21,15 @@ import {
   INTERACTION_MASCOT,
   MascotExpressionKey,
 } from '../src/data/mascotExpressions';
-import Mascot from './components/onboarding/Mascot';
+import Svg, { Path } from 'react-native-svg';
+import LumioMessageAsset from './components/onboarding/LumioMessageAsset';
 import SpeechBubble from './components/onboarding/SpeechBubble';
 import UserReply from './components/onboarding/UserReply';
 import VoiceInput from './components/onboarding/VoiceInput';
 import StageProgress from './components/onboarding/StageProgress';
 
 const BLOCK_COUNT = OPEN_QUESTIONS.length;
-const TOTAL_STAGES = 4;
+const TOTAL_STAGES = Math.max(...OPEN_QUESTIONS.map((question) => question.stage));
 
 interface Line {
   key: string;
@@ -40,6 +42,8 @@ export default function OnboardingScreen() {
   const applyOpenOnboardingConfig = useAppStore((s) => s.applyOpenOnboardingConfig);
   const { isAuthenticated, currentUser, loading } = useAuth();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const heroHeight = Math.min(Math.max(height * 0.46, 260), 480);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -182,273 +186,58 @@ export default function OnboardingScreen() {
   const currentBlock = blockIndex < BLOCK_COUNT ? OPEN_QUESTIONS[blockIndex] : null;
   const stage = currentBlock?.stage ?? TOTAL_STAGES;
 
-  const mascotImage = MASCOT_IMAGES[currentLine?.expression ?? 'neutro'];
-
   return (
-    <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      {!showIntro && (
-        <>
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>
-              Configurando seu Lumio
-            </Text>
-            <Text style={styles.headerStage}>
-              {Math.min(stage, TOTAL_STAGES)} de {TOTAL_STAGES}
-            </Text>
-          </View>
-          <StageProgress totalStages={TOTAL_STAGES} currentStage={stage} />
-        </>
-      )}
-
-      <TouchableOpacity
-        style={[styles.keyButton, !showIntro && styles.keyButtonDuringOnboarding]}
-        onPress={handleConfigureKey}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="key-outline" size={16} color={Colors.accent} />
-        <Text style={styles.keyButtonText}>Chave de IA</Text>
-      </TouchableOpacity>
-
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.stageArea}>
-          <Mascot image={mascotImage} bump={!isTyping} size={200} />
-
-          <View style={styles.bubbleArea}>
-            {isTyping ? (
-              <SpeechBubble text="•••" animationKey="typing" />
-            ) : currentLine ? (
-              <SpeechBubble text={currentLine.text} animationKey={currentLine.key} />
-            ) : null}
-          </View>
-
-          {lastUserReply && (
-            <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />
-          )}
-        </View>
-
-        {showIntro && (
-          <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
-            <TouchableOpacity
-              style={[styles.sendBtn, styles.startBtn, !introFinished && styles.sendBtnDisabled]}
-              onPress={handleStart}
-              disabled={!introFinished}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.startBtnText}>Vamos lá</Text>
-              <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {!showIntro && currentBlock && currentBlock.options ? (
-          <View style={[styles.optionsBar, { paddingBottom: Spacing.md + insets.bottom }]}>
-            {currentBlock.options.map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={styles.optionChip}
-                onPress={() => submitAnswer(option, false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.optionChipText}>{option}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : (!showIntro && currentBlock && (
-          <View style={[styles.inputBar, { paddingBottom: Spacing.md + insets.bottom }]}>
-            <View style={styles.inputWrapper}>
-              {!inputValue && (
-                <Text
-                  style={styles.inputPlaceholder}
-                  numberOfLines={1}
-                  ellipsizeMode="tail"
-                  pointerEvents="none"
-                >
-                  Você pode escrever ou falar comigo
-                </Text>
-              )}
-              <TextInput
-                style={styles.input}
-                value={inputValue}
-                onChangeText={setInputValue}
-                placeholderTextColor="transparent"
-                onSubmitEditing={handleSubmit}
-                returnKeyType="send"
-                numberOfLines={1}
-              />
+    <View style={styles.safe}>
+      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={styles.flex}>
+          <ScrollView style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+            <View style={[styles.hero, { height: heroHeight + insets.top }]}>
+              <Image source={require('../assets/onboarding-hero.png')} style={styles.heroImage} resizeMode="cover" />
+              <LinearGradient pointerEvents="none" colors={['rgba(249,255,252,0.94)', 'rgba(249,255,252,0.68)', 'rgba(249,255,252,0)']} locations={[0, 0.45, 1]} style={styles.headerVeil} />
+              <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+                {!showIntro && <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Voltar"><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>}
+                <View style={styles.headerCenter}>
+                  <Text style={styles.headerTitle}>Configurando seu Lumio</Text>
+                  <View style={styles.progressRow}>{Array.from({ length: TOTAL_STAGES }).map((_, index) => <View key={index} style={[styles.progressSegment, index < stage && styles.progressActive]} />)}</View>
+                </View>
+                <TouchableOpacity style={styles.keyButton} onPress={handleConfigureKey} activeOpacity={0.8}><Ionicons name="sparkles" size={15} color="#168E76" /><Text style={styles.keyButtonText}>Chave de IA</Text></TouchableOpacity>
+              </View>
+              <View style={styles.heroCurve} pointerEvents="none"><Svg width={width} height={74} viewBox="0 0 400 74" preserveAspectRatio="none"><Path d="M0 35 C75 60 130 66 206 65 C293 64 349 43 400 5 L400 74 L0 74Z" fill="#F3FFF9" /></Svg></View>
             </View>
-            <VoiceInput
-              onCapture={handleVoiceCapture}
-              onPartialResult={setInputValue}
-              disabled={isTyping}
-            />
-            {currentBlock.optional && !inputValue.trim() ? (
-              <TouchableOpacity style={styles.skipBtn} onPress={handleSkip} activeOpacity={0.7}>
-                <Text style={styles.skipBtnText}>Pular</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]}
-                onPress={handleSubmit}
-                disabled={!inputValue.trim()}
-              >
-                <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-              </TouchableOpacity>
-            )}
-          </View>
-        ))}
+            <View style={styles.conversation}>
+              <View pointerEvents="none" style={styles.waves}><Svg width={width} height={150} viewBox="0 0 400 150" preserveAspectRatio="none"><Path d="M0 47 C75 35 135 118 225 102 C305 88 330 30 400 15 L400 150 L0 150Z" fill="#D6F5E8" /><Path d="M0 76 C95 75 140 153 245 120 C316 101 340 117 400 91 L400 150 L0 150Z" fill="#78D5BA" /><Path d="M0 115 C80 88 135 144 220 137 C310 126 338 132 400 113 L400 150 L0 150Z" fill="#39B99A" /></Svg></View>
+              <LumioMessageAsset messageKey={isTyping ? 'typing' : currentLine?.key ?? 'empty'} text={isTyping ? '...'  : currentLine?.text ?? ''} />
+              {lastUserReply && <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />}
+            </View>
+          </ScrollView>
+          {showIntro ? <View style={[styles.composerArea, { paddingBottom: Math.max(insets.bottom, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
+          : currentBlock?.options ? <View style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={0.8}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>
+          : currentBlock ? <View style={[styles.composerArea, { paddingBottom: Math.max(insets.bottom, 16) }]}><View style={styles.composerRow}><View style={styles.inputWrapper}><Ionicons name="attach-outline" size={21} color="#8C98A8" style={styles.attachIcon} /><TextInput style={styles.input} value={inputValue} onChangeText={setInputValue} placeholder="Você pode escrever ou falar ..." placeholderTextColor="#818C9C" onSubmitEditing={handleSubmit} returnKeyType="send" multiline maxLength={500} /><View style={styles.inputDivider} /><VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" /></View><TouchableOpacity style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]} onPress={handleSubmit} disabled={!inputValue.trim()} accessibilityLabel="Enviar resposta"><Ionicons name="arrow-up" size={21} color="#FFFFFF" /></TouchableOpacity></View>{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
+
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  flex: { flex: 1 },
-
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  headerTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
-  headerStage: {
-    fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-  },
-  keyButton: {
-    position: 'absolute',
-    top: Spacing.md,
-    right: Spacing.xl,
-    zIndex: 5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  keyButtonDuringOnboarding: { top: Spacing.xl },
-  keyButtonText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.xs,
-    color: Colors.accent,
-  },
-
-  stageArea: {
-    flex: 1,
-    justifyContent: 'center',
-    gap: Spacing.lg,
-  },
-  bubbleArea: {
-    minHeight: 90,
-    justifyContent: 'flex-start',
-  },
-
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
-    gap: Spacing.sm,
-    backgroundColor: Colors.bg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  inputWrapper: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  inputPlaceholder: {
-    position: 'absolute',
-    left: Spacing.lg,
-    right: Spacing.lg,
-    zIndex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.textMuted,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: Colors.textMuted },
-  startBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    width: undefined,
-    height: 48,
-    borderRadius: Radius.full,
-    gap: Spacing.sm,
-  },
-  startBtnText: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.md,
-    color: '#FFFFFF',
-  },
-  optionsBar: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
-    paddingTop: Spacing.md,
-    backgroundColor: Colors.bg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  optionChip: {
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-  },
-  optionChipText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.md,
-    color: '#FFFFFF',
-  },
-  skipBtn: {
-    height: 44,
-    paddingHorizontal: Spacing.lg,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  skipBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
+  safe: { flex: 1, backgroundColor: '#F3FFF9' }, flex: { flex: 1 }, scrollContent: { flexGrow: 1, backgroundColor: '#F3FFF9' },
+  hero: { width: '100%', overflow: 'hidden', backgroundColor: '#EAF8EE' }, heroImage: { width: '100%', height: '100%' },
+  headerVeil: { position: 'absolute', top: 0, left: 0, right: 0, height: 180 },
+  heroCurve: { position: 'absolute', bottom: -1, left: 0, right: 0, height: 74 },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, gap: 10 },
+  backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)', shadowColor: '#3D8C75', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  headerCenter: { flex: 1, minWidth: 0, paddingTop: 1 }, headerTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, lineHeight: 21, color: '#202B38' },
+  progressRow: { flexDirection: 'row', gap: 5, marginTop: 9 }, progressSegment: { flex: 1, height: 8, borderRadius: 9, backgroundColor: 'rgba(213,232,224,0.88)' }, progressActive: { backgroundColor: '#079D80' },
+  keyButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 20, backgroundColor: 'rgba(247,255,251,0.72)', borderWidth: 1, borderColor: 'rgba(222,242,233,0.76)', shadowColor: '#3D8C75', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.045, shadowRadius: 8, elevation: 1 }, keyButtonText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: '#16816C' },
+  conversation: { flex: 1, minHeight: 210, paddingTop: 12, paddingBottom: 54 }, waves: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },
+  composerArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, paddingHorizontal: 18, paddingTop: 14, backgroundColor: '#F3FFF9', borderTopLeftRadius: 44, borderTopRightRadius: 44 },
+  composerRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+  inputWrapper: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: 'row', alignItems: 'center', paddingLeft: 11, paddingRight: 5, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9EEE5' },
+  attachIcon: { marginRight: 10 },
+  input: { flex: 1, minWidth: 0, maxHeight: 100, minHeight: 42, paddingVertical: 9, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, color: '#202B38' }, inputDivider: { width: 1, height: 20, backgroundColor: '#DCECE6', marginHorizontal: 9 },
+  sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#00A878', alignItems: 'center', justifyContent: 'center', shadowColor: '#007F64', shadowOpacity: 0.11, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, sendBtnDisabled: { backgroundColor: '#A9D9CA', shadowOpacity: 0.035 },
+  startBtn: { height: 54, borderRadius: 30, backgroundColor: '#00A878', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, startBtnText: { fontFamily: 'PlusJakartaSans_700Bold', color: '#FFFFFF', fontSize: 16 },
+  optionsBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, optionChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: '#00A878' }, optionChipText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: '#FFFFFF', fontSize: 14 },
+  skipBtn: { alignSelf: 'center', paddingVertical: 8 }, skipBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: '#087E68', fontSize: 13 },
 });
