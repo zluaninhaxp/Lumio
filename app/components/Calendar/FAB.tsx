@@ -1,7 +1,6 @@
 import React from "react";
 import { StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Colors, Spacing } from "../../../src/constants/theme";
 
 interface FABProps {
@@ -9,11 +8,9 @@ interface FABProps {
 }
 
 export function FAB({ onPress }: FABProps) {
-  const insets = useSafeAreaInsets();
-
   return (
     <TouchableOpacity
-      style={[styles.fab, { bottom: Spacing.xl + insets.bottom }]}
+      style={styles.fab}
       onPress={onPress}
       activeOpacity={0.8}
     >

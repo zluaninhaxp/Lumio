@@ -1,15 +1,17 @@
 export const Colors = {
   // Paleta principal
-  bg: '#EFEFED',
+  bg: '#F8FCFA',
   bgCard: '#FFFFFF',
   primary: '#111111',
   accent: '#00A878',
-  accentLight: '#E6F7F2',
+  accentLight: '#E6F7F1',
+  accentSoft: '#F0FAF6',
+  accentGlow: '#DDF4EC',
   danger: '#E05555',
   dangerLight: '#FFF0F0',
   textSecondary: '#6B6B6B',
   textMuted: '#AAAAAA',
-  border: '#E5E5E3',
+  border: '#DDEBE4',
 
   // Bolhas de chat
   bubbleUser: '#111111',
@@ -18,6 +20,14 @@ export const Colors = {
   // Status
   success: '#00A878',
   warning: '#F59E0B',
+} as const;
+
+export const Typography = {
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semibold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
+  heavy: 'PlusJakartaSans_800ExtraBold',
 } as const;
 
 export const Spacing = {
