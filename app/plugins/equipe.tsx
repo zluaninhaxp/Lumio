@@ -144,7 +144,7 @@ export default function EquipeScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => removeEmployeeItem(id),
+          onPress: () => { if (!removeEmployeeItem(id)) Alert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.'); },
         },
       ],
     );

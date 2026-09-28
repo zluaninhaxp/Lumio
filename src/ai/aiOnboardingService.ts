@@ -6,33 +6,7 @@ import { AIProviderError, MissingApiKeyError } from './aiProvider';
 import { geminiProvider } from './geminiProvider';
 import { getPluginDefinition } from '../plugins/registry';
 
-/**
- * Camada de integração REAL com IA do onboarding.
- *
- * ┌─────────────────────────────────────────────────────────────────────┐
- * │ RESTRIÇÃO NÃO-NEGOCIÁVEL DO PROJETO (BYOK — Bring Your Own Key)    │
- * │                                                                      │
- * │ A chamada ao provedor de IA é feita DIRETO do dispositivo do         │
- * │ usuário para a API do Google Gemini, usando a chave que o próprio    │
- * │ usuário cadastrou (ver `services/secureKeyStorage.ts` + tela          │
- * │ `app/ai-settings.tsx`). NENHUMA chave de API do desenvolvedor       │
- * │ (minha) fica embutida no app, em .env versionado, em variável de     │
- * │ build, ou em qualquer lugar que vá parar no bundle do cliente.      │
- * │                                                                      │
- * │ Nenhum backend próprio é usado para "repassar" a chamada — isso     │
- * │ reintroduziria o problema de custo compartilhado que o projeto       │
- * │ proíbe. A única requisição que sai do app vai direto para            │
- * │ `generativelanguage.googleapis.com` com a chave do usuário.         │
- * └─────────────────────────────────────────────────────────────────────┘
- *
- * CONTRATO INALTERADO: continua devolvendo exatamente o mesmo tipo
- * `OnboardingExtractionResult` que a heurística mock local já devolvia
- * (ver `engine/openOnboardingEngine.ts -> buildMockExtractionResult`), então
- * a tela de resumo (`app/onboarding-summary.tsx`) e o store não mudam.
- *
- * O provedor vem injetado pela interface `AIProvider` — hoje só Gemini, mas
- * a injeção mantém o resto do fluxo isolado de detalhes de transporte.
- */
+/** O provedor Gemini é chamado somente pela Edge Function autenticada. */
 
 /** Provedor ativo. Trocar só aqui (e adicionar um novo módulo `*Provider`). */
 const aiProvider = geminiProvider;

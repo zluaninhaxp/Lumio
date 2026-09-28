@@ -1,12 +1,10 @@
 /**
- * Todas as chaves usadas no AsyncStorage ficam centralizadas aqui.
- * Nenhuma outra parte do app (telas, contexts, hooks) deveria conhecer
- * essas chaves — apenas os repositories.
+ * Chaves legadas lidas somente durante a migração autenticada.
  */
 export const StorageKeys = {
-  /** Lista com todos os usuários cadastrados (User[]). */
+  /** Lista antiga de usuários locais; removida após migração. */
   USERS: '@lumio/users',
-  /** Sessão ativa no momento (Session | null). */
+  /** Sessão fictícia antiga; removida após migração. */
   SESSION: '@lumio/session',
   /** Prefixo — a chave real é `${ONBOARDING_PREFIX}${userId}`. */
   ONBOARDING_PREFIX: '@lumio/onboarding/',

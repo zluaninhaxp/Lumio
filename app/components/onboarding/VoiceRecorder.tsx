@@ -15,6 +15,12 @@ import Animated, {
   cancelAnimation,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from 'expo-audio';
 import { Colors, Radius, FontSize, Spacing } from '../../../src/constants/theme';
 
 interface VoiceRecorderProps {
@@ -24,7 +30,8 @@ interface VoiceRecorderProps {
 
 export default function VoiceRecorder({ onRecordingComplete, disabled = false }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
-  const recordingRef = useRef<any>(null);
+  const isPressingRef = useRef(false);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const pulse = useSharedValue(1);
 
   const pulseAnimatedStyle = useAnimatedStyle(() => ({
@@ -47,46 +54,42 @@ export default function VoiceRecorder({ onRecordingComplete, disabled = false }:
 
   const startRecording = useCallback(async () => {
     try {
-      const { Audio } = await import('expo-av');
-
-      const { status } = await Audio.requestPermissionsAsync();
-      if (status !== 'granted') {
+      const permission = await requestRecordingPermissionsAsync();
+      if (!permission.granted) {
         Alert.alert(
           'Permissão necessária',
-          'Precisamos de acesso ao microfone para gravar sua resposta.',
+          'Ative o Microfone nas configurações do Lumio para gravar sua resposta.',
         );
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
+      // O diálogo de permissão pode encerrar o toque antes de responder.
+      if (!isPressingRef.current) return;
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
       });
 
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
-      );
-      await recording.startAsync();
-      recordingRef.current = recording;
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       startPulse();
-    } catch {
-      Alert.alert('Erro', 'Não foi possível iniciar a gravação.');
+    } catch (error) {
+      console.error('Erro ao iniciar gravação:', error);
+      Alert.alert('Erro', 'Não foi possível iniciar a gravação. Tente novamente.');
     }
-  }, [startPulse]);
+  }, [recorder, startPulse]);
 
   const stopRecording = useCallback(async () => {
     try {
-      const recording = recordingRef.current;
-      if (!recording) return;
+      if (!recorder.isRecording) return;
 
       setIsRecording(false);
       stopPulse();
 
-      await recording.stopAndUnloadAsync();
-      const uri = recording.getURI();
-      recordingRef.current = null;
+      await recorder.stop();
+      const uri = recorder.uri;
 
       if (uri) {
         onRecordingComplete(uri);
@@ -95,14 +98,16 @@ export default function VoiceRecorder({ onRecordingComplete, disabled = false }:
       setIsRecording(false);
       stopPulse();
     }
-  }, [onRecordingComplete, stopPulse]);
+  }, [onRecordingComplete, recorder, stopPulse]);
 
   const handlePressIn = useCallback(() => {
     if (disabled) return;
+    isPressingRef.current = true;
     startRecording();
   }, [disabled, startRecording]);
 
   const handlePressOut = useCallback(() => {
+    isPressingRef.current = false;
     if (isRecording) {
       stopRecording();
     }

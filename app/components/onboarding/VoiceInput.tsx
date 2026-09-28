@@ -18,6 +18,7 @@ interface VoiceInputProps {
   /** Chamado a cada atualização parcial, enquanto o usuário ainda está falando. */
   onPartialResult?: (transcript: string) => void;
   disabled?: boolean;
+  appearance?: 'default' | 'onboarding';
 }
 
 /**
@@ -29,7 +30,7 @@ interface VoiceInputProps {
  * Observação: por ser um módulo nativo, só funciona em um dev build
  * (não funciona no Expo Go).
  */
-export default function VoiceInput({ onCapture, onPartialResult, disabled }: VoiceInputProps) {
+export default function VoiceInput({ onCapture, onPartialResult, disabled, appearance = 'default' }: VoiceInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [speechUnavailable, setSpeechUnavailable] = useState(false);
@@ -152,6 +153,7 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled }: Voi
         <TouchableOpacity
           style={[
             styles.micBtn,
+            appearance === 'onboarding' && styles.micBtnOnboarding,
             isRecording && styles.micBtnRecording,
             disabled && styles.micBtnDisabled,
           ]}
@@ -161,7 +163,7 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled }: Voi
         >
           <Ionicons
             name={isRecording ? 'stop' : 'mic'}
-            size={20}
+            size={appearance === 'onboarding' ? 16 : 20}
             color={isRecording ? '#FFFFFF' : Colors.accent}
           />
         </TouchableOpacity>
@@ -186,6 +188,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: Colors.accent,
+  },
+  micBtnOnboarding: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#EAF8F2',
+    borderWidth: 1,
+    borderColor: '#DCF2E8',
   },
   micBtnRecording: {
     backgroundColor: Colors.danger,

@@ -5,10 +5,8 @@
  * onboarding de detalhes de transporte — trocar de modelo ou de versão do
  * Gemini não exige mexer em mais nada além de `geminiProvider.ts`.
  *
- * É também o ponto onde a política BYOK do projeto é enforceada em tipo:
- * nenhum método aqui recebe chave — quem implementa o provedor é responsável
- * por ler a chave do usuário (ver `services/secureKeyStorage.ts`). NENHUMA
- * chave de desenvolvedor fica embutida no app (ver relatório final).
+ * Nenhum método recebe chave. A Edge Function autentica o usuário e acessa
+ * a chave pessoal criptografada no servidor.
  */
 export interface AIProvider {
   /** Identificador estável do provedor (ex.: 'gemini'). */

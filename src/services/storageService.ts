@@ -2,13 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StorageError } from '../types/errors';
 
 /**
- * Camada mais baixa de persistência. É a ÚNICA parte do app que importa
- * o AsyncStorage diretamente — tudo o mais (repositories, services,
- * contexts, telas) fala apenas com `storageService`.
- *
- * Quando o backend real entrar, este arquivo pode até continuar existindo
- * (cache local), mas os `repositories` passarão a chamar uma API HTTP em
- * vez dele. A troca fica isolada aqui.
+ * Acesso transitório a dados legados para migração. Nenhum repository de
+ * negócio usa esta camada como destino de novas gravações.
  */
 export const storageService = {
   async getItem<T>(key: string): Promise<T | null> {

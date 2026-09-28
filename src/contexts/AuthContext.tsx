@@ -1,10 +1,13 @@
 import { createContext, useCallback, useEffect, useMemo, useState, ReactNode } from 'react';
+import { AppState } from 'react-native';
 import { authService } from '../services/authService';
 import { userService, UpdateUserInput } from '../services/userService';
 import { PublicUser } from '../types/user';
 import { onboardingService } from '../services/onboardingService';
 import { learnedIntentRepository } from '../repositories/learnedIntentRepository';
 import { useAppStore } from '../store';
+import { businessStateService, businessSyncStatus } from '../services/businessStateService';
+import { legacyMigrationService } from '../services/legacyMigrationService';
 import type { OnboardingContextDTO } from '../ai/onboardingContext';
 import type { OnboardingExtractionResult } from '../ai/types';
 
@@ -66,20 +69,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       const learnedIntentMarkers = await learnedIntentRepository.getAll(user.id);
       useAppStore.getState().hydrateLearnedIntentMarkers(learnedIntentMarkers);
-    } catch (error) {
-      console.warn('Falha ao carregar dados do onboarding:', error);
+    } catch {
+      throw new Error('Não foi possível carregar as configurações da conta. Tente novamente.');
     }
   }, []);
 
   useEffect(() => {
+    const appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') void businessStateService.commit().catch(() => {});
+    });
     let isMounted = true;
 
     authService
       .restoreSession()
       .then(async (result) => {
         if (!isMounted) return;
-        setCurrentUser(result?.user ?? null);
-        if (result?.user) await hydrateOnboarding(result.user);
+        if (result?.user) {
+          businessStateService.clearPrivateState();
+          let migrationWarning = false;
+          try { await legacyMigrationService.migrate(result.user.id, result.user.email); }
+          catch { migrationWarning = true; }
+          await hydrateOnboarding(result.user);
+          await businessStateService.start(result.user.id);
+          if (migrationWarning) businessSyncStatus.reportWarning('Dados antigos foram preservados no aparelho e precisam de migração manual.');
+          if (isMounted) setCurrentUser(result.user);
+        }
+      })
+      .catch(() => {
+        businessStateService.stop();
+        businessStateService.clearPrivateState();
+        if (isMounted) setCurrentUser(null);
       })
       .finally(() => {
         if (isMounted) setLoading(false);
@@ -87,26 +106,52 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
+      appStateSubscription.remove();
     };
   }, [hydrateOnboarding]);
 
   const login = useCallback(async (email: string, password: string): Promise<PublicUser> => {
-    const result = await authService.login({ email, password });
-    setCurrentUser(result.user);
-    await hydrateOnboarding(result.user);
-    return result.user;
+    setLoading(true);
+    businessStateService.stop();
+    businessStateService.clearPrivateState();
+    try {
+      const result = await authService.login({ email, password });
+      let migrationWarning = false;
+      try { await legacyMigrationService.migrate(result.user.id, result.user.email, password); }
+      catch { migrationWarning = true; }
+      await hydrateOnboarding(result.user);
+      await businessStateService.start(result.user.id);
+      if (migrationWarning) businessSyncStatus.reportWarning('Dados antigos foram preservados no aparelho e precisam de migração manual.');
+      setCurrentUser(result.user);
+      return result.user;
+    } finally { setLoading(false); }
   }, [hydrateOnboarding]);
 
   const register = useCallback(async (name: string, email: string, password: string): Promise<PublicUser> => {
-    const result = await authService.register({ name, email, password });
-    setCurrentUser(result.user);
-    await hydrateOnboarding(result.user);
-    return result.user;
+    setLoading(true);
+    businessStateService.stop();
+    businessStateService.clearPrivateState();
+    try {
+      const result = await authService.register({ name, email, password });
+      let migrationWarning = false;
+      try { await legacyMigrationService.migrate(result.user.id, result.user.email, password); }
+      catch { migrationWarning = true; }
+      await hydrateOnboarding(result.user);
+      await businessStateService.start(result.user.id);
+      if (migrationWarning) businessSyncStatus.reportWarning('Dados antigos foram preservados no aparelho e precisam de migração manual.');
+      setCurrentUser(result.user);
+      return result.user;
+    } finally { setLoading(false); }
   }, [hydrateOnboarding]);
 
   const logout = useCallback(async () => {
-    await authService.logout();
-    setCurrentUser(null);
+    await businessStateService.commit();
+    try { await authService.logout(); }
+    finally {
+      businessStateService.stop();
+      businessStateService.clearPrivateState();
+      setCurrentUser(null);
+    }
   }, []);
 
   const updateUser = useCallback(
