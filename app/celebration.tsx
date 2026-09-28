@@ -50,6 +50,13 @@ export default function CelebrationScreen() {
   const [phase, setPhase] = useState<Phase>('thinking');
   const [error, setError] = useState<{ message: string; kind: string } | null>(null);
   const startedRef = useRef(false);
+  const phaseRef = useRef(phase);
+  phaseRef.current = phase;
+  const disposedRef = useRef(false);
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => { disposedRef.current = true; };
+  }, []);
 
   const opacity = useSharedValue(0);
   const enterY = useSharedValue(200);
@@ -96,6 +103,7 @@ export default function CelebrationScreen() {
       const elapsed = Date.now() - startedAt;
       const remaining = Math.max(0, MIN_THINKING_MS - elapsed);
       setTimeout(() => {
+        if (disposedRef.current) return;
         setPendingOnboardingExtraction(result, isSimulation);
         setPhase('done');
         buttonOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
@@ -123,8 +131,8 @@ export default function CelebrationScreen() {
   );
 
   /**
-   * Executa a extração real (chamada direta ao Gemini com a chave do
-   * usuário). Se não houver chave cadastrada, INTERROMPE o fluxo no
+   * Executa a extração pelo backend autenticado. Se não houver chave
+   * cadastrada para esta conta, INTERROMPE o fluxo no
    * estado 'missing-key' e mostra como ação principal "Configurar minha
    * chave" (com "Continuar com simulação" apenas como fallback opt-in,
    * não como caminho default) — o relatório depende da IA, não se
@@ -190,14 +198,14 @@ export default function CelebrationScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (phase === 'missing-key') {
+      if (phaseRef.current === 'missing-key') {
         // Re-tenta a extração — se a chave foi configurada nas settings
         // agora resolve via IA; se ainda não foi, volta pra 'missing-key'.
         startedRef.current = false;
         runExtraction();
       }
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase]),
+    }, [runExtraction]),
   );
 
   const handleRetry = useCallback(() => {
@@ -268,8 +276,8 @@ export default function CelebrationScreen() {
               chave grátis do Google AI Studio. Leva 1 minuto.
             </Text>
             <Text style={styles.errorHint}>
-              O Lumio nunca guarda nem paga pela sua chave — ela fica só
-              no seu aparelho e é usada direto com o Google.
+              Sua chave fica protegida no servidor e vinculada à sua conta.
+              O aplicativo recebe apenas o resultado da IA.
             </Text>
           </View>
         ) : (

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useEffect, useMemo, useState, ReactNode } from 'react';
 import { AppState } from 'react-native';
+import { clearLegacyAiKey } from '../services/legacy-ai-key-cleanup';
 import { authService } from '../services/authService';
 import { userService, UpdateUserInput } from '../services/userService';
 import { PublicUser } from '../types/user';
@@ -63,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         activatedPlugins: record.activatedPlugins ?? [],
         pluginOrder: record.pluginOrder ?? [],
       });
+      useAppStore.setState({ onboardingCompleted: user.onboardingCompleted });
       const cleanedProfile = removeLegacyIntentMarkers(record.structuredProfile);
       if (cleanedProfile !== record.structuredProfile) {
         void onboardingService.saveStructuredProfile(user.id, cleanedProfile);
@@ -80,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     let isMounted = true;
 
-    authService
-      .restoreSession()
+    clearLegacyAiKey()
+      .then(() => authService.restoreSession())
       .then(async (result) => {
         if (!isMounted) return;
         if (result?.user) {
@@ -115,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     businessStateService.stop();
     businessStateService.clearPrivateState();
     try {
+      setCurrentUser(null);
+      await clearLegacyAiKey();
       const result = await authService.login({ email, password });
       let migrationWarning = false;
       try { await legacyMigrationService.migrate(result.user.id, result.user.email, password); }
@@ -132,6 +136,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     businessStateService.stop();
     businessStateService.clearPrivateState();
     try {
+      setCurrentUser(null);
+      await clearLegacyAiKey();
       const result = await authService.register({ name, email, password });
       let migrationWarning = false;
       try { await legacyMigrationService.migrate(result.user.id, result.user.email, password); }
@@ -151,6 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       businessStateService.stop();
       businessStateService.clearPrivateState();
       setCurrentUser(null);
+      await clearLegacyAiKey();
     }
   }, []);
 

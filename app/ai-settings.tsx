@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,11 +11,13 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
 import { Colors, FontSize, Radius, Spacing } from '../src/constants/theme';
-import { secureKeyStorage } from '../src/services/secureKeyStorage';
-import { aiProvider } from '../src/ai/aiOnboardingService';
+import { aiKeyService } from '../src/services/ai-key-service';
+import { useAiKeyStatus } from '../src/hooks/use-ai-key-status';
+import { useAuth } from '../src/hooks/useAuth';
+
 import { AIProviderError, MissingApiKeyError } from '../src/ai/aiProvider';
 
 const AI_STUDIO_URL = 'https://aistudio.google.com/app/apikey';
@@ -29,19 +31,26 @@ type TestState = 'idle' | 'testing' | 'ok' | 'error';
  * Cada usuário cadastra sua chave no serviço de IA autenticado. O aplicativo
  * recebe apenas o estado configurado/ausente, sem consultar o valor salvo.
  *
- * Depois de salva, a chave é exibida só mascarada (`...ab12`) — o campo de
- * edição nunca reabre com a chave completa (o usuário cola de novo só se
- * quiser trocar). O botão "Testar chave" faz uma chamada mínima e barata
+ * Depois de salva, só o status é exibido. O campo de edição nunca recebe
+ * o segredo salvo. O botão "Testar chave" faz uma chamada mínima e barata
  * ao Gemini só pra validar que ela funciona antes de depender dela no
  * onboarding.
  */
 export default function AiSettingsScreen() {
-  const router = useRouter();
+  const { currentUser } = useAuth();
+  return <AiSettingsForm key={currentUser?.id ?? 'signed-out'} userId={currentUser?.id ?? null} />;
+}
 
-  const [hasKey, setHasKey] = useState(false);
-  const [masked, setMasked] = useState<string | null>(null);
-  const [loadingInfo, setLoadingInfo] = useState(true);
-  const [supported, setSupported] = useState(true);
+function AiSettingsForm({ userId }: { userId: string | null }) {
+  const router = useRouter();
+  const { from } = useLocalSearchParams<{ from?: string }>();
+
+  const keyInfo = useAiKeyStatus(userId);
+  const hasKey = keyInfo.status === 'configured';
+  const loadingInfo = keyInfo.status === 'loading';
+  const masked = hasKey ? 'Configurada no servidor' : null;
+  const refreshKeyInfo = keyInfo.refresh;
+  const requireUser = () => { if (!userId) throw new AIProviderError('not-authenticated'); return userId; };
 
   const [draft, setDraft] = useState('');
   const [saveState, setSaveState] = useState<SaveState>('idle');
@@ -49,24 +58,7 @@ export default function AiSettingsScreen() {
 
   const [testState, setTestState] = useState<TestState>('idle');
   const [testMessage, setTestMessage] = useState<string | null>(null);
-
-  const refreshKeyInfo = useCallback(async () => {
-    const [exists, isSupported] = await Promise.all([
-      secureKeyStorage.hasApiKey(),
-      secureKeyStorage.isSupported(),
-    ]);
-    setHasKey(exists);
-    setMasked(exists ? '•••• configurada' : null);
-    setSupported(isSupported);
-  }, []);
-
-  useEffect(() => {
-    refreshKeyInfo().catch(() => {
-      // Mesmo em falha inesperada, não travamos a tela — apenas marcamos
-      // como sem chave/suporte e deixamos o usuário ver o restante.
-      setSupported(false);
-    }).finally(() => setLoadingInfo(false));
-  }, [refreshKeyInfo]);
+  const busy = saveState === 'saving' || testState === 'testing';
 
   const handleSave = useCallback(async () => {
     const value = draft.trim();
@@ -77,7 +69,7 @@ export default function AiSettingsScreen() {
     setSaveState('saving');
     setSaveError(null);
     try {
-      await secureKeyStorage.setApiKey(value);
+      await aiKeyService.save(value, requireUser());
       setDraft('');
       setSaveState('saved');
       setTestState('idle');
@@ -89,7 +81,7 @@ export default function AiSettingsScreen() {
       setSaveError(msg);
       setSaveState('idle');
     }
-  }, [draft, refreshKeyInfo]);
+  }, [draft, refreshKeyInfo, userId]);
 
   const handleRemove = useCallback(() => {
     Alert.alert(
@@ -102,9 +94,9 @@ export default function AiSettingsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await secureKeyStorage.removeApiKey();
-              setHasKey(false);
-              setMasked(null);
+              await aiKeyService.remove(requireUser());
+              await refreshKeyInfo();
+              setDraft('');
               setTestState('idle');
               setTestMessage(null);
               setSaveState('idle');
@@ -117,15 +109,16 @@ export default function AiSettingsScreen() {
         },
       ],
     );
-  }, []);
+  }, [userId, refreshKeyInfo]);
 
   const handleTest = useCallback(async () => {
     setTestState('testing');
     setTestMessage(null);
     try {
-      await aiProvider.testKey();
+      await aiKeyService.test(requireUser(), draft);
       setTestState('ok');
-      setTestMessage('Chave válida. O Gemini respondeu corretamente.');
+      setTestMessage(draft.trim() ? 'Chave válida. Salve para usar nesta conta.' : 'Chave salva válida. O Gemini respondeu corretamente.');
+      if (from === 'onboarding' && !draft.trim()) router.replace('/celebration');
     } catch (error) {
       setTestState('error');
       if (error instanceof MissingApiKeyError) {
@@ -136,7 +129,7 @@ export default function AiSettingsScreen() {
         setTestMessage('Falha inesperada ao testar a chave.');
       }
     }
-  }, []);
+  }, [from, router, userId, draft]);
 
   const openAiStudio = () => Linking.openURL(AI_STUDIO_URL).catch(() => {});
 
@@ -168,6 +161,8 @@ export default function AiSettingsScreen() {
               <ActivityIndicator color={Colors.accent} />
               <Text style={styles.statusText}>Verificando chave salva...</Text>
             </View>
+          ) : keyInfo.status === 'error' ? (
+            <View><Text style={s.error}>{keyInfo.error}</Text><TouchableOpacity onPress={refreshKeyInfo}><Text style={styles.helpLinkText}>Tentar novamente</Text></TouchableOpacity></View>
           ) : hasKey ? (
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, styles.statusDotOk]} />
@@ -194,7 +189,11 @@ export default function AiSettingsScreen() {
             autoCorrect={false}
             spellCheck={false}
             secureTextEntry
-            textContentType="password"
+            textContentType="none"
+            autoComplete="off"
+            importantForAutofill="noExcludeDescendants"
+            maxLength={256}
+            editable={!busy}
           />
           <Text style={styles.hint}>
             Pegue sua chave no Google AI Studio. Depois de salva, o aplicativo
@@ -206,7 +205,7 @@ export default function AiSettingsScreen() {
           <TouchableOpacity
             style={[s.primary, saveState === 'saving' && { opacity: 0.7 }]}
             onPress={handleSave}
-            disabled={saveState === 'saving'}
+            disabled={busy || !userId}
             activeOpacity={0.85}
           >
             {saveState === 'saving' ? (
@@ -221,7 +220,7 @@ export default function AiSettingsScreen() {
           )}
         </View>
 
-        {hasKey && (
+        {(hasKey || !!draft.trim()) && (
           <>
             <Text style={[s.sectionTitle, { marginTop: Spacing.xxl }]}>VALIDAÇÃO</Text>
             <View style={s.card}>
@@ -232,7 +231,7 @@ export default function AiSettingsScreen() {
               <TouchableOpacity
                 style={styles.testBtn}
                 onPress={handleTest}
-                disabled={testState === 'testing'}
+                disabled={busy || !userId}
                 activeOpacity={0.85}
               >
                 {testState === 'testing' ? (
@@ -258,11 +257,11 @@ export default function AiSettingsScreen() {
               )}
             </View>
 
-            <Text style={[s.sectionTitle, { marginTop: Spacing.xxl, color: Colors.danger }]}>REMOVER</Text>
-            <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} activeOpacity={0.7}>
+            {hasKey && <><Text style={[s.sectionTitle, { marginTop: Spacing.xxl, color: Colors.danger }]}>REMOVER</Text>
+            <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} disabled={busy} activeOpacity={0.7}>
               <Ionicons name="trash-outline" size={18} color={Colors.danger} />
               <Text style={styles.removeBtnText}>Remover chave da conta</Text>
-            </TouchableOpacity>
+            </TouchableOpacity></>}
           </>
         )}
 
@@ -400,23 +399,5 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
     color: Colors.accent,
-  },
-  unsupportedBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: Spacing.sm,
-    backgroundColor: '#FFF7E6',
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.md,
-    borderWidth: 1,
-    borderColor: '#F5C56B',
-  },
-  unsupportedText: {
-    flex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.xs,
-    color: '#7A5400',
-    lineHeight: 18,
   },
 });

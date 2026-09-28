@@ -1,5 +1,4 @@
 import { OnboardingContextDTO } from './onboardingContext';
-import { buildOnboardingExtractionPrompt } from '../prompts/onboardingExtraction.prompt';
 import type { BusinessTaxonomy } from '../engine/taxonomy/types';
 import { OnboardingExtractionResult } from './types';
 import { AIProviderError, MissingApiKeyError } from './aiProvider';
@@ -106,70 +105,12 @@ function sanitizePlugins(value: unknown): OnboardingExtractionResult['recommende
   });
 }
 
-/**
- * Ponto único de entrada do fluxo final do onboarding.
- *
- * Fluxo:
- *  1. Recebe o DTO já montado a partir das respostas (ver
- *     `onboardingContext.ts -> buildOnboardingContextDTO`).
- *  2. Monta o prompt final consumindo `buildExtractionPrompt(dto)` —
- *     texto do prompt NÃO é reescrito aqui (responsabilidade de outra etapa).
- *  3. Lê a chave do usuário do secure storage. Se não houver, NÃO chama
- *     rede — lança `MissingApiKeyError` para a tela decidir o caminho de
- *     simulação (instrução 3.2.a) em vez de mostrar um erro genérico.
- *  4. Faz a chamada HTTP direta ao Gemini via `AIProvider`.
- *  5. Faz o parsing defensivo (limpa cercas markdown, recorta braces) e
- *     valida as chaves de 1º nível antes de devolver.
- *  6. Diferencia os erros amigáveis: `MissingApiKeyError`,
- *     `AIProviderError(kind=unauthorized|quota-exceeded|payment-required|`
- *     `network|bad-format|provider|invalid-input)`. NUNCA expõe stacktrace /
- *     erro cru da API ao usuário — fica só em `error.cause` para debug.
- */
-export async function extractBusinessProfile(
-  dto: OnboardingContextDTO
-): Promise<OnboardingExtractionResult> {
-  // Validação local mínima do DTO de entrada — sem rede.
-  if (!dto || !Array.isArray(dto.answers) || dto.answers.length === 0) {
-    throw new AIProviderError('invalid-input');
-  }
-
-  const prompt = buildOnboardingExtractionPrompt(dto);
-
-  let rawText: string;
-  try {
-    rawText = await aiProvider.generate(prompt);
-  } catch (error) {
-    // Reemite erros já tipados pelo provedor (MissingApiKeyError,
-    // AIProviderError). Qualquer erro desconhecido vira 'provider' para a
-    // UI não precisar lidar com exceções nuas.
-    if (error instanceof AIProviderError) {
-      throw error;
-    }
-    throw new AIProviderError('provider', undefined, error);
-  }
-
-  if (!rawText || rawText.trim().length === 0) {
-    throw new AIProviderError('bad-format');
-  }
-
-  const jsonText = extractJsonBlock(rawText);
-
-  try {
-    return assertValidResult(JSON.parse(jsonText));
-  } catch (error) {
-    // A single corrective retry keeps transient model formatting errors from
-    // breaking onboarding while retaining the same source-of-truth prompt.
-    if (error instanceof AIProviderError && error.kind === 'bad-format') {
-      try {
-        const retry = await aiProvider.generate(`${prompt}\nCorrija apenas o JSON inválido retornado anteriormente. Erro: ${String(error.message)}\nJSON recebido anteriormente:\n${jsonText}`);
-        return assertValidResult(JSON.parse(extractJsonBlock(retry)));
-      } catch (retryError) {
-        if (retryError instanceof AIProviderError) throw retryError;
-        throw new AIProviderError('bad-format', undefined, retryError);
-      }
-    }
-    throw new AIProviderError('bad-format', undefined, { error, jsonText });
-  }
+/** Envia apenas respostas ao backend autenticado; nunca recebe a chave. */
+export async function extractBusinessProfile(dto: OnboardingContextDTO): Promise<OnboardingExtractionResult> {
+  if (!dto || !Array.isArray(dto.answers) || dto.answers.length === 0) throw new AIProviderError('invalid-input');
+  const rawText = await aiProvider.generate(dto);
+  try { return assertValidResult(JSON.parse(extractJsonBlock(rawText))); }
+  catch { throw new AIProviderError('bad-format'); }
 }
 
 /** Remove duplicatas que o modelo pode gerar; a primeira ocorrência vence. */

@@ -2,12 +2,14 @@
  * Contrato da camada de provedor de IA usada pelo onboarding (ver
  * `aiOnboardingService.ts`). Hoje só existe a implementação Gemini (ver
  * `geminiProvider.ts`), mas a interface existe para isolar o fluxo do
- * onboarding de detalhes de transporte — trocar de modelo ou de versão do
- * Gemini não exige mexer em mais nada além de `geminiProvider.ts`.
+ * onboarding de detalhes de transporte. Modelo e configuração do Gemini
+ * ficam exclusivamente na Edge Function autenticada.
  *
  * Nenhum método recebe chave. A Edge Function autentica o usuário e acessa
  * a chave pessoal criptografada no servidor.
  */
+import type { OnboardingContextDTO } from './onboardingContext';
+
 export interface AIProvider {
   /** Identificador estável do provedor (ex.: 'gemini'). */
   readonly id: string;
@@ -15,7 +17,7 @@ export interface AIProvider {
   readonly label: string;
 
   /**
-   * Envia o prompt ao modelo e devolve o texto bruto retornado por ele.
+   * Envia respostas ao backend, que monta o prompt e valida o resultado.
    * A responsabilidade de fazer o parsing estruturado é de quem chama (ver
    * `aiOnboardingService.ts`) — este método só entrega o texto cru, já
    * limpo de cercas markdown extras quando o provedor consegue garantir
@@ -24,14 +26,8 @@ export interface AIProvider {
    * Erros são sempre lançados como `AIProviderError` (ou uma subclasse
    * específica, como `MissingApiKeyError`) — nunca strings soltas.
    */
-  generate(prompt: string): Promise<string>;
+  generate(context: OnboardingContextDTO): Promise<string>;
 
-  /**
-   * Faz uma chamada mínima e barata só para validar que a chave do
-   * usuário funciona. Resolve `void` em sucesso, lança `AIProviderError`
-   * em falha. Usado pela tela de configurações (botão "Testar chave").
-   */
-  testKey(): Promise<void>;
 }
 
 /**
@@ -54,9 +50,17 @@ export type AIErrorKind =
   /** Erro inesperado do provedor (5xx, etc.) não classificado acima. */
   | 'provider'
   /** Validação local do DTO de entrada falhou (sem chamada à rede). */
-  | 'invalid-input';
+  | 'invalid-input'
+  | 'not-authenticated'
+  | 'status-unavailable'
+  | 'backend'
+  | 'timeout';
 
 const AI_ERROR_DEFAULT_MESSAGES: Record<AIErrorKind, string> = {
+  'not-authenticated': 'Sua sessão terminou ou mudou. Entre novamente na sua conta.',
+  'status-unavailable': 'Não foi possível consultar a configuração de IA. Tente novamente.',
+  backend: 'O serviço de IA está indisponível. Tente novamente.',
+  timeout: 'A IA demorou para responder. Tente novamente.',
   'missing-api-key': 'Você ainda não configurou sua chave de IA.',
   unauthorized: 'Sua chave de IA foi recusada. Confira se ela está correta e ativa.',
   'quota-exceeded':

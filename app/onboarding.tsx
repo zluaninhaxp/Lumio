@@ -1,14 +1,18 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Modal, Pressable, View, Text, StyleSheet, TextInput, TouchableOpacity,
-  Keyboard, KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
+  BackHandler, Keyboard, KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../src/store';
 import { useAuth } from '../src/hooks/useAuth';
+import { useAiKeyStatus } from '../src/hooks/use-ai-key-status';
+import { aiKeyService } from '../src/services/ai-key-service';
+import { AIProviderError } from '../src/ai/aiProvider';
 import {
   OPEN_QUESTIONS,
   OpenOnboardingAnswers,
@@ -21,7 +25,9 @@ import {
 } from '../src/data/mascotExpressions';
 import Svg, { Path } from 'react-native-svg';
 import LumioSpeechBubble from './components/onboarding/lumio-speech-bubble';
-import { onboardingMessages } from '../src/data/onboarding-messages';
+import { onboardingAiMessages, onboardingMessages } from '../src/data/onboarding-messages';
+import { onboardingService } from '../src/services/onboardingService';
+import { onboardingRepository } from '../src/repositories/onboardingRepository';
 import UserReply from './components/onboarding/UserReply';
 import VoiceInput from './components/onboarding/VoiceInput';
 
@@ -37,7 +43,7 @@ interface Line {
 export default function OnboardingScreen() {
   const router = useRouter();
   const applyOpenOnboardingConfig = useAppStore((s) => s.applyOpenOnboardingConfig);
-  const { isAuthenticated, currentUser, loading } = useAuth();
+  const { isAuthenticated, currentUser, loading, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const heroHeight = Math.min(Math.max(height * 0.46, 260), 480);
@@ -66,16 +72,21 @@ export default function OnboardingScreen() {
   }, [loading, isAuthenticated, currentUser, router]);
 
   const blockIndexRef = useRef(0);
-  const answersRef = useRef<OpenOnboardingAnswers>({});
+  const answersRef = useRef<OpenOnboardingAnswers>({ ...useAppStore.getState().openAnswers });
   const followUpUsedRef = useRef<Record<string, boolean>>({});
   const attemptCountRef = useRef<Record<string, number>>({});
   const queueTokenRef = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
 
   const [blockIndex, setBlockIndex] = useState(0);
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(() => !useAppStore.getState().onboardingContext);
   const [introFinished, setIntroFinished] = useState(false);
   const [restartConfirmationVisible, setRestartConfirmationVisible] = useState(false);
+  const [showAiTransition, setShowAiTransition] = useState(() => !!useAppStore.getState().onboardingContext);
+  const keyInfo = useAiKeyStatus(currentUser?.id ?? null, showAiTransition);
+  const [skipAiConfirmationVisible, setSkipAiConfirmationVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState('');
 
   const [isTyping, setIsTyping] = useState(false);
@@ -133,19 +144,39 @@ export default function OnboardingScreen() {
   }, [enterBlock]);
 
   const handleRestartOnboarding = useCallback(() => {
+    if (showAiTransition) {
+      setShowAiTransition(false);
+      setShowIntro(false);
+      setBlockIndex(BLOCK_COUNT - 1);
+      blockIndexRef.current = BLOCK_COUNT - 1;
+      setInputValue(answersRef.current[OPEN_QUESTIONS[BLOCK_COUNT - 1].id] ?? '');
+      enterBlock(BLOCK_COUNT - 1);
+      return;
+    }
     setRestartConfirmationVisible(true);
-  }, []);
+  }, [showAiTransition, enterBlock]);
+
+  useFocusEffect(useCallback(() => {
+    if (!showAiTransition) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleRestartOnboarding();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [showAiTransition, handleRestartOnboarding]));
 
   const confirmRestartOnboarding = useCallback(() => {
     setRestartConfirmationVisible(false);
     Keyboard.dismiss();
     queueTokenRef.current += 1;
     answersRef.current = {};
+    useAppStore.getState().resetOnboardingState();
     followUpUsedRef.current = {};
     attemptCountRef.current = {};
     blockIndexRef.current = 0;
     setBlockIndex(0);
     setShowIntro(true);
+    setShowAiTransition(false);
     setInputValue('');
     setLastUserReply(null);
     setIsTyping(false);
@@ -158,20 +189,24 @@ export default function OnboardingScreen() {
   }, []);
 
   const handleConfigureKey = useCallback(() => {
-    router.push('/ai-settings');
+    router.push({ pathname: '/ai-settings', params: { from: 'onboarding' } });
   }, [router]);
 
   const advanceFromBlock = useCallback((currentIndex: number) => {
     const next = currentIndex + 1;
     if (next >= BLOCK_COUNT) {
       applyOpenOnboardingConfig(answersRef.current);
-      router.replace('/celebration');
+      queueTokenRef.current += 1;
+      setIsTyping(false);
+      setLastUserReply(null);
+      setShowIntro(false);
+      setShowAiTransition(true);
     } else {
       setBlockIndex(next);
       blockIndexRef.current = next;
       enterBlock(next);
     }
-  }, [enterBlock, applyOpenOnboardingConfig, router]);
+  }, [enterBlock, applyOpenOnboardingConfig]);
 
   const submitAnswer = useCallback((text: string, isVoice: boolean) => {
     const currentIndex = blockIndexRef.current;
@@ -223,8 +258,58 @@ export default function OnboardingScreen() {
     advanceFromBlock(currentIndex);
   }, [advanceFromBlock]);
 
+  const saveCollectedAnswers = useCallback(async () => {
+    if (!currentUser) throw new Error('Entre na sua conta para salvar suas respostas.');
+    await onboardingRepository.save(currentUser.id, {
+      responses: { ...answersRef.current }, context: useAppStore.getState().onboardingContext,
+    });
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!showAiTransition) return;
+    setSaving(true);
+    setSaveError(null);
+    saveCollectedAnswers().catch(() => setSaveError('Não consegui salvar suas respostas. Tente novamente antes de continuar.'))
+      .finally(() => setSaving(false));
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, [showAiTransition, saveCollectedAnswers]);
+
+  const proceedToAiSettings = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await saveCollectedAnswers();
+      if (!currentUser) throw new AIProviderError('not-authenticated');
+      if (await aiKeyService.status(currentUser.id)) router.push('/celebration');
+      else handleConfigureKey();
+    }
+    catch (error) { setSaveError(error instanceof AIProviderError ? error.message : 'Não consegui salvar suas respostas. Tente novamente.'); }
+    finally { setSaving(false); }
+  };
+
+  const finishWithoutAi = async () => {
+    if (saving || !currentUser) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      await onboardingService.completeOnboarding(currentUser.id, { ...answersRef.current }, useAppStore.getState().onboardingContext ?? undefined);
+      useAppStore.setState({ onboardingCompleted: true });
+      setSkipAiConfirmationVisible(false);
+      await refreshUser();
+      router.replace('/(tabs)/chat');
+    } catch { setSaveError('Não consegui concluir. Suas respostas foram preservadas; tente novamente.'); }
+    finally { setSaving(false); }
+  };
+
+  const closeConfirmation = () => {
+    if (saving) return;
+    setRestartConfirmationVisible(false);
+    setSkipAiConfirmationVisible(false);
+  };
+
   const currentBlock = blockIndex < BLOCK_COUNT ? OPEN_QUESTIONS[blockIndex] : null;
-  const stage = showIntro ? 1 : blockIndex + 2;
+  const stage = showAiTransition ? TOTAL_STAGES : showIntro ? 1 : blockIndex + 2;
   const fallbackVisible = !showIntro && !!currentBlock &&
     currentLine?.key.startsWith(`${currentBlock.id}-followup-`) === true;
 
@@ -245,72 +330,78 @@ export default function OnboardingScreen() {
               <Image source={require('../assets/onboarding-hero.png')} style={styles.heroImage} resizeMode="cover" />
               <LinearGradient pointerEvents="none" colors={['rgba(249,255,252,0.94)', 'rgba(249,255,252,0.68)', 'rgba(249,255,252,0)']} locations={[0, 0.45, 1]} style={styles.headerVeil} />
               <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-                {!showIntro && <TouchableOpacity style={styles.backButton} onPress={handleRestartOnboarding} accessibilityLabel="Voltar ao início do onboarding"><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>}
+                {(!showIntro || showAiTransition) && <TouchableOpacity style={styles.backButton} onPress={handleRestartOnboarding} accessibilityLabel={showAiTransition ? 'Voltar à última pergunta' : 'Voltar ao início do onboarding'}><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>}
                 <View style={styles.headerCenter}>
                   <Text style={styles.headerTitle}>Configurando seu Lumio</Text>
                   <View style={styles.progressRow}>{Array.from({ length: TOTAL_STAGES }).map((_, index) => <View key={index} style={[styles.progressSegment, index < stage && styles.progressActive]} />)}</View>
                 </View>
-                <TouchableOpacity style={styles.keyButton} onPress={handleConfigureKey} activeOpacity={0.8}><Ionicons name="sparkles" size={15} color="#168E76" /><Text style={styles.keyButtonText}>Chave de IA</Text></TouchableOpacity>
               </View>
               <View style={styles.heroCurve} pointerEvents="none"><Svg width={width} height={74} viewBox="0 0 400 74" preserveAspectRatio="none"><Path d="M0 35 C75 60 130 66 206 65 C293 64 349 43 400 5 L400 74 L0 74Z" fill="#F3FFF9" /></Svg></View>
             </View>
-            <View style={styles.conversation}>
+            <View style={[styles.conversation, showAiTransition && { paddingBottom: 150 }]}>
               <View pointerEvents="none" style={styles.waves}><Svg width={width} height={150} viewBox="0 0 400 150" preserveAspectRatio="none"><Path d="M0 47 C75 35 135 118 225 102 C305 88 330 30 400 15 L400 150 L0 150Z" fill="#D6F5E8" /><Path d="M0 76 C95 75 140 153 245 120 C316 101 340 117 400 91 L400 150 L0 150Z" fill="#78D5BA" /><Path d="M0 115 C80 88 135 144 220 137 C310 126 338 132 400 113 L400 150 L0 150Z" fill="#39B99A" /></Svg></View>
               <View style={[styles.messageStack, styles.messageStackTop]}>
                 <LumioSpeechBubble
-                  key={`stage-${stage}-A`}
-                  message={onboardingMessages[stage].A}
+                  key={showAiTransition ? "ai-A" : `stage-${stage}-A`}
+                  message={showAiTransition ? onboardingAiMessages.A : onboardingMessages[stage].A}
                 />
-                {(showIntro || fallbackVisible) && (
+                {(showAiTransition || showIntro || fallbackVisible) && (
                   <LumioSpeechBubble
-                    key={`stage-${stage}-B`}
-                    message={onboardingMessages[stage].B}
-                    delayMs={showIntro ? 1400 : 0}
+                    key={showAiTransition ? "ai-B" : `stage-${stage}-B`}
+                    message={showAiTransition ? onboardingAiMessages.B : onboardingMessages[stage].B}
+                    delayMs={showIntro || showAiTransition ? 1400 : 0}
                   />
                 )}
                 {lastUserReply && <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />}
               </View>
             </View>
           </ScrollView>
-          {showIntro ? <View style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
+          {showAiTransition ? <View style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}>
+            {!!saveError && <Text style={styles.confirmationMessage}>{saveError}</Text>}
+            {keyInfo.status === 'error' && <TouchableOpacity onPress={keyInfo.refresh}><Text style={styles.confirmationMessage}>{keyInfo.error} Toque para tentar novamente.</Text></TouchableOpacity>}
+            <TouchableOpacity style={[styles.startBtn, (saving || keyInfo.status === 'loading' || keyInfo.status === 'error') && styles.sendBtnDisabled]} disabled={saving || keyInfo.status === 'loading' || keyInfo.status === 'error'} onPress={proceedToAiSettings} activeOpacity={0.85}><Text style={styles.startBtnText}>{saving ? 'Salvando...' : keyInfo.status === 'loading' ? 'Verificando IA...' : keyInfo.status === 'configured' ? 'Personalizar meu Lumio' : 'Configurar IA'}</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity>
+            <TouchableOpacity style={styles.confirmationSecondary} disabled={saving} onPress={() => setSkipAiConfirmationVisible(true)}><Text style={styles.confirmationSecondaryText}>Continuar sem IA</Text></TouchableOpacity>
+          </View> : showIntro ? <View style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
           : currentBlock?.options ? <View style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(composerBottomInset, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={0.8}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>
           : currentBlock ? <View style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}><View style={styles.composerRow}><View style={styles.inputWrapper}><TextInput style={styles.input} value={inputValue} onChangeText={setInputValue} placeholder="Você pode escrever ou falar ..." placeholderTextColor="#818C9C" onSubmitEditing={handleSubmit} returnKeyType="send" multiline maxLength={500} /><View style={styles.inputDivider} /><VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" /></View><TouchableOpacity style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]} onPress={handleSubmit} disabled={!inputValue.trim()} accessibilityLabel="Enviar resposta"><Ionicons name="arrow-up" size={21} color="#FFFFFF" /></TouchableOpacity></View>{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
         </View>
       </KeyboardAvoidingView>
       <Modal
-        visible={restartConfirmationVisible}
+        visible={restartConfirmationVisible || skipAiConfirmationVisible}
         transparent
         animationType="fade"
         statusBarTranslucent
-        onRequestClose={() => setRestartConfirmationVisible(false)}
+        onRequestClose={closeConfirmation}
       >
         <View style={styles.confirmationOverlay}>
           <Pressable
             style={StyleSheet.absoluteFill}
-            onPress={() => setRestartConfirmationVisible(false)}
+            onPress={closeConfirmation}
             accessibilityLabel="Fechar confirmação"
           />
           <View style={[styles.confirmationCard, { marginTop: insets.top / 2, marginBottom: insets.bottom / 2 }]} accessibilityRole="alert">
             <View style={styles.confirmationIcon}>
-              <Ionicons name="refresh" size={25} color="#07856D" />
+              <Ionicons name={skipAiConfirmationVisible ? 'sparkles-outline' : 'refresh'} size={25} color="#07856D" />
             </View>
-            <Text style={styles.confirmationTitle}>Recomeçar do início?</Text>
+            <Text style={styles.confirmationTitle}>{skipAiConfirmationVisible ? 'Continuar sem IA?' : 'Recomeçar do início?'}</Text>
             <Text style={styles.confirmationMessage}>
-              Seu progresso nesta conversa será apagado. Quer voltar à apresentação e começar de novo?
+              {skipAiConfirmationVisible ? 'Sem configurar a IA agora, o Lumio não conseguirá gerar automaticamente a personalização inicial do seu negócio. Você ainda poderá configurar sua chave depois.' : 'Seu progresso nesta conversa será apagado. Quer voltar à apresentação e começar de novo?'}
             </Text>
+            {!!saveError && skipAiConfirmationVisible && <Text style={styles.confirmationMessage}>{saveError}</Text>}
             <TouchableOpacity
               style={styles.confirmationPrimary}
-              onPress={confirmRestartOnboarding}
+              disabled={saving}
+              onPress={skipAiConfirmationVisible ? finishWithoutAi : confirmRestartOnboarding}
               activeOpacity={0.85}
             >
-              <Text style={styles.confirmationPrimaryText}>Recomeçar</Text>
+              <Text style={styles.confirmationPrimaryText}>{skipAiConfirmationVisible ? (saving ? 'Salvando...' : 'Continuar sem IA') : 'Recomeçar'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.confirmationSecondary}
-              onPress={() => setRestartConfirmationVisible(false)}
+              onPress={closeConfirmation}
               activeOpacity={0.75}
             >
-              <Text style={styles.confirmationSecondaryText}>Continuar</Text>
+              <Text style={styles.confirmationSecondaryText}>{skipAiConfirmationVisible ? "Voltar e configurar" : "Continuar"}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -329,7 +420,6 @@ const styles = StyleSheet.create({
   backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)', shadowColor: '#3D8C75', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   headerCenter: { flex: 1, minWidth: 0, paddingTop: 1 }, headerTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, lineHeight: 21, color: '#202B38' },
   progressRow: { flexDirection: 'row', gap: 5, marginTop: 9 }, progressSegment: { flex: 1, height: 8, borderRadius: 9, backgroundColor: 'rgba(213,232,224,0.88)' }, progressActive: { backgroundColor: '#079D80' },
-  keyButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 20, backgroundColor: 'rgba(247,255,251,0.72)', borderWidth: 1, borderColor: 'rgba(222,242,233,0.76)', shadowColor: '#3D8C75', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.045, shadowRadius: 8, elevation: 1 }, keyButtonText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: '#16816C' },
   conversation: { flex: 1, minHeight: 210, paddingTop: 12, paddingBottom: 100 }, waves: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },
   messageStack: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 4, paddingHorizontal: 20 },
   messageStackTop: { justifyContent: 'flex-start' },

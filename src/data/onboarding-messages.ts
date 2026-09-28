@@ -15,6 +15,11 @@ const normal = (text: string): SpeechSegment => ({ text });
 const green = (text: string): SpeechSegment => ({ text, emphasis: true });
 const message = (mascot: ImageSourcePropType, ...segments: SpeechSegment[]): OnboardingMessage => ({ mascot, segments });
 
+export const onboardingAiMessages = {
+  A: message(happy, normal('Pronto! Já tenho o que preciso para conhecer melhor o seu negócio. ✨')),
+  B: message(smiling, normal('Agora posso usar IA para transformar suas respostas em uma configuração personalizada do Lumio, com categorias, prioridades e sugestões pensadas para a sua rotina.')),
+};
+
 // Copy and emphasis transcribed from the approved PNGs, independently of flow prompts.
 export const onboardingMessages: Record<number, Record<OnboardingMessageVariant, OnboardingMessage>> = {
   1: {

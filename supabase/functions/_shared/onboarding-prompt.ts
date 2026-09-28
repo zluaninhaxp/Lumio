@@ -1,4 +1,9 @@
-import type { OnboardingContextDTO } from '../ai/onboardingContext';
+export interface OnboardingContextDTO {
+  submittedAt: string;
+  businessNameGuess: string;
+  businessTypeGuess: string;
+  answers: { blockId: string; question: string; answer: string }[];
+}
 
 /** Hierarchical onboarding contract. Kept here so app/backend callers share one prompt. */
 export function buildOnboardingExtractionPrompt(dto: OnboardingContextDTO): string {
