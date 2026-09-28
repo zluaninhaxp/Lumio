@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
+  Modal, Pressable, View, Text, StyleSheet, TextInput, TouchableOpacity,
+  Keyboard, KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,7 +20,8 @@ import {
   MascotExpressionKey,
 } from '../src/data/mascotExpressions';
 import Svg, { Path } from 'react-native-svg';
-import LumioMessageAsset from './components/onboarding/LumioMessageAsset';
+import LumioSpeechBubble from './components/onboarding/lumio-speech-bubble';
+import { onboardingMessages } from '../src/data/onboarding-messages';
 import UserReply from './components/onboarding/UserReply';
 import VoiceInput from './components/onboarding/VoiceInput';
 
@@ -40,6 +41,21 @@ export default function OnboardingScreen() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const heroHeight = Math.min(Math.max(height * 0.46, 260), 480);
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
+
+  useEffect(() => {
+    // Visibility only controls safe-area padding; never store or add keyboard height.
+    const show = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setKeyboardVisible(true),
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setKeyboardVisible(false),
+    );
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const composerBottomInset = keyboardVisible ? 0 : insets.bottom;
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -59,6 +75,7 @@ export default function OnboardingScreen() {
   const [blockIndex, setBlockIndex] = useState(0);
   const [showIntro, setShowIntro] = useState(true);
   const [introFinished, setIntroFinished] = useState(false);
+  const [restartConfirmationVisible, setRestartConfirmationVisible] = useState(false);
   const [inputValue, setInputValue] = useState('');
 
   const [isTyping, setIsTyping] = useState(false);
@@ -115,6 +132,31 @@ export default function OnboardingScreen() {
     enterBlock(0);
   }, [enterBlock]);
 
+  const handleRestartOnboarding = useCallback(() => {
+    setRestartConfirmationVisible(true);
+  }, []);
+
+  const confirmRestartOnboarding = useCallback(() => {
+    setRestartConfirmationVisible(false);
+    Keyboard.dismiss();
+    queueTokenRef.current += 1;
+    answersRef.current = {};
+    followUpUsedRef.current = {};
+    attemptCountRef.current = {};
+    blockIndexRef.current = 0;
+    setBlockIndex(0);
+    setShowIntro(true);
+    setInputValue('');
+    setLastUserReply(null);
+    setIsTyping(false);
+    setCurrentLine({
+      key: 'intro',
+      text: ONBOARDING_INTRO.lines.join('\n\n'),
+      expression: 'feliz',
+    });
+    scrollRef.current?.scrollTo({ y: 0, animated: false });
+  }, []);
+
   const handleConfigureKey = useCallback(() => {
     router.push('/ai-settings');
   }, [router]);
@@ -162,6 +204,7 @@ export default function OnboardingScreen() {
   const handleSubmit = useCallback(() => {
     const text = inputValue.trim();
     if (!text) return;
+    Keyboard.dismiss();
     submitAnswer(text, false);
   }, [inputValue, submitAnswer]);
 
@@ -191,14 +234,18 @@ export default function OnboardingScreen() {
 
   return (
     <View style={styles.safe}>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && keyboardVisible)}
+        behavior="padding"
+      >
         <View style={styles.flex}>
           <ScrollView ref={scrollRef} style={styles.flex} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} onContentSizeChange={() => { if (showIntro) scrollRef.current?.scrollToEnd({ animated: true }); }}>
             <View style={[styles.hero, { height: heroHeight + insets.top }]}>
               <Image source={require('../assets/onboarding-hero.png')} style={styles.heroImage} resizeMode="cover" />
               <LinearGradient pointerEvents="none" colors={['rgba(249,255,252,0.94)', 'rgba(249,255,252,0.68)', 'rgba(249,255,252,0)']} locations={[0, 0.45, 1]} style={styles.headerVeil} />
               <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-                {!showIntro && <TouchableOpacity style={styles.backButton} onPress={() => router.back()} accessibilityLabel="Voltar"><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>}
+                {!showIntro && <TouchableOpacity style={styles.backButton} onPress={handleRestartOnboarding} accessibilityLabel="Voltar ao início do onboarding"><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>}
                 <View style={styles.headerCenter}>
                   <Text style={styles.headerTitle}>Configurando seu Lumio</Text>
                   <View style={styles.progressRow}>{Array.from({ length: TOTAL_STAGES }).map((_, index) => <View key={index} style={[styles.progressSegment, index < stage && styles.progressActive]} />)}</View>
@@ -209,31 +256,65 @@ export default function OnboardingScreen() {
             </View>
             <View style={styles.conversation}>
               <View pointerEvents="none" style={styles.waves}><Svg width={width} height={150} viewBox="0 0 400 150" preserveAspectRatio="none"><Path d="M0 47 C75 35 135 118 225 102 C305 88 330 30 400 15 L400 150 L0 150Z" fill="#D6F5E8" /><Path d="M0 76 C95 75 140 153 245 120 C316 101 340 117 400 91 L400 150 L0 150Z" fill="#78D5BA" /><Path d="M0 115 C80 88 135 144 220 137 C310 126 338 132 400 113 L400 150 L0 150Z" fill="#39B99A" /></Svg></View>
-              <View style={[styles.messageStack, !showIntro && styles.messageStackTop]}>
-                <LumioMessageAsset
+              <View style={[styles.messageStack, styles.messageStackTop]}>
+                <LumioSpeechBubble
                   key={`stage-${stage}-A`}
-                  stage={stage}
-                  variant="A"
-                  accessibilityLabel={showIntro ? ONBOARDING_INTRO.lines[0] : currentBlock?.question ?? ''}
+                  message={onboardingMessages[stage].A}
                 />
                 {(showIntro || fallbackVisible) && (
-                  <LumioMessageAsset
+                  <LumioSpeechBubble
                     key={`stage-${stage}-B`}
-                    stage={stage}
-                    variant="B"
-                    delayMs={showIntro ? 160 : 0}
-                    accessibilityLabel={showIntro ? ONBOARDING_INTRO.lines[1] : currentBlock?.followUp ?? ''}
+                    message={onboardingMessages[stage].B}
+                    delayMs={showIntro ? 1400 : 0}
                   />
                 )}
                 {lastUserReply && <UserReply text={lastUserReply.text} isVoice={lastUserReply.isVoice} />}
               </View>
             </View>
           </ScrollView>
-          {showIntro ? <View style={[styles.composerArea, { paddingBottom: Math.max(insets.bottom, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
-          : currentBlock?.options ? <View style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={0.8}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>
-          : currentBlock ? <View style={[styles.composerArea, { paddingBottom: Math.max(insets.bottom, 16) }]}><View style={styles.composerRow}><View style={styles.inputWrapper}><Ionicons name="attach-outline" size={21} color="#8C98A8" style={styles.attachIcon} /><TextInput style={styles.input} value={inputValue} onChangeText={setInputValue} placeholder="Você pode escrever ou falar ..." placeholderTextColor="#818C9C" onSubmitEditing={handleSubmit} returnKeyType="send" multiline maxLength={500} /><View style={styles.inputDivider} /><VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" /></View><TouchableOpacity style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]} onPress={handleSubmit} disabled={!inputValue.trim()} accessibilityLabel="Enviar resposta"><Ionicons name="arrow-up" size={21} color="#FFFFFF" /></TouchableOpacity></View>{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
+          {showIntro ? <View style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
+          : currentBlock?.options ? <View style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(composerBottomInset, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={0.8}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>
+          : currentBlock ? <View style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}><View style={styles.composerRow}><View style={styles.inputWrapper}><TextInput style={styles.input} value={inputValue} onChangeText={setInputValue} placeholder="Você pode escrever ou falar ..." placeholderTextColor="#818C9C" onSubmitEditing={handleSubmit} returnKeyType="send" multiline maxLength={500} /><View style={styles.inputDivider} /><VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" /></View><TouchableOpacity style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]} onPress={handleSubmit} disabled={!inputValue.trim()} accessibilityLabel="Enviar resposta"><Ionicons name="arrow-up" size={21} color="#FFFFFF" /></TouchableOpacity></View>{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
         </View>
       </KeyboardAvoidingView>
+      <Modal
+        visible={restartConfirmationVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setRestartConfirmationVisible(false)}
+      >
+        <View style={styles.confirmationOverlay}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setRestartConfirmationVisible(false)}
+            accessibilityLabel="Fechar confirmação"
+          />
+          <View style={[styles.confirmationCard, { marginTop: insets.top / 2, marginBottom: insets.bottom / 2 }]} accessibilityRole="alert">
+            <View style={styles.confirmationIcon}>
+              <Ionicons name="refresh" size={25} color="#07856D" />
+            </View>
+            <Text style={styles.confirmationTitle}>Recomeçar do início?</Text>
+            <Text style={styles.confirmationMessage}>
+              Seu progresso nesta conversa será apagado. Quer voltar à apresentação e começar de novo?
+            </Text>
+            <TouchableOpacity
+              style={styles.confirmationPrimary}
+              onPress={confirmRestartOnboarding}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.confirmationPrimaryText}>Recomeçar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.confirmationSecondary}
+              onPress={() => setRestartConfirmationVisible(false)}
+              activeOpacity={0.75}
+            >
+              <Text style={styles.confirmationSecondaryText}>Continuar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 
@@ -250,12 +331,20 @@ const styles = StyleSheet.create({
   progressRow: { flexDirection: 'row', gap: 5, marginTop: 9 }, progressSegment: { flex: 1, height: 8, borderRadius: 9, backgroundColor: 'rgba(213,232,224,0.88)' }, progressActive: { backgroundColor: '#079D80' },
   keyButton: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, borderRadius: 20, backgroundColor: 'rgba(247,255,251,0.72)', borderWidth: 1, borderColor: 'rgba(222,242,233,0.76)', shadowColor: '#3D8C75', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.045, shadowRadius: 8, elevation: 1 }, keyButtonText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 10, color: '#16816C' },
   conversation: { flex: 1, minHeight: 210, paddingTop: 12, paddingBottom: 100 }, waves: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },
-  messageStack: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 8, transform: [{ translateX: -18 }] },
+  messageStack: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', gap: 4, paddingHorizontal: 20 },
   messageStackTop: { justifyContent: 'flex-start' },
+  confirmationOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, backgroundColor: 'rgba(18, 39, 32, 0.42)' },
+  confirmationCard: { width: '100%', maxWidth: 360, alignItems: 'center', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 18, borderRadius: 28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2F1EA', boxShadow: '0 16px 40px rgba(17, 56, 43, 0.20)' },
+  confirmationIcon: { width: 54, height: 54, marginBottom: 16, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6F7F1' },
+  confirmationTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 19, lineHeight: 26, textAlign: 'center', color: '#202B38' },
+  confirmationMessage: { marginTop: 9, marginBottom: 22, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 14, lineHeight: 21, textAlign: 'center', color: '#62736E' },
+  confirmationPrimary: { width: '100%', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, backgroundColor: '#00A878' },
+  confirmationPrimaryText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 14, color: '#FFFFFF' },
+  confirmationSecondary: { width: '100%', minHeight: 46, marginTop: 6, alignItems: 'center', justifyContent: 'center' },
+  confirmationSecondaryText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 13, color: '#087E68' },
   composerArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, paddingHorizontal: 18, paddingTop: 14, backgroundColor: '#F3FFF9', borderTopLeftRadius: 44, borderTopRightRadius: 44 },
   composerRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  inputWrapper: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: 'row', alignItems: 'center', paddingLeft: 11, paddingRight: 5, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9EEE5' },
-  attachIcon: { marginRight: 10 },
+  inputWrapper: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 5, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9EEE5' },
   input: { flex: 1, minWidth: 0, maxHeight: 100, minHeight: 42, paddingVertical: 9, textAlignVertical: 'center', fontFamily: 'PlusJakartaSans_400Regular', fontSize: 12, color: '#202B38' }, inputDivider: { width: 1, height: 20, backgroundColor: '#DCECE6', marginHorizontal: 9 },
   sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#00A878', alignItems: 'center', justifyContent: 'center', shadowColor: '#007F64', shadowOpacity: 0.11, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, sendBtnDisabled: { backgroundColor: '#A9D9CA', shadowOpacity: 0.035 },
   startBtn: { height: 54, borderRadius: 30, backgroundColor: '#00A878', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, startBtnText: { fontFamily: 'PlusJakartaSans_700Bold', color: '#FFFFFF', fontSize: 16 },
