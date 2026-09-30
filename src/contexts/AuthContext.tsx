@@ -20,13 +20,20 @@ export interface AuthContextValue {
 
   login: (email: string, password: string) => Promise<PublicUser>;
   register: (name: string, email: string, password: string) => Promise<PublicUser>;
-  logout: () => Promise<void>;
+  logout: (discardUnsyncedChanges?: boolean) => Promise<void>;
   updateUser: (updates: UpdateUserInput) => Promise<void>;
   /** Recarrega `currentUser` do storage — útil após alterações feitas via services diretamente. */
   refreshUser: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextValue | null>(null);
+
+export class UnsyncedChangesError extends Error {
+  constructor() {
+    super('Não foi possível sincronizar as últimas alterações antes de sair.');
+    this.name = 'UnsyncedChangesError';
+  }
+}
 
 function removeLegacyIntentMarkers(value: unknown): unknown {
   if (!value || typeof value !== 'object') return value;
@@ -150,8 +157,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally { setLoading(false); }
   }, [hydrateOnboarding]);
 
-  const logout = useCallback(async () => {
-    await businessStateService.commit();
+  const logout = useCallback(async (discardUnsyncedChanges = false) => {
+    if (discardUnsyncedChanges) {
+      businessStateService.stop();
+    } else {
+      try { await businessStateService.commit(); }
+      catch { throw new UnsyncedChangesError(); }
+    }
     try { await authService.logout(); }
     finally {
       businessStateService.stop();
