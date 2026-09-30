@@ -49,6 +49,8 @@ export type AIErrorKind =
   | 'bad-format'
   /** Erro inesperado do provedor (5xx, etc.) não classificado acima. */
   | 'provider'
+  | 'provider-request'
+  | 'provider-model'
   /** Validação local do DTO de entrada falhou (sem chamada à rede). */
   | 'invalid-input'
   | 'not-authenticated'
@@ -70,6 +72,8 @@ const AI_ERROR_DEFAULT_MESSAGES: Record<AIErrorKind, string> = {
   network: 'Sem conexão com a IA. Verifique sua internet e tente novamente.',
   'bad-format': 'A IA respondeu em um formato inesperado. Tente gerar novamente.',
   provider: 'A IA retornou um erro. Tente novamente em instantes.',
+  'provider-request': 'O Lumio enviou uma solicitação que o Gemini não aceitou. Tente novamente mais tarde.',
+  'provider-model': 'O modelo de IA não está disponível para esta chave. Confira o projeto no Google AI Studio.',
   'invalid-input': 'Não foi possível montar o pedido para a IA a partir das suas respostas.',
 };
 

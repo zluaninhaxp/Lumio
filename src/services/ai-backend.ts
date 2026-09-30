@@ -35,6 +35,10 @@ export async function invokeAiBackend(
     if (code === 'invalid_response') throw new AIProviderError('bad-format');
     if (code === 'invalid_input') throw new AIProviderError('invalid-input');
     if (code === 'provider_unavailable') throw new AIProviderError('provider');
+    if (code === 'provider_transport_error') throw new AIProviderError('provider');
+    if (code === 'provider_invalid_request') throw new AIProviderError('provider-request');
+    if (code === 'provider_precondition') throw new AIProviderError('payment-required');
+    if (code === 'provider_model_unavailable') throw new AIProviderError('provider-model');
     if (action === 'status') throw new AIProviderError('status-unavailable');
     if (response?.status || (error as { name?: string }).name === 'FunctionsRelayError') throw new AIProviderError('backend');
     throw new AIProviderError('network');

@@ -128,3 +128,25 @@ Alternativa para um ambiente de teste confiável: `npm run test:ai:remote` com U
 Já existentes/verificados por metadados: `AI_ENCRYPTION_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e variáveis padrão fornecidas pelo Supabase. Nenhum novo secret de produção foi necessário. A chave pessoal do Gemini pertence à linha cifrada de cada usuário, e não a uma variável global da função. Não rotacionar `AI_ENCRYPTION_KEY` sem recifrar as linhas existentes: a troca isolada impediria decifragem.
 
 Referências primárias consultadas: [Expo SDK 54](https://docs.expo.dev/versions/v54.0.0/), [CORS em Edge Functions](https://supabase.com/docs/guides/functions/cors), [limites de Edge Functions](https://supabase.com/docs/guides/functions/limits), [Gemini generateContent](https://ai.google.dev/api/generate-content).
+
+## Acompanhamento de geração real em 30/09/2026
+
+O usuário tentou gerar o relatório com a chave configurada e recebeu HTTP 502 com `error: provider_unavailable`. Isso comprova falha na chamada ao Gemini após a credencial ser encontrada; o campo antigo não incluía o HTTP original do provedor, então não comprova se foi 400, 404, 500 ou 503.
+
+O handler foi atualizado para distinguir requisição inválida (400), pré-condição da conta (400), modelo indisponível (404), indisponibilidade do provedor (5xx/408) e falha de transporte, sem encaminhar corpo cru ou segredo. Erros transitórios recebem uma única tentativa adicional com espera curta e jitter; erros de cliente e cota não são repetidos. A resposta segura inclui `providerStatus` numérico quando o Gemini devolve erro HTTP. Para a geração estruturada com Gemini 2.5 Flash, o `thinkingBudget` foi limitado a 1024, preservando o orçamento de saída da taxonomia.
+
+Essa versão foi implantada no projeto vinculado. Passaram nove testes locais de arquitetura de IA, dez testes de fluxo do onboarding, typecheck, export web e as 17 verificações remotas de isolamento e chave inválida. A geração válida com a chave pessoal continua aguardando uma nova tentativa do usuário; não há evidência de sucesso real para declará-la concluída.
+
+Referências para esta correção: [erros e retry do Gemini](https://ai.google.dev/gemini-api/docs/troubleshooting), [thinkingBudget do Gemini 2.5 Flash](https://ai.google.dev/gemini-api/docs/generate-content/thinking).
+
+### Nova tentativa real e fallback
+
+Na tentativa seguinte, o usuário confirmou `{ "error": "provider_unavailable", "providerStatus": 503 }`: o Gemini devolveu HTTP 503 mesmo com a credencial encontrada e a tentativa adicional. O Google informa que o Gemini 2.5 Flash tem acesso limitado para projetos novos e recomenda modelos mais recentes. A geração estruturada agora tenta `gemini-3.5-flash-lite` quando o 2.5 Flash devolve 503; a chave do usuário, o prompt e a validação do resultado são mantidos. O teste e salvamento da chave continuam usando o modelo original. A alternativa recebe uma única tentativa, para limitar a latência e não multiplicar requisições em caso de indisponibilidade. Não há fallback para erro de cota, chave rejeitada ou entrada inválida.
+
+A função foi implantada como versão 6. Passaram dez testes locais de IA, dez de onboarding e typecheck. Após uma tentativa com `provider_timeout` e outra com HTTP 502, o usuário confirmou que a geração funcionou na emulação web. Isso confirma uma geração real bem-sucedida com a chave configurada, mas não identifica se aquela requisição usou o modelo principal ou o fallback; não houve nova implantação entre as tentativas.
+
+Referências: [modelos Gemini](https://ai.google.dev/gemini-api/docs/models), [Gemini 3.5 Flash-Lite e suporte a saída estruturada](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite), [erro 503 do Gemini](https://ai.google.dev/gemini-api/docs/troubleshooting).
+
+### Latência após a primeira geração bem-sucedida
+
+O usuário confirmou que o relatório passou a ser gerado, mas percebeu uma espera considerável. Na versão 6, o 2.5 Flash era chamado primeiro e o 3.5 Flash-Lite apenas após HTTP 503, o que podia somar a espera da primeira chamada à da segunda. A versão 7 publicada inverte essa ordem para a geração: começa pelo 3.5 Flash-Lite e usa o 2.5 Flash como alternativa para HTTP 503, timeout ou modelo não disponível. Teste/salvamento da chave permanecem no 2.5 Flash. A saída estruturada continua passando pela mesma validação. Passaram 11 testes de IA, 10 de onboarding e typecheck. O ganho de tempo real ainda precisa ser medido na sessão do usuário.

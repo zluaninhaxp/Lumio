@@ -5,11 +5,12 @@ import { parsePersonalization, validContext } from '../_shared/ai-validation.ts'
 
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST, OPTIONS' };
 const reply = (data: unknown, status = 200) => Response.json(data, { status, headers: { ...cors, 'Cache-Control': 'no-store' } });
-const model = 'gemini-2.5-flash';
+const keyCheckModel = 'gemini-2.5-flash';
+const reportModel = 'gemini-3.5-flash-lite';
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 class Failure extends Error {
-  constructor(public code: string, public status: number) { super(code); }
+  constructor(public code: string, public status: number, public providerStatus?: number) { super(code); }
 }
 async function encryptionKey(): Promise<CryptoKey> {
   const encoded = Deno.env.get('AI_ENCRYPTION_KEY');
@@ -30,35 +31,56 @@ async function credential(uid: string): Promise<string | null> {
   try { return decoder.decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unhex(data.nonce) }, await encryptionKey(), unhex(data.ciphertext))); }
   catch { throw new Failure('credential_unavailable', 503); }
 }
-async function generate(key: string, prompt: string, jsonMode: boolean): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), jsonMode ? 55000 : 20000);
-  console.info('[AI PROVIDER]', { request: 'started', structured: jsonMode });
-  try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST', signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.4, ...(jsonMode ? { responseMimeType: 'application/json', maxOutputTokens: 16384 } : {}) } }),
-    });
-    if (!response.ok) {
-      let reason: string | undefined;
-      try { reason = (await response.json())?.error?.details?.find(d => d.reason)?.reason; } catch { /* No provider body is logged or forwarded. */ }
-      if (response.status === 429) throw new Failure('provider_quota', 429);
-      if ([401, 403].includes(response.status) || reason === 'API_KEY_INVALID' || reason === 'API_KEY_EXPIRED') throw new Failure('provider_rejected_key', 400);
-      throw new Failure('provider_unavailable', 502);
-    }
-    const body = await response.json();
-    const candidate = body?.candidates?.[0];
-    const text = candidate?.content?.parts?.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('').trim();
-    if (!text || (candidate.finishReason && candidate.finishReason !== 'STOP')) throw new Failure('invalid_response', 502);
-    console.info('[AI PROVIDER]', { response: 'success', structured: jsonMode });
-    return text;
-  } catch (error) {
-    if (error instanceof Failure) throw error;
-    if (controller.signal.aborted) throw new Failure('provider_timeout', 504);
-    throw new Failure('provider_unavailable', 502);
-  } finally { clearTimeout(timeout); }
+async function generate(key: string, prompt: string, jsonMode: boolean, selectedModel = jsonMode ? reportModel : keyCheckModel): Promise<string> {
+  console.info('[AI PROVIDER]', { request: 'started', structured: jsonMode, model: selectedModel });
+  const maxAttempts = jsonMode ? 1 : 2;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), jsonMode ? 55000 : 20000);
+    try {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent`, {
+        method: 'POST', signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
+          generationConfig: { temperature: 0.4, ...(jsonMode ? { responseMimeType: 'application/json', maxOutputTokens: 16384, ...(selectedModel === keyCheckModel ? { thinkingConfig: { thinkingBudget: 1024 } } : {}) } : {}) } }),
+      });
+      if (!response.ok) {
+        let providerCode: string | undefined;
+        let keyReason: string | undefined;
+        try {
+          const providerError = (await response.json())?.error;
+          providerCode = typeof providerError?.status === 'string' ? providerError.status : undefined;
+          keyReason = providerError?.details?.find(d => d.reason === 'API_KEY_INVALID' || d.reason === 'API_KEY_EXPIRED')?.reason;
+        } catch { /* Never log or forward the raw provider response. */ }
+        if (keyReason || [401, 403].includes(response.status)) throw new Failure('provider_rejected_key', 400, response.status);
+        if (response.status === 429) throw new Failure('provider_quota', 429, 429);
+        if (response.status === 400 && providerCode === 'FAILED_PRECONDITION') throw new Failure('provider_precondition', 502, 400);
+        if (response.status === 400) throw new Failure('provider_invalid_request', 502, 400);
+        if (response.status === 404) throw new Failure('provider_model_unavailable', 502, 404);
+        throw new Failure('provider_unavailable', 502, response.status);
+      }
+      let body;
+      try { body = await response.json(); } catch { throw new Failure('invalid_response', 502); }
+      const candidate = body?.candidates?.[0];
+      const text = candidate?.content?.parts?.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('').trim();
+      if (!text || (candidate.finishReason && candidate.finishReason !== 'STOP')) throw new Failure('invalid_response', 502);
+      console.info('[AI PROVIDER]', { response: 'success', structured: jsonMode, model: selectedModel });
+      return text;
+    } catch (error) {
+      const failure = error instanceof Failure ? error : controller.signal.aborted ? new Failure('provider_timeout', 504) : new Failure('provider_transport_error', 502);
+      if (jsonMode && selectedModel === reportModel && (
+        failure.code === 'provider_timeout' || failure.code === 'provider_model_unavailable' ||
+        (failure.code === 'provider_unavailable' && failure.providerStatus === 503)
+      )) {
+        console.info('[AI PROVIDER]', { response: 'fallback', model: keyCheckModel, code: failure.code });
+        return await generate(key, prompt, true, keyCheckModel);
+      }
+      const transient = failure.code === 'provider_transport_error' || (failure.code === 'provider_unavailable' && (failure.providerStatus === 408 || (failure.providerStatus ?? 0) >= 500));
+      if (!transient || attempt === maxAttempts - 1) throw failure;
+      await new Promise(resolve => setTimeout(resolve, 600 + Math.floor(Math.random() * 400)));
+    } finally { clearTimeout(timeout); }
+  }
+  throw new Failure('provider_unavailable', 502);
 }
 const keyInput = (value: unknown) => typeof value === 'string' && value.trim().length >= 20 && value.length <= 256;
 
@@ -120,8 +142,8 @@ export async function handler(req: Request): Promise<Response> {
     throw new Failure('invalid_response', 502);
   } catch (error) {
     const failure = error instanceof Failure ? error : new Failure('backend_unavailable', 503);
-    console.warn('[AI ERROR]', { action, code: failure.code });
-    return reply({ error: failure.code }, failure.status);
+    console.warn('[AI ERROR]', { action, code: failure.code, providerStatus: failure.providerStatus ?? null });
+    return reply({ error: failure.code, ...(failure.providerStatus ? { providerStatus: failure.providerStatus } : {}) }, failure.status);
   }
 }
 Deno.serve(handler);

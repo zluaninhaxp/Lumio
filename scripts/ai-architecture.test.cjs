@@ -28,7 +28,7 @@ const result = { taxonomyVersion: 2, businessName: 'Padaria', segment: 'Alimento
 
 function backend() {
   const rows = new Map(), providerCalls = [], logs = [], tokens = new Map([['token-A', 'A'], ['token-B', 'B']]);
-  let responseStatus = 200, responseReason, responseText, finishReason = 'STOP', dbFail = false, timeout = false, quota = false;
+  let responseStatus = 200, responseReason, responseProviderCode, responseText, finishReason = 'STOP', dbFail = false, timeout = false, quota = false, responseSequence = [];
   const admin = {
     auth: { getUser: async token => ({ data: { user: tokens.has(token) ? { id: tokens.get(token) } : null }, error: null }) },
     rpc: async () => ({ data: !quota, error: null }),
@@ -48,11 +48,12 @@ function backend() {
     Deno: { env: { get: name => name === 'AI_ENCRYPTION_KEY' ? Buffer.alloc(32, 7).toString('base64') : 'test-only-server-value' }, serve() {} },
     console: { info: (...args) => logs.push(args), warn: (...args) => logs.push(args) },
     setTimeout: (fn, ms) => timeout ? (queueMicrotask(fn), 0) : setTimeout(fn, ms),
-    fetch: async (_url, options) => {
+    fetch: async (url, options) => {
       const body = JSON.parse(options.body);
-      providerCalls.push({ key: options.headers['x-goog-api-key'], body });
+      providerCalls.push({ url, key: options.headers['x-goog-api-key'], body });
       if (timeout) { await new Promise(resolve => setImmediate(resolve)); throw new Error('aborted'); }
-      if (responseStatus !== 200) return Response.json({ error: { details: [{ reason: responseReason }] } }, { status: responseStatus });
+      const status = responseSequence.length ? responseSequence.shift() : responseStatus;
+      if (status !== 200) return Response.json({ error: { status: responseProviderCode, details: [{ reason: responseReason }] } }, { status });
       return Response.json({ candidates: [{ finishReason, content: { parts: [{ thought: true, text: 'private reasoning' }, { text: responseText ?? (body.generationConfig.responseMimeType ? JSON.stringify(result) : 'ok') }] } }] });
     },
   });
@@ -61,7 +62,7 @@ function backend() {
     const response = await handler(new Request('https://test.invalid/ai', { method, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}), headers: token ? { Authorization: `Bearer ${token}` } : {} }));
     return { status: response.status, headers: response.headers, data: response.status === 204 ? null : await response.json() };
   };
-  return { rows, providerCalls, logs, call, tokens, configure: settings => { ({ responseStatus = 200, responseReason, responseText, finishReason = 'STOP', dbFail = false, timeout = false, quota = false } = settings); } };
+  return { rows, providerCalls, logs, call, tokens, configure: settings => { ({ responseStatus = 200, responseReason, responseProviderCode, responseText, finishReason = 'STOP', dbFail = false, timeout = false, quota = false, responseSequence = [] } = settings); } };
 }
 
 test('full A setup/test/save/generate/logout/new B flow uses encrypted owner-only backend credentials', async () => {
@@ -105,12 +106,64 @@ test('invalid keys are never saved; key errors, quota, provider errors, timeout 
   const f = backend(), body = { action: 'set_key', key: 'test-only-invalid-provider-secret' };
   for (const [settings, expected] of [
     [{ responseStatus: 400, responseReason: 'API_KEY_INVALID' }, 'provider_rejected_key'],
-    [{ responseStatus: 400, responseReason: 'BAD_REQUEST' }, 'provider_unavailable'],
+    [{ responseStatus: 400, responseProviderCode: 'INVALID_ARGUMENT' }, 'provider_invalid_request'],
+    [{ responseStatus: 400, responseProviderCode: 'FAILED_PRECONDITION' }, 'provider_precondition'],
+    [{ responseStatus: 404 }, 'provider_model_unavailable'],
     [{ responseStatus: 429 }, 'provider_quota'], [{ responseStatus: 500 }, 'provider_unavailable'],
     [{ timeout: true }, 'provider_timeout'], [{ dbFail: true }, 'credential_write_failed'], [{ quota: true }, 'rate_limited'],
-  ]) { f.configure(settings); assert.equal((await f.call('token-A', body)).data.error, expected); assert.equal(f.rows.size, 0); }
+  ]) { f.configure(settings); const response = await f.call('token-A', body); assert.equal(response.data.error, expected); if (settings.responseStatus) assert.equal(response.data.providerStatus, settings.responseStatus); assert.equal(f.rows.size, 0); }
   f.configure({ dbFail: true });
   assert.equal((await f.call('token-A', { action: 'status' })).data.error, 'credential_lookup_failed');
+});
+
+test('transient Gemini 503 is retried once; invalid requests and quota are not retried', async () => {
+  const f = backend(), body = { action: 'set_key', key: 'test-only-provider-secret-for-A' };
+  f.configure({ responseSequence: [503, 200] });
+  assert.deepEqual((await f.call('token-A', body)).data, { configured: true });
+  assert.equal(f.providerCalls.length, 2);
+  assert.ok(!JSON.stringify(f.logs).includes(body.key));
+  f.configure({ responseStatus: 400 });
+  const before400 = f.providerCalls.length;
+  assert.equal((await f.call('token-A', body)).data.error, 'provider_invalid_request');
+  assert.equal(f.providerCalls.length - before400, 1);
+  f.configure({ responseStatus: 429 });
+  const before429 = f.providerCalls.length;
+  assert.equal((await f.call('token-A', body)).data.error, 'provider_quota');
+  assert.equal(f.providerCalls.length - before429, 1);
+});
+
+test('structured generation uses the fast model first and falls back after 503', async () => {
+  const f = backend(), key = 'test-only-provider-secret-for-A';
+  await f.call('token-A', { action: 'set_key', key });
+  f.configure({ responseSequence: [503, 200] });
+  const start = f.providerCalls.length;
+  const response = await f.call('token-A', { action: 'generate', context });
+  assert.equal(response.status, 200);
+  assert.deepEqual(JSON.parse(response.data.text), result);
+  const calls = f.providerCalls.slice(start);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0].url, /gemini-3\.5-flash-lite:generateContent$/);
+  assert.match(calls[1].url, /gemini-2\.5-flash:generateContent$/);
+  assert.equal(calls[0].key, key);
+  assert.equal(calls[1].key, key);
+  assert.equal(calls[0].body.generationConfig.responseMimeType, 'application/json');
+  assert.equal(calls[0].body.generationConfig.thinkingConfig, undefined);
+  assert.equal(calls[1].body.generationConfig.thinkingConfig.thinkingBudget, 1024);
+  assert.ok(!JSON.stringify(f.logs).includes(key));
+
+  f.configure({ responseSequence: [503, 503] });
+  const failed = await f.call('token-A', { action: 'generate', context });
+  assert.deepEqual(failed.data, { error: 'provider_unavailable', providerStatus: 503 });
+});
+
+test('a healthy report uses one provider request with the fast model', async () => {
+  const f = backend(), key = 'test-only-provider-secret-for-A';
+  await f.call('token-A', { action: 'set_key', key });
+  const start = f.providerCalls.length;
+  const response = await f.call('token-A', { action: 'generate', context });
+  assert.equal(response.status, 200);
+  assert.equal(f.providerCalls.length - start, 1);
+  assert.match(f.providerCalls.at(-1).url, /gemini-3\.5-flash-lite:generateContent$/);
 });
 
 test('a connection test success cannot turn malformed/truncated personalization into success', async () => {
@@ -137,6 +190,24 @@ test('transport rejects late A responses after logout/login B and distinguishes 
   supabase.functions.invoke = async () => ({ data: null, error: { context: Response.json({ error: 'credential_lookup_failed' }, { status: 503 }) } });
   await assert.rejects(invokeAiBackend('status', {}, 'B'), e => e.kind === 'status-unavailable');
   session = null; await assert.rejects(invokeAiBackend('status'), e => e.kind === 'not-authenticated');
+});
+
+test('client reports the provider failure category without exposing provider bodies', async () => {
+  const session = { user: { id: 'A' }, access_token: 'token-A' };
+  let code;
+  const supabase = { auth: { getSession: async () => ({ data: { session }, error: null }) }, functions: { invoke: async () => ({ data: null, error: { context: Response.json({ error: code, providerStatus: 400 }, { status: 502 }) } }) } };
+  const load = loader({ '../lib/supabase': { supabase } });
+  const { invokeAiBackend } = load('src/services/ai-backend.ts');
+  for (const [serverCode, clientKind] of [
+    ['provider_invalid_request', 'provider-request'],
+    ['provider_precondition', 'payment-required'],
+    ['provider_model_unavailable', 'provider-model'],
+    ['provider_unavailable', 'provider'],
+    ['provider_transport_error', 'provider'],
+  ]) {
+    code = serverCode;
+    await assert.rejects(invokeAiBackend('generate', { context }, 'A'), e => e.kind === clientKind && !e.message.includes('providerStatus'));
+  }
 });
 
 test('legacy cleanup removes only known secrets without reading or migrating them', async () => {
