@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,9 +23,14 @@ interface BottomSheetProps {
   minHeight?: number;
   maxHeight?: number;
   sheetHeight?: number | `${number}%`;
+  dismissible?: boolean;
 }
 
-export function BottomSheet({
+export interface BottomSheetHandle {
+  close: () => void;
+}
+
+export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(function BottomSheet({
   visible,
   onClose,
   children,
@@ -33,14 +38,23 @@ export function BottomSheet({
   minHeight = 0,
   maxHeight,
   sheetHeight,
-}: BottomSheetProps) {
+  dismissible = true,
+}, ref) {
   const resolvedSheetHeight = typeof sheetHeight === 'string'
     ? SCREEN_HEIGHT * (parseFloat(sheetHeight) / 100)
     : sheetHeight;
   const translateY = useRef(new Animated.Value(height)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  const dismissibleRef = useRef(dismissible);
+  const heightRef = useRef(height);
+  const closingRef = useRef(false);
+  onCloseRef.current = onClose;
+  dismissibleRef.current = dismissible;
+  heightRef.current = height;
 
   const open = useCallback(() => {
+    closingRef.current = false;
     Animated.parallel([
       Animated.spring(translateY, {
         toValue: 0,
@@ -57,10 +71,12 @@ export function BottomSheet({
   }, [translateY, backdropOpacity]);
 
   const close = useCallback(
-    (cb?: () => void) => {
+    (force = false) => {
+      if ((!force && !dismissibleRef.current) || closingRef.current) return;
+      closingRef.current = true;
       Animated.parallel([
         Animated.timing(translateY, {
-          toValue: height,
+          toValue: heightRef.current,
           duration: 220,
           useNativeDriver: true,
         }),
@@ -69,21 +85,23 @@ export function BottomSheet({
           duration: 220,
           useNativeDriver: true,
         }),
-      ]).start(() => {
-        if (cb) cb();
-        else onClose();
+      ]).start(({ finished }) => {
+        if (finished) onCloseRef.current();
+        else closingRef.current = false;
       });
     },
-    [translateY, backdropOpacity, onClose, height]
+    [translateY, backdropOpacity]
   );
+
+  useImperativeHandle(ref, () => ({ close: () => close(true) }), [close]);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: (_, gesture) => gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
-      onPanResponderMove: (_, gesture) => translateY.setValue(Math.max(0, gesture.dy)),
+      onStartShouldSetPanResponder: () => dismissibleRef.current,
+      onMoveShouldSetPanResponder: (_, gesture) => dismissibleRef.current && gesture.dy > 4 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderMove: (_, gesture) => { if (dismissibleRef.current) translateY.setValue(Math.max(0, gesture.dy)); },
       onPanResponderRelease: (_, gesture) => {
-        if (gesture.dy > 90 || gesture.vy > 0.8) {
+        if (dismissibleRef.current && (gesture.dy > 90 || gesture.vy > 0.8)) {
           close();
           return;
         }
@@ -152,7 +170,7 @@ export function BottomSheet({
       </View>
     </Modal>
   );
-}
+});
 
 const styles = StyleSheet.create({
   overlay: {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { BackHandler, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { Stack, useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
@@ -20,7 +20,11 @@ import {
   MissingApiKeyError,
 } from '../src/ai/aiOnboardingService';
 import { OnboardingExtractionResult } from '../src/ai/types';
+import { useAuth } from '../src/hooks/useAuth';
+import { onboardingService } from '../src/services/onboardingService';
 import CelebrationText from '@/app/components/CelebrationText';
+import ReportProcessing from '@/app/components/onboarding/report-processing';
+import ReportError from '@/app/components/onboarding/report-error';
 
 const BG_COLOR = '#007F6A';
 
@@ -34,22 +38,23 @@ const ERROR_IMAGE = require('../assets/mascot-expressions/04_confuso.png');
 // de primeira configuração. Mostra o mascote neutro pra não soar falha.
 const MISSING_KEY_IMAGE = require('../assets/mascot-expressions/11_sorriso_leve.png');
 
-// Tempo mínimo (ms) que a animação de "pensando" fica visível antes de
-// poder revelar o botão — mesmo que a extração resolva quase
-// instantaneamente, isso evita um "pisca" na tela que pareceria bugado.
-const MIN_THINKING_MS = 2200;
 
 type Phase = 'thinking' | 'focused' | 'done' | 'error' | 'missing-key';
 
 export default function CelebrationScreen() {
   const router = useRouter();
+  const { currentUser, refreshUser } = useAuth();
   const openAnswers = useAppStore((s) => s.openAnswers);
   const onboardingContext = useAppStore((s) => s.onboardingContext);
   const setPendingOnboardingExtraction = useAppStore((s) => s.setPendingOnboardingExtraction);
 
   const [phase, setPhase] = useState<Phase>('thinking');
   const [error, setError] = useState<{ message: string; kind: string } | null>(null);
+  const [finishingWithoutAi, setFinishingWithoutAi] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const requestInFlightRef = useRef(false);
+  const finishingWithoutAiRef = useRef(false);
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
   const disposedRef = useRef(false);
@@ -93,21 +98,16 @@ export default function CelebrationScreen() {
   }, []);
 
   /**
-   * Aplica o resultado (real ou simulado) respeitando o tempo mínimo de
-   * "pensando" — só então vira 'done' e revela o botão de ver resultados.
+   * Aplica o resultado (real ou simulado) quando a extração termina.
    * O flag `isSimulation` avisa a tela de resumo para exibir o banner de
    * aviso apropriado (instrução 3.2).
    */
   const applyResult = useCallback(
-    (result: OnboardingExtractionResult, isSimulation: boolean, startedAt: number) => {
-      const elapsed = Date.now() - startedAt;
-      const remaining = Math.max(0, MIN_THINKING_MS - elapsed);
-      setTimeout(() => {
-        if (disposedRef.current) return;
-        setPendingOnboardingExtraction(result, isSimulation);
-        setPhase('done');
-        buttonOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
-      }, remaining);
+    (result: OnboardingExtractionResult, isSimulation: boolean) => {
+      if (disposedRef.current) return;
+      setPendingOnboardingExtraction(result, isSimulation);
+      setPhase('done');
+      buttonOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
     },
     [setPendingOnboardingExtraction, buttonOpacity],
   );
@@ -123,9 +123,8 @@ export default function CelebrationScreen() {
    */
   const useSimulationFallback = useCallback(
     () => {
-      const startedAt = Date.now();
       const mockResult = buildMockExtractionResult(openAnswers);
-      applyResult(mockResult, true, startedAt);
+      applyResult(mockResult, true);
     },
     [openAnswers, applyResult],
   );
@@ -142,20 +141,19 @@ export default function CelebrationScreen() {
    * em 'error' com "Tentar novamente" / "Continuar com simulação".
    */
   const runExtraction = useCallback(() => {
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
     startedRef.current = true;
     setPhase('thinking');
     setError(null);
-
-    const midway = setTimeout(() => setPhase('focused'), MIN_THINKING_MS / 2);
-    const startedAt = Date.now();
 
     (async () => {
       try {
         if (!onboardingContext) throw new AIProviderError('invalid-input');
         const result = await extractBusinessProfile(onboardingContext);
-        applyResult(result, false, startedAt);
+        applyResult(result, false);
       } catch (e) {
-        clearTimeout(midway);
+        if (disposedRef.current) return;
 
         // Sem chave cadastrada → PARA no estado 'missing-key'. A ação
         // principal é configurar a chave; o usuário é quem decide se
@@ -176,10 +174,11 @@ export default function CelebrationScreen() {
         setPhase('error');
         setError({ message: 'A IA retornou um erro. Tente novamente em instantes.', kind: 'provider' });
         buttonOpacity.value = withTiming(1, { duration: 300 });
+      } finally {
+        requestInFlightRef.current = false;
       }
     })();
 
-    return () => clearTimeout(midway);
   }, [onboardingContext, applyResult, buttonOpacity]);
 
   // Dispara a extração real assim que a tela monta — o fluxo antigo caía
@@ -209,9 +208,32 @@ export default function CelebrationScreen() {
   );
 
   const handleRetry = useCallback(() => {
-    startedRef.current = false;
+    if (requestInFlightRef.current) return;
     runExtraction();
   }, [runExtraction]);
+
+  const handleReviewAnswers = useCallback(() => {
+    router.replace('/onboarding');
+  }, [router]);
+
+  const handleContinueWithoutAi = useCallback(async () => {
+    if (finishingWithoutAiRef.current) return;
+    finishingWithoutAiRef.current = true;
+    setFinishingWithoutAi(true);
+    setFinishError(null);
+    try {
+      if (!currentUser) throw new Error('Sessão indisponível');
+      await onboardingService.completeOnboarding(currentUser.id, { ...openAnswers }, onboardingContext ?? undefined);
+      useAppStore.setState({ onboardingCompleted: true });
+      await refreshUser();
+      router.replace('/(tabs)/chat');
+    } catch {
+      setFinishError('Não consegui concluir. Suas respostas foram preservadas; tente novamente.');
+    } finally {
+      finishingWithoutAiRef.current = false;
+      setFinishingWithoutAi(false);
+    }
+  }, [currentUser, openAnswers, onboardingContext, refreshUser, router]);
 
   const handleGoToSettings = useCallback(() => {
     router.push('/ai-settings');
@@ -247,6 +269,19 @@ export default function CelebrationScreen() {
   const showSettingsButton =
     phase === 'missing-key' || error?.kind === 'unauthorized';
   const showRetryButton = phase === 'error';
+
+  const processing = phase === 'thinking' || phase === 'focused';
+
+  useEffect(() => {
+    if (!processing) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => subscription.remove();
+  }, [processing]);
+
+  if (processing) return <><Stack.Screen options={{ gestureEnabled: false }} /><ReportProcessing /></>;
+
+  const genericError = phase === 'error' && !['unauthorized', 'missing-api-key', 'not-authenticated', 'provider-model', 'payment-required', 'quota-exceeded', 'invalid-input'].includes(error?.kind ?? '');
+  if (genericError) return <ReportError onRetry={handleRetry} onReview={handleReviewAnswers} onContinue={handleContinueWithoutAi} onSimulation={useSimulationFallback} finishing={finishingWithoutAi} finishError={finishError} />;
 
   return (
     <View style={styles.container}>

@@ -1,16 +1,17 @@
-import { useEffect, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, Spacing, Radius, FontSize } from '../src/constants/theme';
 import { useAppStore } from '../src/store';
 import { useAuth } from '../src/hooks/useAuth';
 import { onboardingService } from '../src/services/onboardingService';
 import { CategorySuggestion } from '../src/ai/types';
+import type { OnboardingExtractionResult } from '../src/ai/types';
 import { getPluginDefinition } from '../src/plugins/registry';
-import { MASCOT_IMAGES, INTERACTION_MASCOT } from '../src/data/mascotExpressions';
-import Mascot from './components/onboarding/Mascot';
+import ReportResultOverview, { ReportSection } from './components/onboarding/report-result-overview';
+import ReportDetail from './components/onboarding/report-detail';
 
 /**
  * Nomes amigáveis para os plugins recomendados — vêm do catálogo fechado em
@@ -63,6 +64,11 @@ function CategoryGroup({
 
 export default function OnboardingSummaryScreen() {
   const router = useRouter();
+  const { view } = useLocalSearchParams<{ view?: string }>();
+  const [detailsSection, setDetailsSection] = useState<ReportSection | 'full' | null>(() => view === 'full' ? 'full' : null);
+  useEffect(() => {
+    if (view === 'full') setDetailsSection('full');
+  }, [view]);
   const insets = useSafeAreaInsets();
   const { currentUser, refreshUser } = useAuth();
 
@@ -73,6 +79,7 @@ export default function OnboardingSummaryScreen() {
   const applyOnboardingExtraction = useAppStore((s) => s.applyOnboardingExtraction);
   const activatedPlugins = useAppStore((s) => s.activatedPlugins);
   const setPluginActivation = useAppStore((s) => s.setPluginActivation);
+  const setPendingOnboardingExtraction = useAppStore((s) => s.setPendingOnboardingExtraction);
 
   // Se a pessoa cair aqui sem ter passado pela celebração (ex: deep link,
   // refresh), não há o que resumir — volta pro início do onboarding. MAS
@@ -89,7 +96,7 @@ export default function OnboardingSummaryScreen() {
   }, [extraction, router]);
 
   const handleFinish = useCallback(async () => {
-    if (!extraction) return;
+    if (!extraction || finishingRef.current) return;
     finishingRef.current = true;
     applyOnboardingExtraction(extraction);
 
@@ -115,8 +122,22 @@ export default function OnboardingSummaryScreen() {
 
   if (!extraction) return null;
 
-  const businessName = extraction.businessName ?? 'Sua empresa';
-  const businessType = extraction.segment ?? 'negócio';
+  if (!detailsSection) return <ReportResultOverview extraction={extraction} isSimulation={isSimulation} onViewFull={() => router.push('/onboarding-report-intro')} onViewSection={setDetailsSection} onEditAnswers={() => router.replace('/onboarding')} />;
+
+  if (detailsSection === 'full') return <ReportDetail
+    extraction={extraction}
+    isSimulation={isSimulation}
+    activatedPlugins={activatedPlugins}
+    onBack={() => router.replace('/onboarding-report-intro')}
+    onFinish={handleFinish}
+    onSave={async (next: OnboardingExtractionResult) => {
+      if (!currentUser) throw new Error('Usuário não disponível');
+      await onboardingService.saveStructuredProfile(currentUser.id, next);
+      setPendingOnboardingExtraction(next, isSimulation);
+    }}
+    onPluginActivation={setPluginActivation}
+    onConfigureAi={() => router.push('/ai-settings')}
+  />;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
@@ -127,9 +148,8 @@ export default function OnboardingSummaryScreen() {
         }}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.mascotWrap}>
-          <Mascot image={MASCOT_IMAGES[INTERACTION_MASCOT.summary]} size={140} />
-        </View>
+        <TouchableOpacity style={styles.detailsBack} onPress={() => setDetailsSection(null)} accessibilityRole="button"><Ionicons name="chevron-back" size={22} color={Colors.accent} /><Text style={styles.detailsBackText}>Voltar ao resumo</Text></TouchableOpacity>
+        <Text style={styles.detailsHeading}>{detailsSection === 'categories' ? 'Categorias identificadas' : detailsSection === 'tags' ? 'Tags de tarefa' : detailsSection === 'calendar' ? 'Tipos de evento' : 'Sugestões para o negócio'}</Text>
 
         {isSimulation && (
           <View style={styles.simBanner}>
@@ -152,22 +172,14 @@ export default function OnboardingSummaryScreen() {
           </View>
         )}
 
-        <View style={styles.thankYou}>
-          <Ionicons name="heart-circle" size={32} color={Colors.accent} />
-          <Text style={styles.thankYouTitle}>Obrigado, {businessName}!</Text>
-        </View>
+        {detailsSection === 'categories' && <>
+          <CategoryGroup title="Categorias de despesa (Financeiro)" items={extraction.coreCategories.financial.expense} icon="arrow-down-circle" />
+          <CategoryGroup title="Categorias de receita (Financeiro)" items={extraction.coreCategories.financial.income} icon="arrow-up-circle" />
+        </>}
+        {detailsSection === 'tags' && <CategoryGroup title="Tags de tarefa" items={extraction.coreCategories.taskTags} icon="checkbox-outline" />}
+        {detailsSection === 'calendar' && <CategoryGroup title="Tipos de evento (Calendário)" items={extraction.coreCategories.calendarEventTypes} icon="calendar-outline" />}
 
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardLabel}>O QUE ENTENDEMOS</Text>
-          <Text style={styles.summaryText}>{extraction.summary}</Text>
-        </View>
-
-        <CategoryGroup title="Categorias de despesa (Financeiro)" items={extraction.coreCategories.financial.expense} icon="arrow-down-circle" />
-        <CategoryGroup title="Categorias de receita (Financeiro)" items={extraction.coreCategories.financial.income} icon="arrow-up-circle" />
-        <CategoryGroup title="Tags de tarefa" items={extraction.coreCategories.taskTags} icon="checkbox-outline" />
-        <CategoryGroup title="Tipos de evento (Calendário)" items={extraction.coreCategories.calendarEventTypes} icon="calendar-outline" />
-
-        {extraction.recommendedPlugins.length > 0 && (
+        {detailsSection === 'plugins' && extraction.recommendedPlugins.length > 0 && (
           <View style={styles.pluginSection}>
             <Text style={styles.pluginSectionTitle}>Sugestões pra você</Text>
             {extraction.recommendedPlugins.map((p) => {
@@ -208,6 +220,8 @@ export default function OnboardingSummaryScreen() {
           </View>
         )}
 
+        <TouchableOpacity style={styles.fullLink} onPress={() => router.push('/onboarding-report-intro')} accessibilityRole="button"><Text style={styles.fullLinkText}>Ver relatório completo</Text><Ionicons name="arrow-forward" size={17} color={Colors.accent} /></TouchableOpacity>
+
         <TouchableOpacity
           style={styles.finishBtn}
           onPress={handleFinish}
@@ -223,7 +237,11 @@ export default function OnboardingSummaryScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.bg },
-  mascotWrap: { alignItems: 'center', paddingTop: Spacing.lg },
+  detailsBack: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.sm },
+  detailsBackText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent },
+  detailsHeading: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xxl, color: Colors.primary, marginBottom: Spacing.xl },
+  fullLink: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, marginTop: Spacing.md },
+  fullLinkText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent },
   simBanner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -259,39 +277,6 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: '#FFFFFF',
   },
-  thankYou: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.md },
-  thankYouTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.xxl,
-    color: Colors.primary,
-    textAlign: 'center',
-  },
-
-  summaryCard: {
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  summaryCardLabel: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
-    marginBottom: Spacing.sm,
-  },
-  summaryText: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    lineHeight: 22,
-  },
-
   finishBtn: {
     flexDirection: 'row',
     alignItems: 'center',
