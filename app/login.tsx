@@ -1,6 +1,2 @@
-import { Redirect } from 'expo-router';
-
-/** Mantém o deep link legado enquanto a autenticação vive na Welcome. */
-export default function LoginScreen() {
-  return <Redirect href="/auth?mode=login" />;
-}
+import AuthScreen from '@/src/components/auth-screen';
+export default function Screen() { return <AuthScreen mode="login" />; }

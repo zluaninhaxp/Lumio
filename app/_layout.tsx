@@ -40,9 +40,9 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="index" />
             <Stack.Screen name="welcome" />
-            <Stack.Screen name="auth" options={{ presentation: 'transparentModal', animation: 'none' }} />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="register" />
+            <Stack.Screen name="auth" options={{ animation: 'none' }} />
+            <Stack.Screen name="login" options={{ animation: 'fade' }} />
+            <Stack.Screen name="register" options={{ animation: 'fade' }} />
             <Stack.Screen name="onboarding" />
             <Stack.Screen name="celebration" options={{ gestureEnabled: false }} />
             <Stack.Screen name="onboarding-report-intro" options={{ gestureEnabled: false }} />

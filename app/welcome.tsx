@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { DeviceEventEmitter, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { useCallback, useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Colors, FontSize, Spacing } from '@/src/constants/theme';
 
 const WELCOME_IMAGE = require('../assets/welcome.png');
@@ -21,26 +20,12 @@ export default function WelcomeScreen() {
   const titleSize = Math.min(36, Math.max(30, layoutWidth * 0.082));
   const subtitleSize = Math.min(15, Math.max(13, layoutWidth * 0.036));
   const [leaving, setLeaving] = useState(false);
-  const exit = useSharedValue(0);
-  useFocusEffect(useCallback(() => {
-    setLeaving(false);
-    exit.value = withTiming(0, { duration: 420, easing: Easing.inOut(Easing.cubic) });
-  }, [exit]));
-  useEffect(() => {
-    const subscription = DeviceEventEmitter.addListener('lumio-auth-closing', () => {
-      setLeaving(false);
-      exit.value = withTiming(0, { duration: 420, easing: Easing.inOut(Easing.cubic) });
-    });
-    return () => subscription.remove();
-  }, [exit]);
-  const exitArtStyle = useAnimatedStyle(() => ({ opacity: 1 - exit.value, transform: [{ translateY: exit.value * -70 }, { scale: 1 - exit.value * .18 }] }));
-  const exitContentStyle = useAnimatedStyle(() => ({ opacity: 1 - exit.value, transform: [{ translateY: exit.value * 18 }] }));
+  useFocusEffect(useCallback(() => { setLeaving(false); }, []));
   const openAuth = useCallback((mode: 'login' | 'register') => {
     if (leaving) return;
     setLeaving(true);
-    exit.value = withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) });
-    router.push(`/auth?mode=${mode}`);
-  }, [exit, leaving, router]);
+    router.push(mode === 'login' ? '/login' : '/register');
+  }, [leaving, router]);
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <StatusBar style="dark" />
@@ -51,17 +36,17 @@ export default function WelcomeScreen() {
           <View style={styles.hero}>
             <Image source={LUMIO_LOGO} resizeMode="contain" style={styles.logo} />
             <View pointerEvents="none" style={styles.heroGlow} />
-            <Animated.View style={[styles.artExitWrap, exitArtStyle]}><Image source={WELCOME_IMAGE} resizeMode="contain" style={styles.illustration} /></Animated.View>
+            <View style={styles.artExitWrap}><Image source={WELCOME_IMAGE} resizeMode="contain" style={styles.illustration} /></View>
           </View>
         </View>
-        <Animated.View style={[styles.content, { paddingTop: Math.min(20, Math.max(16, layoutWidth * 0.05)) }, exitContentStyle]} pointerEvents={leaving ? 'none' : 'auto'}>
+        <View style={[styles.content, { paddingTop: Math.min(20, Math.max(16, layoutWidth * 0.05)) }]} pointerEvents={leaving ? 'none' : 'auto'}>
           <Text style={[styles.title, { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.13) }]}>Seu negócio,{"\n"}mais leve.</Text>
           <Text style={[styles.subtitle, { fontSize: subtitleSize, lineHeight: Math.round(subtitleSize * 1.48) }]}>Organize sua rotina e cuide do que faz seu negócio acontecer.</Text>
           <View style={styles.actions}>
             <TouchableOpacity style={styles.primaryButton} onPress={() => openAuth('register')} activeOpacity={.85} accessibilityRole="button"><Text style={styles.primaryButtonText}>Começar agora</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" /></TouchableOpacity>
             <TouchableOpacity style={styles.loginButton} onPress={() => openAuth('login')} activeOpacity={.7} accessibilityRole="button"><Text style={styles.loginText}>Já uso o Lumio</Text><Text style={styles.loginTextBold}>Entrar</Text></TouchableOpacity>
           </View>
-        </Animated.View>
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
