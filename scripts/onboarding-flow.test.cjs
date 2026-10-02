@@ -100,7 +100,6 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
     '../src/repositories/onboardingRepository': { onboardingRepository: repo },
     './userService': { userService: { markOnboardingCompleted: async () => { calls.push(['complete']); user.onboardingCompleted = true; return user; } } },
     './account/_shared': { AccountScreen: 'AccountScreen', AccountHeader: 'AccountHeader', sharedStyles: {} },
-    '../src/constants/theme': { Colors: {}, FontSize: {}, Radius: {}, Spacing: {} },
     '../src/hooks/use-ai-key-status': { useAiKeyStatus: () => ({ status: statusError ? 'error' : (inSettings ? settingsConfigured : configured) ? 'configured' : 'notConfigured', error: statusError ? 'Falha ao consultar IA.' : undefined, refresh: async () => { calls.push(['keyStatusRefresh']); } }) },
     '../src/services/ai-key-service': { aiKeyService: { status: async () => { calls.push(['keyStatus']); return configured; }, save: async (_draft, id) => { calls.push(['saveKey', id]); await savePending; if (keySaveFails) throw new Error('offline'); if (!keyValid) throw new AIProviderError('invalid'); }, test: async () => { calls.push(['testKey']); await testPending; if (!keyValid) throw new AIProviderError('invalid'); } } },
     '../src/ai/aiProvider': { AIProviderError, MissingApiKeyError },
@@ -113,6 +112,7 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
     const module = { exports: {} };
     const localRequire = name => {
       if (name.endsWith('.png')) return name;
+      if (name.endsWith('constants/theme')) return load(path.resolve('src/constants/theme.ts'));
       if (stubs[name]) return stubs[name];
       if (name === '../src/engine/openOnboardingEngine') return { OPEN_QUESTIONS: load(path.resolve('src/data/onboardingQuestions.ts')).OPEN_QUESTIONS };
       const target = path.resolve(path.dirname(file), name);
@@ -135,6 +135,7 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
   function nodes(node) {
     if (!node || typeof node !== 'object') return [];
     if (Array.isArray(node)) return node.flatMap(nodes);
+    if (typeof node.type === 'function') return nodes(node.type(node.props));
     if (node.type === 'Modal' && !node.props.visible) return [];
     return [node, ...nodes(node.props?.children)];
   }

@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface FinanceFilterChipsProps {
   options: string[];
@@ -122,7 +122,7 @@ export function FinanceFilterChips({
 const styles = StyleSheet.create({
   container: {
     height: 42,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
   },
   optionsLayer: {
     flex: 1,
@@ -135,15 +135,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: Spacing.md + 2,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipIncome: { backgroundColor: Colors.accent, borderColor: Colors.accent },
@@ -163,15 +161,13 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   searchInputWrap: {
+      ...SurfaceStyles.control,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     paddingHorizontal: Spacing.md,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderRadius: Radius.md,
   },
   searchInput: {

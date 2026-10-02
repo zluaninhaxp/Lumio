@@ -17,7 +17,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
 
 const EMPTY = { name: "", role: "", contact: "", commissionRate: "" };
@@ -299,7 +299,7 @@ export default function EquipeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -313,16 +313,14 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   search: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
@@ -332,10 +330,10 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -357,6 +355,7 @@ const styles = StyleSheet.create({
   },
   detail: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 3 },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     right: 24,
     bottom: 24,
@@ -365,16 +364,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
   overlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modal: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -386,18 +384,17 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xl,
   },
   input: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     color: Colors.primary,
   },
   actions: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm },
   cancel: {
+      ...SurfaceStyles.filter,
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: "center",
   },
   cancelText: {

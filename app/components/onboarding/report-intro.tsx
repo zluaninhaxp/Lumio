@@ -1,7 +1,7 @@
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing, Typography } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
 import { ReportBackdrop } from './report-processing';
 
 const REPORT_IMAGE = require('../../../assets/mascote-relatorio/Mascote Alegre com Laptop e Painéis Flutuantes.png');
@@ -53,11 +53,15 @@ const styles = StyleSheet.create({
   copy: { maxWidth: 390, alignItems: 'center', gap: Spacing.md },
   title: { fontFamily: Typography.bold, fontSize: FontSize.xxl, lineHeight: 32, color: '#202B38', textAlign: 'center' },
   description: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 23, color: Colors.textSecondary, textAlign: 'center' },
-  infoCard: { width: '100%', maxWidth: 390, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, padding: Spacing.lg, backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.xl, shadowColor: '#3D8C75', shadowOpacity: 0.1, shadowRadius: 15, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  infoCard: {
+      ...SurfaceStyles.card,
+    width: '100%', maxWidth: 390, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.xl },
   infoIcon: { width: 50, height: 50, borderRadius: Radius.full, backgroundColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
   infoCopy: { flex: 1, gap: Spacing.xs },
   infoTitle: { fontFamily: Typography.bold, fontSize: FontSize.md, color: Colors.primary },
   infoText: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20, color: Colors.textSecondary },
-  exploreButton: { width: '100%', maxWidth: 390, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, backgroundColor: Colors.accent, borderRadius: Radius.full, shadowColor: '#007F64', shadowOpacity: 0.11, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  exploreButton: {
+      ...SurfaceStyles.floating,
+    width: '100%', maxWidth: 390, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, backgroundColor: Colors.accent, borderRadius: Radius.full },
   exploreText: { fontFamily: Typography.bold, fontSize: FontSize.md, color: Colors.bgCard },
 });

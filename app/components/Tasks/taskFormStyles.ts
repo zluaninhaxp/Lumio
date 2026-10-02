@@ -1,4 +1,4 @@
-import { Colors, FontSize, Radius, Spacing } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 
 export const taskFormStyles = {
   container: { gap: 4, paddingBottom: Spacing.xs },
@@ -15,15 +15,13 @@ export const taskFormStyles = {
     marginTop: 2,
   },
   input: {
+      ...SurfaceStyles.control,
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
     color: Colors.primary,
-    backgroundColor: Colors.bg,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    paddingVertical: Spacing.sm
   },
   actions: {
     flexDirection: 'row' as const,
@@ -31,11 +29,10 @@ export const taskFormStyles = {
     marginTop: Spacing.sm,
   },
   cancelBtn: {
+      ...SurfaceStyles.filter,
     flex: 1,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: 'center' as const,
   },
   cancelBtnText: {
@@ -50,7 +47,9 @@ export const taskFormStyles = {
     backgroundColor: Colors.accent,
     alignItems: 'center' as const,
   },
-  saveBtnDisabled: { opacity: 0.5 },
+  saveBtnDisabled: {
+      ...SurfaceStyles.actionDisabled,
+    opacity: 0.5 },
   saveBtnText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,

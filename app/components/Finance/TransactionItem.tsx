@@ -2,7 +2,7 @@ import React, { useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { ChatIndicator } from '../ChatIndicator';
 import { getCategoryIcon, getCategoryIconColor } from '../../../src/hooks/useFinanceState';
 import type { Transaction } from '../../../src/store';
@@ -139,18 +139,13 @@ export function TransactionItem({
 
 const styles = StyleSheet.create({
   card: {
+      ...SurfaceStyles.card,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     gap: Spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
-    elevation: 1,
     marginBottom: Spacing.sm,
   },
   cardSelected: {
@@ -163,7 +158,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
   },

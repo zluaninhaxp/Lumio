@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface SelectionBarProps {
   selectedCount: number;
@@ -83,10 +83,10 @@ const styles = StyleSheet.create({
     zIndex: 50,
   },
   bar: {
+      ...SurfaceStyles.overlay,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.bgCard,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingHorizontal: Spacing.lg,
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
   },
   categorySheet: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     paddingVertical: Spacing.md,

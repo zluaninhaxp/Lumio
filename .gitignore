@@ -52,6 +52,7 @@ coverage/
 *.tsbuildinfo
 
 # Temporary files
+/tmp/
 *.tmp
 *.temp
 *.swp

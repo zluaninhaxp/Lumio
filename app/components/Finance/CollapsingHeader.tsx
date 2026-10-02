@@ -7,7 +7,7 @@ import {
   LayoutChangeEvent,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { FinanceFilterChips } from './FinanceFilterChips';
 
 interface CategoryBar {
@@ -218,7 +218,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 10,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
     overflow: 'hidden',
     paddingHorizontal: Spacing.xl,
   },
@@ -226,14 +226,9 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.xs,
   },
   summaryCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.xl,
-    padding: Spacing.xl,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: Spacing.xl
   },
   summaryRow: {
     flexDirection: 'row',
@@ -327,7 +322,7 @@ const styles = StyleSheet.create({
     right: 0,
     marginHorizontal: -Spacing.sm,
     paddingTop: Spacing.sm,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
   },
 
 });

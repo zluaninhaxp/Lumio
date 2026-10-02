@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, Radius, Spacing } from '../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
 
 interface TagSelectorProps {
   title: string;
@@ -84,12 +84,16 @@ const styles = StyleSheet.create({
   hint: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
   count: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textMuted },
   row: { gap: 6, paddingVertical: 2 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 210, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bgCard },
+  chip: {
+      ...SurfaceStyles.filter,
+    flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 210, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full },
   chipText: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary },
   chipTextActive: { color: '#FFF' },
   addChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.accent, backgroundColor: Colors.accentLight },
   addText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
   addRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
-  input: { flex: 1, minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg, color: Colors.primary, fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm },
+  input: {
+      ...SurfaceStyles.control,
+    flex: 1, minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.md, color: Colors.primary, fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm },
   confirm: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 });

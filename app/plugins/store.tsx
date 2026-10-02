@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   PLUGIN_LIST,
@@ -162,7 +162,7 @@ export default function PluginStoreScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -184,18 +184,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   cardHighlighted: {
     borderWidth: 2,
@@ -206,7 +201,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Radius.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
     alignItems: "center",
     justifyContent: "center",
   },

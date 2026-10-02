@@ -2,8 +2,7 @@ import {
   Colors,
   FontSize,
   Radius,
-  Spacing,
-} from "../../../src/constants/theme";
+  Spacing, SurfaceStyles } from "../../../src/constants/theme";
 import { taskFormStyles } from "../Tasks/taskFormStyles";
 
 // Shared visual language for CRUD forms opened from plugin screens.
@@ -50,15 +49,13 @@ export const pluginFormStyles: Record<string, any> = {
   confirm: taskFormStyles.saveBtn,
   confirmText: taskFormStyles.saveBtnText,
   chip: {
+      ...SurfaceStyles.filter,
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 5,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   chipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   chipText: {
@@ -68,15 +65,13 @@ export const pluginFormStyles: Record<string, any> = {
   },
   chipTextActive: { color: "#FFFFFF" },
   selectChip: {
+      ...SurfaceStyles.filter,
     flexDirection: "row" as const,
     alignItems: "center" as const,
     gap: 5,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   selectChipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   selectChipText: {

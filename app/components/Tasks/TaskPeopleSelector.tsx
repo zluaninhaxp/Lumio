@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 import { useAppStore } from '../../../src/store';
 import { getPluginDefinition } from '../../../src/plugins/registry';
 
@@ -331,13 +331,11 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   summary: {
+      ...SurfaceStyles.control,
     minHeight: 42,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
@@ -356,8 +354,11 @@ const styles = StyleSheet.create({
   emptyValue: { color: Colors.textMuted, fontFamily: 'PlusJakartaSans_500Medium' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalBackdrop: { ...StyleSheet.absoluteFillObject },
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.42)' },
+  backdrop: {
+      ...SurfaceStyles.backdrop
+},
   modalSheet: {
+      ...SurfaceStyles.overlay,
     height: '78%',
     maxHeight: '91%',
     minHeight: '58%',
@@ -365,9 +366,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
-    backgroundColor: Colors.bgCard,
-    zIndex: 2,
-    elevation: 2,
+    zIndex: 2
   },
   handleHitArea: { width: '100%', minHeight: 28, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border },
@@ -375,13 +374,17 @@ const styles = StyleSheet.create({
   modalHeading: { flex: 1, gap: 2 },
   modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accent, textTransform: 'uppercase' },
   modalTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xl, color: Colors.primary },
-  closeButton: { width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bg },
+  closeButton: {
+      ...SurfaceStyles.filter,
+    width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
   createButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.md, backgroundColor: Colors.accentLight, borderWidth: 1, borderColor: '#BFEBDD' },
   createIcon: { width: 28, height: 28, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgCard },
   createText: { flex: 1, gap: 2 },
   createTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent },
   createHint: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, minHeight: 42, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bg },
+  searchBox: {
+      ...SurfaceStyles.control,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, minHeight: 42, borderRadius: Radius.md },
   searchInput: { flex: 1, paddingVertical: Spacing.sm, fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.md, color: Colors.primary },
   resultHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.md, marginBottom: Spacing.xs },
   resultTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.primary },

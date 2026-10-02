@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { Colors, FontSize, Radius, Spacing, Typography } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
 
 const PROCESSING_IMAGE = require('../../../assets/mascote-relatorio/Mascote tecnológico com laptop e ícones flutuantes.png');
 
@@ -83,7 +83,9 @@ const styles = StyleSheet.create({
   copy: { alignItems: 'center', gap: Spacing.md, maxWidth: 390 },
   title: { fontFamily: Typography.bold, fontSize: FontSize.xxxl, lineHeight: 40, color: '#202B38', textAlign: 'center' },
   subtitle: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 23, color: Colors.textSecondary, textAlign: 'center' },
-  card: { width: '100%', maxWidth: 390, minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xl, marginTop: Spacing.sm, backgroundColor: Colors.bgCard, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.border, shadowColor: '#3D8C75', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 7 }, elevation: 4 },
+  card: {
+      ...SurfaceStyles.card,
+    width: '100%', maxWidth: 390, minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xl, marginTop: Spacing.sm, borderRadius: Radius.xl },
   ringTrack: { width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
   ringActive: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: 'transparent', borderTopColor: Colors.accent, borderRightColor: Colors.accent },
   cardCopy: { flex: 1, gap: Spacing.xs },

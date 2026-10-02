@@ -360,7 +360,7 @@ export default function FinanceiroScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
   },
   topBar: {
     flexDirection: 'row',
@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
     zIndex: 20,
   },
   title: {
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xs,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
   },
   sectionHeaderText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',

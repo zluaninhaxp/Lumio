@@ -20,7 +20,7 @@ import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 import {
@@ -432,7 +432,7 @@ export default function OrcamentosScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -447,16 +447,14 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
   },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
@@ -466,7 +464,7 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -535,6 +533,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
@@ -543,17 +542,16 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modalCard: {
+      ...SurfaceStyles.overlay,
     maxHeight: "90%",
-    backgroundColor: Colors.bgCard,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -577,8 +575,7 @@ const styles = StyleSheet.create({
   },
   chips: { flexDirection: "row", gap: Spacing.sm, paddingVertical: Spacing.sm },
   chip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
+      ...SurfaceStyles.filter,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -587,14 +584,14 @@ const styles = StyleSheet.create({
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
   chipTextActive: { color: "#FFFFFF" },
   input: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     color: Colors.primary,
     marginTop: Spacing.xs,
   },
   itemForm: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.md,
     marginTop: Spacing.sm,
@@ -602,8 +599,8 @@ const styles = StyleSheet.create({
   },
   numberRow: { flexDirection: "row", gap: Spacing.sm },
   numberInput: {
+      ...SurfaceStyles.control,
     flex: 1,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.sm,
     padding: Spacing.md,
     color: Colors.primary,
@@ -628,9 +625,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   modalCancel: {
+      ...SurfaceStyles.filter,
     flex: 1,
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     alignItems: "center",

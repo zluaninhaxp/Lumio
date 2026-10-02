@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
-import { Colors, Radius, Spacing } from '@/src/constants/theme';
+import { Colors, Radius, Spacing, SurfaceStyles } from '@/src/constants/theme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ReportBackdrop } from '@/app/components/onboarding/report-processing';
 // Replace this source to change the mascot without changing the layout.
@@ -79,6 +79,10 @@ const s = StyleSheet.create({
   switchLink: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.accent },
   safe: { flex: 1, backgroundColor: Colors.bg, overflow: 'hidden' }, flex: { flex: 1 },
   hero: { alignSelf: 'center', marginTop: Spacing.sm }, back: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)' }, scroll: { flexGrow: 1, width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl }, error: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, color: Colors.danger, backgroundColor: Colors.dangerLight },
-  field: { marginTop: Spacing.md }, inputWrap: { minHeight: INPUT_MIN_HEIGHT, paddingHorizontal: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bgCard }, inputFocus: { borderColor: Colors.accent }, input: { flex: 1, minWidth: 0, minHeight: 54, paddingVertical: Spacing.md, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 15, color: Colors.primary },
+  field: { marginTop: Spacing.md }, inputWrap: {
+      ...SurfaceStyles.control,
+    minHeight: INPUT_MIN_HEIGHT, paddingHorizontal: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg }, inputFocus: {
+        ...SurfaceStyles.controlFocus
+    }, input: { flex: 1, minWidth: 0, minHeight: 54, paddingVertical: Spacing.md, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 15, color: Colors.primary },
   cta: { minHeight: 56, paddingVertical: Spacing.md, marginTop: Spacing.xxl, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderRadius: 18, backgroundColor: Colors.accent }, ctaText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: '#FFFFFF' }, disabled: { opacity: .7 },
 });

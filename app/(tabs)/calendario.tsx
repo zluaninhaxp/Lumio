@@ -325,7 +325,7 @@ export default function CalendarioScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Colors, Spacing, Radius } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, SurfaceStyles } from '../../../src/constants/theme';
 
 export function FinanceSkeleton() {
   return (
@@ -25,10 +25,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   row: {
+      ...SurfaceStyles.card,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,

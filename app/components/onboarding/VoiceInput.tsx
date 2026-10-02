@@ -152,20 +152,26 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
       <Animated.View style={pulseStyle}>
         <TouchableOpacity
           style={[
-            styles.micBtn,
-            appearance === 'onboarding' && styles.micBtnOnboarding,
-            isRecording && styles.micBtnRecording,
-            disabled && styles.micBtnDisabled,
+            styles.micTouchTarget,
           ]}
+          accessibilityRole="button"
+          accessibilityLabel={isRecording ? 'Parar gravação' : 'Falar mensagem'}
+          accessibilityState={{ disabled: !!disabled, selected: isRecording }}
+          hitSlop={6}
           onPress={handlePress}
           disabled={disabled}
           activeOpacity={0.8}
         >
-          <Ionicons
+          <View style={[
+            styles.micBtn,
+            appearance === 'onboarding' && styles.micBtnOnboarding,
+            isRecording && styles.micBtnRecording,
+            disabled && styles.micBtnDisabled,
+          ]}><Ionicons
             name={isRecording ? 'stop' : 'mic'}
             size={appearance === 'onboarding' ? 16 : 20}
             color={isRecording ? '#FFFFFF' : Colors.accent}
-          />
+          /></View>
         </TouchableOpacity>
       </Animated.View>
       {permissionDenied && (
@@ -179,6 +185,7 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
 
 const styles = StyleSheet.create({
   container: { alignItems: 'center' },
+  micTouchTarget: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   micBtn: {
     width: 44,
     height: 44,

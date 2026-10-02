@@ -19,7 +19,7 @@ import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 
@@ -403,7 +403,7 @@ export default function ContratosScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -426,7 +426,7 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -512,6 +512,7 @@ const styles = StyleSheet.create({
   action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
   delete: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     right: 24,
     bottom: 24,
@@ -520,16 +521,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
   overlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,.35)",
     justifyContent: "flex-end",
   },
   modal: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xl,
@@ -549,31 +549,27 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   input: {
+      ...SurfaceStyles.control,
     height: 46,
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     color: Colors.primary,
   },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   chips: { gap: Spacing.sm },
   periodRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   chip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
+      ...SurfaceStyles.filter,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -595,11 +591,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   cancelButton: {
+      ...SurfaceStyles.filter,
     flex: 1,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: "center",
   },
   cancelButtonText: {

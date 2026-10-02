@@ -6,7 +6,7 @@ export function BottomFade() {
   return (
     <LinearGradient
       pointerEvents="none"
-      colors={['rgba(239,239,237,0)', Colors.bg]}
+      colors={['rgba(248,252,250,0)', Colors.appBackground]}
       style={styles.bottom}
     />
   );

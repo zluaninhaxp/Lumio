@@ -1,6 +1,13 @@
+import { Platform, type ViewStyle } from 'react-native';
+
+const PAGE_BACKGROUND = '#F3FFF9';
+// Existing cool off-white, reserved for internal page backgrounds.
+const APP_BACKGROUND = '#F8FCFA';
+
 export const Colors = {
   // Paleta principal
-  bg: '#F8FCFA',
+  bg: PAGE_BACKGROUND,
+  appBackground: APP_BACKGROUND,
   bgCard: '#FFFFFF',
   primary: '#111111',
   accent: '#00A878',
@@ -14,13 +21,71 @@ export const Colors = {
   border: '#DDEBE4',
 
   // Bolhas de chat
-  bubbleUser: '#111111',
+  bubbleUser: '#202B38',
   bubbleBot: '#FFFFFF',
+  chatBackground: APP_BACKGROUND,
+  mintBackground: PAGE_BACKGROUND,
+  bottomSurface: '#E6F7F1',
+  ink: '#202B38',
+  composerDivider: '#DCECE6',
+  composerPlaceholder: '#818C9C',
+  accentDisabled: '#A9D9CA',
 
   // Status
   success: '#00A878',
   warning: '#F59E0B',
 } as const;
+
+// Neutral content elevation. boxShadow runs on both platforms with the
+// project's New Architecture (Android outset shadows require Android 9+).
+// Surface roles: neutral controls, white content, then overlays. Brand fills
+// remain explicit state overrides, never the default outline or shadow.
+export const SurfaceColors = {
+  control: Colors.bgCard,
+  card: Colors.bgCard,
+  overlay: Colors.bgCard,
+  disabled: '#ECEFF1',
+  subtleBorder: '#E1E5E8',
+  controlBorder: '#C9D0D4',
+  focusBorder: Colors.accent,
+  errorBorder: Colors.danger,
+  backdrop: 'rgba(32,43,56,0.40)',
+} as const;
+
+export const SurfaceElevation = {
+  control: 'none',
+  card: '0 4px 10px -2px rgba(32,43,56,0.14), 0 1px 2px rgba(32,43,56,0.06)',
+  message: '0 4px 8px -2px rgba(32,43,56,0.16), 0 1px 2px rgba(32,43,56,0.07)',
+  overlay: '0 10px 24px -4px rgba(32,43,56,0.20), 0 2px 6px rgba(32,43,56,0.09)',
+  floating: '0 5px 12px -2px rgba(32,43,56,0.22)',
+  userMessage: '0 3px 8px rgba(32,43,56,0.16)',
+} as const;
+
+// RN 0.81 outset boxShadow works with New Architecture on Android 9+.
+// Older supported Android versions use native elevation instead, never both.
+function surfaceElevation(role: keyof typeof SurfaceElevation): { boxShadow?: string; elevation?: number } {
+  if (Platform.OS === 'android' && Number(Platform.Version) < 28) {
+    const levels = { control: 0, card: 3, message: 2, overlay: 8, floating: 6, userMessage: 2 };
+    return { elevation: levels[role] };
+  }
+  return { boxShadow: SurfaceElevation[role] };
+}
+
+export const SurfaceStyles = {
+  control: { backgroundColor: SurfaceColors.control, borderWidth: 1, borderColor: SurfaceColors.controlBorder, ...surfaceElevation('control') },
+  filter: { backgroundColor: SurfaceColors.card, borderWidth: 1, borderColor: SurfaceColors.controlBorder, ...surfaceElevation('control') },
+  tonal: { backgroundColor: SurfaceColors.control },
+  card: { backgroundColor: SurfaceColors.card, borderWidth: 1, borderColor: SurfaceColors.subtleBorder, ...surfaceElevation('card') },
+  message: { backgroundColor: Colors.bubbleBot, ...surfaceElevation('message') },
+  overlay: { backgroundColor: SurfaceColors.overlay, borderWidth: 1, borderColor: SurfaceColors.subtleBorder, ...surfaceElevation('overlay') },
+  floating: { ...surfaceElevation('floating') },
+  userMessage: { ...surfaceElevation('userMessage') },
+  controlFocus: { borderColor: SurfaceColors.focusBorder },
+  controlError: { borderColor: SurfaceColors.errorBorder },
+  controlDisabled: { backgroundColor: SurfaceColors.disabled, borderColor: SurfaceColors.subtleBorder },
+  actionDisabled: { backgroundColor: Colors.accentDisabled, ...surfaceElevation('control') },
+  backdrop: { backgroundColor: SurfaceColors.backdrop },
+} satisfies Record<string, ViewStyle>;
 
 export const Typography = {
   regular: 'PlusJakartaSans_400Regular',

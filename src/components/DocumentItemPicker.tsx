@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, Radius, Spacing } from '../constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../constants/theme';
 import type { CatalogItem, OrderItem } from '../store';
 
 type Props = {
@@ -111,9 +111,13 @@ export function DocumentItemPicker({ item, catalogItems, onChange, allowStandalo
 
 const styles = StyleSheet.create({
   wrap: { zIndex: 10 },
-  inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.bgCard, borderRadius: Radius.sm, paddingHorizontal: Spacing.md },
+  inputRow: {
+      ...SurfaceStyles.control,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: Radius.sm, paddingHorizontal: Spacing.md },
   input: { flex: 1, padding: Spacing.md, color: Colors.primary },
-  results: { backgroundColor: Colors.bgCard, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, overflow: 'hidden' },
+  results: {
+      ...SurfaceStyles.overlay,
+    borderRadius: Radius.sm, overflow: 'hidden' },
   result: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
   resultCopy: { flex: 1 },
   name: { color: Colors.primary, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm },

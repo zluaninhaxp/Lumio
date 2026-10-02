@@ -17,7 +17,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { EstoqueItem, useAppStore } from "../../src/store";
 import { CatalogItemSelector } from "../components/CatalogItemSelector";
 import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../src/utils/relationDraft";
@@ -392,7 +392,7 @@ export default function EstoqueScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -407,16 +407,14 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
@@ -426,7 +424,7 @@ const styles = StyleSheet.create({
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -483,7 +481,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -516,6 +514,7 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
@@ -524,16 +523,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -547,22 +545,20 @@ const styles = StyleSheet.create({
   },
   modalSubtitle: { color: Colors.textSecondary },
   input: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     color: Colors.primary,
   },
   catalogChoices: { gap: Spacing.sm, maxHeight: 112 },
   catalogChoice: {
+      ...SurfaceStyles.filter,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    backgroundColor: Colors.bg,
+    paddingVertical: Spacing.sm
   },
   catalogChoiceActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
   catalogChoiceName: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
@@ -597,11 +593,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   modalCancel: {
+      ...SurfaceStyles.filter,
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: "center",
   },
   modalCancelText: {

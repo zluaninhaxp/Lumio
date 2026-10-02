@@ -17,7 +17,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   getPluginDefinition,
@@ -242,7 +242,7 @@ export default function GenericPluginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -264,19 +264,14 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
     marginBottom: Spacing.sm,
-    gap: Spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    gap: Spacing.md
   },
   cardTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -290,6 +285,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
@@ -298,20 +294,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    justifyContent: "center"
   },
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -331,7 +322,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   input: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     fontFamily: "PlusJakartaSans_400Regular",
@@ -340,8 +331,7 @@ const styles = StyleSheet.create({
   },
   selectRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
   selectChip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
+      ...SurfaceStyles.filter,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
@@ -362,11 +352,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   modalCancel: {
+      ...SurfaceStyles.filter,
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: "center",
   },
   modalCancelText: {

@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 
 type OrderOption = { id: string; label: string };
 
@@ -164,7 +164,9 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
 
 const styles = StyleSheet.create({
   container: { gap: Spacing.xs },
-  summary: { minHeight: 42, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.bgCard, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  summary: {
+      ...SurfaceStyles.control,
+    minHeight: 42, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   summaryIcon: { width: 30, height: 30, borderRadius: Radius.sm, backgroundColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
   summaryText: { flex: 1 },
   label: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.textMuted },
@@ -172,16 +174,24 @@ const styles = StyleSheet.create({
   emptyValue: { color: Colors.textMuted },
   modalOverlay: { flex: 1, justifyContent: 'flex-end' },
   modalBackdrop: { ...StyleSheet.absoluteFillObject },
-  backdrop: { backgroundColor: 'rgba(0,0,0,0.42)' },
-  modalSheet: { maxHeight: '78%', minHeight: 390, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, backgroundColor: Colors.bgCard, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl },
+  backdrop: {
+      ...SurfaceStyles.backdrop
+},
+  modalSheet: {
+      ...SurfaceStyles.overlay,
+    maxHeight: '78%', minHeight: 390, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl },
   handleHitArea: { height: 30, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   modalHeading: { flex: 1 },
   modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accent, textTransform: 'uppercase' },
   modalTitle: { marginTop: 4, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg, color: Colors.primary },
-  closeButton: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.bg, alignItems: 'center', justifyContent: 'center' },
-  searchBox: { minHeight: 46, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  closeButton: {
+      ...SurfaceStyles.filter,
+    width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  searchBox: {
+      ...SurfaceStyles.control,
+    minHeight: 46, borderRadius: Radius.md, paddingHorizontal: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   searchInput: { flex: 1, color: Colors.primary, fontFamily: 'PlusJakartaSans_400Regular' },
   resultHeader: { marginTop: Spacing.lg, marginBottom: Spacing.sm, flexDirection: 'row', justifyContent: 'space-between' },
   resultTitle: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.primary },

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface FilterChipsProps {
   selected: 'all' | 'event' | 'task';
@@ -53,15 +53,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   chip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: Spacing.md + 2,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: {

@@ -13,6 +13,6 @@ export function UserAvatar({ user, size = 36, onPress }: { user?: PublicUser | n
 
 const styles = StyleSheet.create({
   touchable: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
-  fallback: { backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  fallback: { backgroundColor: Colors.ink, alignItems: 'center', justifyContent: 'center' },
   initials: { color: '#FFFFFF', fontFamily: 'PlusJakartaSans_700Bold' },
 });

@@ -7,7 +7,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { daysUntil } from '../../src/utils/supplier';
 import { FAB } from '../components/Calendar/FAB';
@@ -767,7 +767,7 @@ export default function TarefasScreen() {
                   <TouchableOpacity
                     style={[
                       styles.tagToggleChip,
-                      { borderColor: active ? c.text : Colors.border, backgroundColor: active ? c.bg : 'transparent' },
+                      { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : 'transparent' },
                     ]}
                     onPress={() => {
                       if (tagManager) handleToggleTag(tagManager.taskId, tag);
@@ -1150,7 +1150,7 @@ export default function TarefasScreen() {
                           key={tag}
                           style={[
                             styles.tagFilterChip,
-                            { borderColor: active ? c.text : Colors.border, backgroundColor: active ? c.bg : Colors.bgCard },
+                            { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : Colors.bgCard },
                           ]}
                           onPress={() => {
                             setActiveTagFilters((prev) =>
@@ -1187,10 +1187,10 @@ export default function TarefasScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
 
   topSection: {
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
     zIndex: 1,
   },
   supplierSuggestion: {
@@ -1262,9 +1262,9 @@ const styles = StyleSheet.create({
 
   // Search
   searchContainer: {
+      ...SurfaceStyles.control,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bgCard,
     marginHorizontal: CONTENT_H,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
@@ -1289,14 +1289,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   filterChip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md + 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
     gap: 5,
   },
   filterChipActive: {
@@ -1314,7 +1312,7 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: { color: '#FFFFFF' },
   filterChipBadge: {
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
     borderRadius: Radius.full,
     minWidth: 18,
     height: 18,
@@ -1339,16 +1337,11 @@ const styles = StyleSheet.create({
 
   // Task card
   taskCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   taskCardDone: { opacity: 0.55 },
   taskMainRow: {
@@ -1361,7 +1354,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: Radius.full,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
@@ -1392,9 +1385,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm + 2,
   },
   taskMetaTag: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg,
     paddingHorizontal: Spacing.sm + 1,
     paddingVertical: 3,
     borderRadius: Radius.sm,
@@ -1415,15 +1408,13 @@ const styles = StyleSheet.create({
   },
 
   inlineEditInput: {
+      ...SurfaceStyles.control,
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
     color: Colors.primary,
-    backgroundColor: Colors.bg,
     borderRadius: Radius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs + 2,
-    borderWidth: 1.5,
-    borderColor: Colors.accent,
     lineHeight: 21,
   },
 
@@ -1473,7 +1464,7 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: Radius.sm,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1494,9 +1485,9 @@ const styles = StyleSheet.create({
   },
 
   addSubtaskRow: {
+      ...SurfaceStyles.control,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg,
     borderRadius: Radius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
@@ -1515,10 +1506,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   accordionActionBtn: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.bg,
     paddingHorizontal: Spacing.sm + 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.sm,
@@ -1544,7 +1535,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1636,13 +1627,13 @@ const styles = StyleSheet.create({
 
   // Modals
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   pickerCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderRadius: Radius.xl,
     padding: Spacing.xxl,
     width: '88%',
@@ -1705,13 +1696,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   tagToggleChip: {
+      ...SurfaceStyles.filter,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.sm + 1,
     paddingHorizontal: Spacing.md,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
+    borderRadius: Radius.md
   },
   tagToggleText: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -1728,11 +1719,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   tagAddInput: {
+      ...SurfaceStyles.control,
     flex: 1,
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
     color: Colors.primary,
-    backgroundColor: Colors.bg,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 1,
@@ -1748,7 +1739,7 @@ const styles = StyleSheet.create({
 
   // Tag filter popover
   tagFilterPopover: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
     width: '80%',
@@ -1774,12 +1765,12 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   tagFilterChip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
+    borderRadius: Radius.full
   },
   tagFilterChipText: {
     fontFamily: 'PlusJakartaSans_500Medium',

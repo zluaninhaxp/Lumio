@@ -8,7 +8,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import VoiceRecorder from './VoiceRecorder';
 
 interface AnswerInputProps {
@@ -113,11 +113,9 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   textInputWrapper: {
+      ...SurfaceStyles.control,
     flex: 1,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.xl,
-    borderWidth: 1,
-    borderColor: Colors.border,
     paddingHorizontal: Spacing.lg,
   },
   textInput: {
@@ -136,11 +134,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   skipButton: {
+      ...SurfaceStyles.filter,
     height: 44,
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.full,
-    borderWidth: 1.5,
-    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Spacing } from "../../../src/constants/theme";
+import { Colors, Spacing, SurfaceStyles } from "../../../src/constants/theme";
 
 interface FABProps {
   onPress: () => void;
@@ -21,6 +21,7 @@ export function FAB({ onPress }: FABProps) {
 
 const styles = StyleSheet.create({
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: Spacing.xl,
     right: Spacing.xl,
@@ -30,11 +31,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.accent,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 20,
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    zIndex: 20
   },
 });

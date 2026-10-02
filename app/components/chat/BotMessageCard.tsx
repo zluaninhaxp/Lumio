@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 /**
  * Card visual para a resposta do bot no chat.
@@ -16,7 +16,7 @@ import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme'
  *  - contexto/descrição em texto menor e mais apagado
  *
  * Mantém a linguagem visual do app (ver `theme.ts`): cantos arredondados
- * Radius.lg, sombra suave, fontes PlusJakartaSans, paleta Colors.
+ * Radius.lg, superfície branca, fontes PlusJakartaSans, paleta Colors.
  */
 
 export type BotCardKind = 'task' | 'event' | 'deadline' | 'finance' | 'client' | 'supplier' | 'employee' | 'stock' | 'catalog' | 'module';
@@ -160,17 +160,10 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.xs,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -193,14 +186,14 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.md,
-    color: Colors.primary,
+    color: Colors.ink,
     lineHeight: 21,
     marginBottom: 2,
   },
   context: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
     lineHeight: 18,
     marginBottom: Spacing.xs,
   },
@@ -224,13 +217,13 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   assigneeChip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.bg,
+    borderRadius: Radius.full
   },
   assigneeText: {
     fontFamily: 'PlusJakartaSans_500Medium',

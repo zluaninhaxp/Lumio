@@ -15,7 +15,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import {
   OPEN_QUESTIONS,
   OpenOnboardingAnswers,
@@ -111,14 +111,9 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   answerCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    padding: Spacing.lg
   },
   answerQuestion: {
     fontFamily: 'PlusJakartaSans_600SemiBold',

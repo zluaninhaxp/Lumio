@@ -17,7 +17,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { FornecedorItem, useAppStore } from "../../src/store";
 import { suggestedDueDate } from "../../src/utils/supplier";
 
@@ -435,7 +435,7 @@ export default function FornecedoresScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -450,16 +450,14 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
@@ -469,7 +467,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -561,6 +559,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#CDEDE4",
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
@@ -569,16 +568,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -586,7 +584,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   linkCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     margin: Spacing.xl,
     borderRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -598,7 +596,7 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   input: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     color: Colors.primary,
@@ -610,11 +608,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   modalCancel: {
+      ...SurfaceStyles.filter,
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: "center",
   },
   modalCancelText: {
@@ -635,7 +632,7 @@ const styles = StyleSheet.create({
   linkOption: {
     padding: Spacing.md,
     borderRadius: Radius.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
   },
   ...pluginFormStyles,
 });

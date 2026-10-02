@@ -9,7 +9,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 export const PERIOD_LABELS = ['Esta semana', 'Próxima semana'];
 
@@ -256,15 +256,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   chip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   chipActive: {
     backgroundColor: Colors.accent,
@@ -277,17 +275,17 @@ const styles = StyleSheet.create({
   },
   chipTextActive: { color: '#FFFFFF' },
   calendarOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
     justifyContent: 'center',
-    padding: Spacing.lg,
-    backgroundColor: 'rgba(15, 23, 42, 0.42)',
+    padding: Spacing.lg
   },
   calendarCard: {
+      ...SurfaceStyles.overlay,
     width: '100%',
     maxWidth: 340,
     padding: Spacing.md,
-    borderRadius: Radius.lg,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.lg
   },
   calendarHeader: {
     flexDirection: 'row',

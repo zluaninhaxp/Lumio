@@ -1,4 +1,5 @@
 import { Stack } from 'expo-router';
+import { Colors } from '@/src/constants/theme';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider } from '@/src/contexts/AuthContext';
@@ -37,7 +38,7 @@ export default function RootLayout() {
           <StatusBar style="dark" />
           {syncState.status === 'warning' && <View style={{ backgroundColor: '#FFF3CD', padding: 8 }}><Text style={{ color: '#6B4E00', textAlign: 'center' }}>{syncState.error}</Text></View>}
           {syncState.status === 'error' && <View style={{ backgroundColor: '#B42318', padding: 8 }}><Text style={{ color: 'white', textAlign: 'center' }}>{syncState.error}</Text></View>}
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={({ route }) => ({ headerShown: false, contentStyle: { backgroundColor: ['index', 'welcome', 'auth', 'login', 'register', 'onboarding', 'celebration', 'onboarding-report-intro', 'onboarding-summary'].includes(route.name) ? Colors.bg : Colors.appBackground } })}>
             <Stack.Screen name="index" />
             <Stack.Screen name="welcome" />
             <Stack.Screen name="auth" options={{ animation: 'none' }} />

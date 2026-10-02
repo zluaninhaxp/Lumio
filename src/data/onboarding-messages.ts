@@ -11,6 +11,7 @@ export interface OnboardingMessage {
 const happy = require('../../assets/onboarding-expressions/Imagem ChatGPT 25_09_2026, 11_05_57.png');
 const smiling = require('../../assets/onboarding-expressions/Imagem ChatGPT 25_09_2026, 11_13_34.png');
 const confused = require('../../assets/onboarding-expressions/Imagem ChatGPT 25_09_2026, 11_09_08.png');
+export const ONBOARDING_MASCOTS = { happy, smiling, confused } as const;
 const normal = (text: string): SpeechSegment => ({ text });
 const green = (text: string): SpeechSegment => ({ text, emphasis: true });
 const message = (mascot: ImageSourcePropType, ...segments: SpeechSegment[]): OnboardingMessage => ({ mascot, segments });

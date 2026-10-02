@@ -14,7 +14,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 export interface UndoSnackbarRef {
   show: (ids: string[]) => void;
@@ -110,18 +110,14 @@ const styles = StyleSheet.create({
     zIndex: 100,
   },
   bar: {
+      ...SurfaceStyles.floating,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: Colors.primary,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
+    paddingVertical: Spacing.md
   },
   left: {
     flexDirection: 'row',

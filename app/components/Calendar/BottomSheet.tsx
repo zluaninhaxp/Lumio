@@ -10,7 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { Colors, Radius, Spacing } from '../../../src/constants/theme';
+import { Colors, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 
 const SHEET_HEIGHT = 420;
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -178,11 +178,11 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+      ...SurfaceStyles.backdrop,
+    ...StyleSheet.absoluteFillObject
   },
   sheet: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     paddingHorizontal: Spacing.xl,

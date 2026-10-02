@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
-import { Colors, FontSize, Radius, Spacing } from '../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../src/constants/theme';
 import { aiKeyService } from '../src/services/ai-key-service';
 import { useAiKeyStatus } from '../src/hooks/use-ai-key-status';
 import { useAuth } from '../src/hooks/useAuth';
@@ -298,10 +298,10 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
 
 const styles = StyleSheet.create({
   providerCard: {
+      ...SurfaceStyles.card,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
   },

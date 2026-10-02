@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  Modal, Pressable, View, Text, StyleSheet, TextInput, TouchableOpacity,
+  Modal, Pressable, View, Text, StyleSheet, TouchableOpacity,
   BackHandler, Keyboard, KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -30,6 +30,8 @@ import { onboardingService } from '../src/services/onboardingService';
 import { onboardingRepository } from '../src/repositories/onboardingRepository';
 import UserReply from './components/onboarding/UserReply';
 import VoiceInput from './components/onboarding/VoiceInput';
+import { MessageComposer } from '../src/components/message-composer';
+import { Colors, SurfaceStyles } from '../src/constants/theme';
 
 const BLOCK_COUNT = OPEN_QUESTIONS.length;
 const TOTAL_STAGES = BLOCK_COUNT + 1;
@@ -407,7 +409,7 @@ export default function OnboardingScreen() {
             <TouchableOpacity style={styles.confirmationSecondary} disabled={saving} onPress={() => setSkipAiConfirmationVisible(true)}><Text style={styles.confirmationSecondaryText}>Continuar sem IA</Text></TouchableOpacity>
           </View> : showIntro ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={0.85}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity></View>
           : currentBlock?.options ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(composerBottomInset, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={0.8}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>
-          : currentBlock ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}><View style={styles.composerRow}><View style={styles.inputWrapper}><TextInput style={styles.input} onFocus={() => setInputFocused(true)} value={inputValue} onChangeText={setInputValue} placeholder="Você pode escrever ou falar ..." placeholderTextColor="#818C9C" onSubmitEditing={handleSubmit} returnKeyType="send" multiline scrollEnabled /><View style={styles.inputDivider} /><VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" /></View><TouchableOpacity style={[styles.sendBtn, !inputValue.trim() && styles.sendBtnDisabled]} onPress={handleSubmit} disabled={!inputValue.trim()} accessibilityLabel="Enviar resposta"><Ionicons name="arrow-up" size={21} color="#FFFFFF" /></TouchableOpacity></View>{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
+          : currentBlock ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}><MessageComposer value={inputValue} onChangeText={setInputValue} onFocus={() => setInputFocused(true)} placeholder="Você pode escrever ou falar ..." onSubmit={handleSubmit} submitLabel="Enviar resposta" voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" />} />{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
         </View>
       </KeyboardAvoidingView>
       <Modal
@@ -470,7 +472,9 @@ const styles = StyleSheet.create({
   messageContent: { width: '100%', alignItems: 'center', gap: 4 },
   keyboardContrast: { position: 'absolute', top: -24, bottom: -24, left: -20, right: -20, borderRadius: 40, overflow: 'hidden' },
   confirmationOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, backgroundColor: 'rgba(18, 39, 32, 0.42)' },
-  confirmationCard: { width: '100%', maxWidth: 360, alignItems: 'center', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 18, borderRadius: 28, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E2F1EA', boxShadow: '0 16px 40px rgba(17, 56, 43, 0.20)' },
+  confirmationCard: {
+      ...SurfaceStyles.overlay,
+    width: '100%', maxWidth: 360, alignItems: 'center', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 18, borderRadius: 28 },
   confirmationIcon: { width: 54, height: 54, marginBottom: 16, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6F7F1' },
   confirmationTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 19, lineHeight: 26, textAlign: 'center', color: '#202B38' },
   confirmationMessage: { marginTop: 9, marginBottom: 22, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 15, lineHeight: 22, textAlign: 'center', color: '#62736E' },
@@ -479,10 +483,7 @@ const styles = StyleSheet.create({
   confirmationSecondary: { width: '100%', minHeight: 46, marginTop: 6, alignItems: 'center', justifyContent: 'center' },
   confirmationSecondaryText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, lineHeight: 20, color: '#087E68' },
   composerArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, paddingHorizontal: 18, paddingTop: 14, backgroundColor: '#F3FFF9', borderTopLeftRadius: 44, borderTopRightRadius: 44 },
-  composerRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
-  inputWrapper: { flex: 1, minWidth: 0, minHeight: 46, flexDirection: 'row', alignItems: 'center', paddingLeft: 16, paddingRight: 5, borderRadius: 999, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D9EEE5' },
-  input: { flex: 1, minWidth: 0, maxHeight: 68, minHeight: 42, lineHeight: 20, paddingVertical: 9, textAlignVertical: 'center', fontFamily: 'PlusJakartaSans_400Regular', fontSize: 14, color: '#202B38' }, inputDivider: { width: 1, height: 20, backgroundColor: '#DCECE6', marginHorizontal: 9 },
-  sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#00A878', alignItems: 'center', justifyContent: 'center', shadowColor: '#007F64', shadowOpacity: 0.11, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, sendBtnDisabled: { backgroundColor: '#A9D9CA', shadowOpacity: 0.035 },
+  sendBtnDisabled: { backgroundColor: Colors.accentDisabled, shadowOpacity: 0.035 },
   startBtn: { height: 54, borderRadius: 30, backgroundColor: '#00A878', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, startBtnText: { fontFamily: 'PlusJakartaSans_700Bold', color: '#FFFFFF', fontSize: 16 },
   optionsBar: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, optionChip: { paddingHorizontal: 16, paddingVertical: 12, borderRadius: 24, backgroundColor: '#00A878' }, optionChipText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: '#FFFFFF', fontSize: 15, lineHeight: 20 },
   skipBtn: { alignSelf: 'center', paddingVertical: 8 }, skipBtnText: { fontFamily: 'PlusJakartaSans_600SemiBold', color: '#087E68', fontSize: 14, lineHeight: 20 },

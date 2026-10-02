@@ -1,13 +1,16 @@
-﻿import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, Image,
-  TouchableOpacity, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, FlatList, Image,
+  TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { MessageComposer } from '../../src/components/message-composer';
+import { useHeaderHeight } from '@react-navigation/elements';
+import { BottomSurface } from '../../src/components/bottom-surface';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
 import { normalizeMessage } from '../../src/engine/taskEngine/normalize';
@@ -25,7 +28,7 @@ import { findLearnedIntentMarker, recordLearnedIntentMarker, recordLearnedTerm }
 import type { TaxonomyDomain } from '../../src/engine/taxonomy/types';
 import { onboardingService } from '../../src/services/onboardingService';
 import { learnedIntentRepository } from '../../src/repositories/learnedIntentRepository';
-import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
+import { ONBOARDING_MASCOTS } from '../../src/data/onboarding-messages';
 import VoiceInput from '../components/onboarding/VoiceInput';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
@@ -1040,11 +1043,19 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     commitMessages(transcript.trim(), processMessage(transcript.trim()));
   }, [processMessage, commitMessages]);
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const headerHeight = useHeaderHeight();
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+    const grouped = index > 0 && messages[index - 1].type === item.type;
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
 
     const renderBotAvatar = (expression: 'neutro' | 'confuso' | 'piscando') => (
-      <Image source={MASCOT_IMAGES[expression]} style={styles.botAvatarImage} resizeMode="contain" />
+      <Image source={expression === 'confuso' ? ONBOARDING_MASCOTS.confused : expression === 'piscando' ? ONBOARDING_MASCOTS.happy : ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
     );
 
     const fallbackActions: { label: string; value: QuickActionValue; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -1056,7 +1067,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
     if (item.type === 'user') {
       return (
-        <View style={styles.userBubbleContainer}>
+        <View style={[styles.userBubbleContainer, grouped && styles.groupedMessage]}>
           <View style={styles.userBubble}>
             <Text style={styles.userText}>{item.text}</Text>
           </View>
@@ -1066,7 +1077,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
     if (item.type === 'fallback') {
       return (
-        <View style={styles.botRow}>
+        <View style={[styles.botRow, grouped && styles.groupedMessage]}>
           {renderBotAvatar('confuso')}
           <View style={styles.botContent}>
             <View style={styles.botBubble}>
@@ -1087,7 +1098,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     const hasCards = item.cards && item.cards.length > 0;
 
     return (
-      <View style={styles.botRow}>
+      <View style={[styles.botRow, grouped && styles.groupedMessage]}>
         {renderBotAvatar(hasCards ? 'piscando' : isTransactionReport ? 'piscando' : 'neutro')}
         <View style={styles.botContent}>
           {hasCards ? (
@@ -1141,23 +1152,24 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       {/* Messages */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        // Same strategy as onboarding: padding while Android's keyboard is
+        // visible, never retain a fixed height across tab-bar layout changes.
+        enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && keyboardVisible)}
+        behavior="padding"
+        keyboardVerticalOffset={headerHeight}
       >
         <FlatList
+          style={styles.readingArea}
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          onLayout={scrollToBottom}
           onContentSizeChange={scrollToBottom}
-        />
-
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(239,239,237,0)', Colors.bg]}
-          style={styles.messageFade}
         />
 
         {commandSuggestions.length > 0 && (
@@ -1218,41 +1230,10 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           </View>
         )}
 
-        {/* Input bar */}
-        <View style={[styles.inputBar, { marginBottom: Spacing.sm }]}>
-          <View style={styles.inputWrapper}>
-            {!input && (
-              <Text
-                style={styles.inputPlaceholder}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                pointerEvents="none"
-              >
-                Digite aqui...
-              </Text>
-            )}
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholderTextColor="transparent"
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-              numberOfLines={1}
-            />
-          </View>
-          <VoiceInput
-            onCapture={handleVoiceCapture}
-            onPartialResult={setInput}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!input.trim()}
-          >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
-        </View>
+        <BottomSurface style={styles.inputBar}>
+          <MessageComposer value={input} onChangeText={setInput} placeholder="Digite aqui..." onSubmit={handleSend}
+            voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInput} appearance="onboarding" />} />
+        </BottomSurface>
       </KeyboardAvoidingView>
       <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>
@@ -1260,8 +1241,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: Colors.chatBackground },
+  readingArea: { backgroundColor: Colors.chatBackground },
+  flex: { flex: 1, backgroundColor: Colors.bottomSurface },
 
   header: {
     flexDirection: 'row',
@@ -1269,7 +1251,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: 'transparent',
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerLogo: {
@@ -1296,26 +1278,12 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: Spacing.md,
   },
-  messageFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 76,
-    height: 10,
-  },
   commandMenu: {
+      ...SurfaceStyles.overlay,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.xs,
     padding: Spacing.sm,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    borderRadius: Radius.lg
   },
   commandMenuTitle: {
     paddingHorizontal: Spacing.sm,
@@ -1391,9 +1359,10 @@ const styles = StyleSheet.create({
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
   userBubble: {
+      ...SurfaceStyles.userMessage,
     backgroundColor: Colors.bubbleUser,
-    borderRadius: Radius.lg,
-    borderBottomRightRadius: 4,
+    borderRadius: Radius.xl,
+    borderBottomRightRadius: Radius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     maxWidth: '80%',
@@ -1419,49 +1388,39 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   botAvatarImage: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     marginTop: 2,
   },
-  botContent: { flex: 1, gap: Spacing.xs },
+  botContent: { flex: 1, gap: Spacing.md },
   cardsContainer: {
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     alignSelf: 'flex-start',
     maxWidth: '92%',
   },
   botBubble: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.message,
     borderRadius: Radius.lg,
-    borderTopLeftRadius: 4,
+    borderTopLeftRadius: Radius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     alignSelf: 'flex-start',
-    maxWidth: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    maxWidth: '100%'
   },
   botText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
-    color: Colors.primary,
+    color: Colors.ink,
     lineHeight: 22,
   },
-  conversationPrompt: { alignSelf: 'flex-start', maxWidth: '92%', gap: Spacing.xs },
+  conversationPrompt: { alignSelf: 'flex-start', maxWidth: '92%', gap: Spacing.md },
   conversationBubble: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.message,
     borderRadius: Radius.lg,
-    borderTopLeftRadius: 4,
+    borderTopLeftRadius: Radius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    gap: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 3
   },
   conversationTitle: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
@@ -1494,12 +1453,10 @@ const styles = StyleSheet.create({
 
   actionsRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
   actionBtn: {
+      ...SurfaceStyles.filter,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   actionText: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -1522,47 +1479,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-    backgroundColor: Colors.bg,
-  },
-  inputWrapper: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  inputPlaceholder: {
-    position: 'absolute',
-    left: Spacing.lg,
-    right: Spacing.lg,
-    zIndex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.textMuted,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: Colors.textMuted },
+  inputBar: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.md },
+  groupedMessage: { marginTop: 0 },
 });

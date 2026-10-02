@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { CalendarDayCell } from './CalendarDayCell';
 import type { CalendarEvent } from '../../../src/store';
 
@@ -201,15 +201,10 @@ export function CollapsibleCalendar({
 
 const styles = StyleSheet.create({
   container: {
+      ...SurfaceStyles.card,
     marginHorizontal: Spacing.xl,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    padding: Spacing.lg
   },
   monthNav: {
     flexDirection: 'row',

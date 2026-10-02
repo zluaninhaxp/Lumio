@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface SearchBarProps {
   value: string;
@@ -41,17 +41,15 @@ export function SearchBar({
 
 const styles = StyleSheet.create({
   container: {
+      ...SurfaceStyles.control,
     flexDirection: 'row',
     alignItems: 'center',
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.sm,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     height: 44,
-    gap: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    gap: Spacing.sm
   },
   hidden: { display: 'none' },
   input: {

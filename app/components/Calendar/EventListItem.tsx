@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
 import { ChatIndicator } from '../ChatIndicator';
 
@@ -138,16 +138,11 @@ export function EventListItem({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    marginBottom: Spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   row: {
     flexDirection: 'row',
@@ -159,7 +154,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
   },

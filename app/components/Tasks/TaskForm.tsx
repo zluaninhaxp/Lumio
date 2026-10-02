@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { useAppStore } from '../../../src/store';
 import { TagSelector } from '../TagSelector';
 import { TaskDateSelector } from './TaskDateSelector';
@@ -171,16 +171,14 @@ const styles = StyleSheet.create({
   ...taskFormStyles,
   priorityRow: { flexDirection: 'row', gap: 6 },
   priorityChip: {
+      ...SurfaceStyles.filter,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   priorityChipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -214,15 +212,13 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   tagChip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   tagChipActive: {
     backgroundColor: Colors.primary,
@@ -235,15 +231,13 @@ const styles = StyleSheet.create({
   },
   tagChipTextActive: { color: '#FFFFFF' },
   assigneeChip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   assigneeChipActive: {
     backgroundColor: Colors.primary,

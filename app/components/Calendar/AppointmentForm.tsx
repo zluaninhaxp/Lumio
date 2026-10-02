@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, Radius, Spacing } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 import type { Atendimento, ClienteItem, Orcamento } from '../../../src/store';
 import { taskFormStyles } from '../Tasks/taskFormStyles';
 
@@ -31,7 +31,9 @@ export function AppointmentForm({ initialDate, clients, quotes, onSave, onCancel
 const styles = StyleSheet.create({
   ...taskFormStyles,
   chips: { gap: 6, paddingVertical: 2 },
-  chip: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 6 },
+  chip: {
+      ...SurfaceStyles.filter,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: 6 },
   activeChip: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs, fontFamily: 'PlusJakartaSans_500Medium' },
   activeChipText: { color: '#FFF' },

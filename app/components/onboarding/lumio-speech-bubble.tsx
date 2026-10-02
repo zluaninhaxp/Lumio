@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { LumioSurfaceFill } from '../../../src/components/lumio-surface-fill';
 import { Colors, Typography } from '../../../src/constants/theme';
 import Animated, {
   cancelAnimation,
@@ -55,7 +55,7 @@ export default function LumioSpeechBubble({ message, delayMs = 0 }: Props) {
       style={[styles.container, animatedStyle]}
     >
       <View style={styles.body}>
-        <LinearGradient pointerEvents="none" colors={['#FFFFFF', '#FFFFFF', '#E4F2EC']} locations={[0, 0.55, 1]} style={styles.fill} />
+        <LumioSurfaceFill />
         <View pointerEvents="none" style={styles.tail} />
         <Text
           style={styles.text}

@@ -1,6 +1,7 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useWindowDimensions } from 'react-native';
+import { BottomSurface } from '@/src/components/bottom-surface';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography } from '@/src/constants/theme';
 
@@ -19,11 +20,14 @@ export default function TabLayout() {
 
   return (
     <Tabs
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
+        sceneStyle: { backgroundColor: Colors.bottomSurface },
+        tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: Colors.accent,
         tabBarInactiveTintColor: Colors.textSecondary,
         tabBarShowLabel: true,
+        tabBarBackground: () => <BottomSurface pointerEvents="none" organicEdge={route.name !== 'chat'} style={StyleSheet.absoluteFillObject} />,
         tabBarLabelPosition: 'below-icon',
         tabBarLabelStyle: {
           fontFamily: Typography.semibold,
@@ -37,11 +41,13 @@ export default function TabLayout() {
         tabBarStyle: {
           height: itemHeight + bottom,
           paddingBottom: bottom,
-          backgroundColor: Colors.bgCard,
-          borderTopWidth: 1,
-          borderTopColor: Colors.border,
+          backgroundColor: Colors.bottomSurface,
+          overflow: 'visible',
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-      }}
+      })}
     >
       {tabs.map(({ name, title, icon }) => (
         <Tabs.Screen

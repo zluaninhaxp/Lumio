@@ -8,7 +8,7 @@ import { BottomSheet } from '../components/Calendar/BottomSheet';
 import { SwipeableActions } from '../components/SwipeableActions';
 import { FormLabel, RequiredLabel } from '../components/RequiredLabel';
 import { pluginFormStyles } from '../components/Forms/pluginFormStyles';
-import { Colors, FontSize, Radius, Spacing } from '../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
 import { CatalogItem, useAppStore } from '../../src/store';
 import { clearRelationDraft } from '../../src/utils/relationDraft';
 
@@ -102,28 +102,38 @@ export default function CatalogoScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
   icon: { padding: Spacing.xs },
   title: { color: Colors.primary, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg },
-  search: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginHorizontal: Spacing.xl, paddingHorizontal: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radius.full, borderWidth: 1, borderColor: Colors.border },
+  search: {
+      ...SurfaceStyles.control,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginHorizontal: Spacing.xl, paddingHorizontal: Spacing.lg, borderRadius: Radius.full },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   chips: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md },
-  chip: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  chip: {
+      ...SurfaceStyles.filter,
+    borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
   chipTextActive: { color: '#FFFFFF' },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
   empty: { alignItems: 'center', paddingTop: 80, gap: Spacing.md },
   emptyText: { color: Colors.textSecondary },
-  card: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.bgCard, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.sm },
+  card: {
+      ...SurfaceStyles.card,
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.sm },
   cardIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
   cardMain: { flex: 1 },
   cardTitle: { color: Colors.primary, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.md },
   cardSubtitle: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 2 },
   price: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', marginTop: 2 },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end' },
-  modalCard: { width: '100%', gap: Spacing.md },
+  modalOverlay: {
+      ...SurfaceStyles.backdrop,
+    flex: 1, justifyContent: 'flex-end' },
+  modalCard: {
+      ...SurfaceStyles.overlay,
+    width: '100%', gap: Spacing.md },
   modalTitle: pluginFormStyles.modalTitle,
   input: pluginFormStyles.input,
   modalActions: pluginFormStyles.modalActions,

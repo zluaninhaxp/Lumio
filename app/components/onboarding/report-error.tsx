@@ -1,7 +1,7 @@
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing, Typography } from '../../../src/constants/theme';
+import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
 import { ReportBackdrop } from './report-processing';
 
 const ERROR_IMAGE = require('../../../assets/mascote-relatorio/Mascote Ansioso com Laptop e Alertas.png');
@@ -61,14 +61,18 @@ const styles = StyleSheet.create({
   copy: { alignItems: 'center', gap: Spacing.sm, maxWidth: 390 },
   title: { fontFamily: Typography.bold, fontSize: FontSize.xxl, lineHeight: 32, color: '#202B38', textAlign: 'center' },
   subtitle: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 22, color: Colors.textSecondary, textAlign: 'center' },
-  helpCard: { width: '100%', maxWidth: 390, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, padding: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.border, shadowColor: '#3D8C75', shadowOpacity: 0.1, shadowRadius: 15, shadowOffset: { width: 0, height: 6 }, elevation: 3 },
+  helpCard: {
+      ...SurfaceStyles.card,
+    width: '100%', maxWidth: 390, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md, padding: Spacing.lg, borderRadius: Radius.xl },
   helpIcon: { width: 50, height: 50, borderRadius: 25, backgroundColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
   helpCopy: { flex: 1, gap: Spacing.sm },
   helpTitle: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: Colors.primary },
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent, marginTop: 7 },
   tipText: { flex: 1, fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 19, color: Colors.textSecondary },
-  retryButton: { width: '100%', maxWidth: 390, minHeight: 54, borderRadius: Radius.full, backgroundColor: Colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, shadowColor: '#007F64', shadowOpacity: 0.11, shadowRadius: 7, shadowOffset: { width: 0, height: 2 }, elevation: 2 },
+  retryButton: {
+      ...SurfaceStyles.floating,
+    width: '100%', maxWidth: 390, minHeight: 54, borderRadius: Radius.full, backgroundColor: Colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
   retryText: { fontFamily: Typography.bold, fontSize: FontSize.md, color: Colors.bgCard },
   reviewButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl },
   reviewText: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: '#087E68', textDecorationLine: 'underline' },

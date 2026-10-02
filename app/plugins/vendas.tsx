@@ -19,7 +19,7 @@ import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
@@ -469,7 +469,7 @@ export default function VendasScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -484,16 +484,14 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
   searchInput: { flex: 1, height: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
@@ -503,7 +501,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -574,6 +572,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
@@ -582,16 +581,15 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     backgroundColor: Colors.accent,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "flex-end",
   },
   modalCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderTopLeftRadius: Radius.xl,
     borderTopRightRadius: Radius.xl,
     padding: Spacing.xxl,
@@ -621,8 +619,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   chip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
+      ...SurfaceStyles.filter,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
@@ -631,8 +628,8 @@ const styles = StyleSheet.create({
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
   chipTextActive: { color: "#FFFFFF" },
   itemForm: {
+      ...SurfaceStyles.control,
     position: "relative",
-    backgroundColor: Colors.bg,
     borderRadius: Radius.md,
     padding: Spacing.md,
     marginTop: Spacing.sm,
@@ -641,31 +638,29 @@ const styles = StyleSheet.create({
   itemFormFocused: {},
   itemSearchWrap: {},
   itemNameInput: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.control,
     borderRadius: Radius.sm,
     padding: Spacing.md,
     color: Colors.primary,
   },
   itemNameInputActive: {
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
   },
   numberRow: { flexDirection: "row", gap: Spacing.sm },
   numberInput: {
+      ...SurfaceStyles.control,
     flex: 1,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.sm,
     padding: Spacing.md,
     color: Colors.primary,
   },
   stockSuggestions: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderBottomLeftRadius: Radius.sm,
     borderBottomRightRadius: Radius.sm,
-    borderWidth: 1,
-    borderColor: Colors.border,
     borderTopWidth: 0,
     overflow: "hidden",
     zIndex: 20,
@@ -702,7 +697,7 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 5,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: Colors.bgCard,
@@ -741,11 +736,10 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   modalCancel: {
+      ...SurfaceStyles.filter,
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: "center",
   },
   modalCancelText: {

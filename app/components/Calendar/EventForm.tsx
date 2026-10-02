@@ -8,7 +8,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
 import { useAppStore } from '../../../src/store';
 import { TagSelector } from '../TagSelector';
@@ -197,13 +197,11 @@ const styles = StyleSheet.create({
   ...taskFormStyles,
   typeRow: { flexDirection: 'row', gap: 6 },
   typeBtn: {
+      ...SurfaceStyles.filter,
     flex: 1,
     paddingVertical: 6,
     borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    backgroundColor: Colors.bgCard,
+    alignItems: 'center'
   },
   typeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   typeBtnText: {
@@ -229,12 +227,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   eventTypeChip: {
+      ...SurfaceStyles.filter,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   eventTypeChipActive: {
     backgroundColor: Colors.accent,
