@@ -35,7 +35,6 @@ export default function RootLayout() {
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AuthProvider>
           <StatusBar style="dark" />
-          {syncState.status === 'saving' && <View style={{ backgroundColor: '#FFF3CD', padding: 4 }}><Text style={{ color: '#6B4E00', textAlign: 'center' }}>Salvando alterações...</Text></View>}
           {syncState.status === 'warning' && <View style={{ backgroundColor: '#FFF3CD', padding: 8 }}><Text style={{ color: '#6B4E00', textAlign: 'center' }}>{syncState.error}</Text></View>}
           {syncState.status === 'error' && <View style={{ backgroundColor: '#B42318', padding: 8 }}><Text style={{ color: 'white', textAlign: 'center' }}>{syncState.error}</Text></View>}
           <Stack screenOptions={{ headerShown: false }}>
@@ -45,8 +44,9 @@ export default function RootLayout() {
             <Stack.Screen name="login" />
             <Stack.Screen name="register" />
             <Stack.Screen name="onboarding" />
-            <Stack.Screen name="celebration" />
-            <Stack.Screen name="onboarding-summary" />
+            <Stack.Screen name="celebration" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="onboarding-report-intro" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="onboarding-summary" options={{ gestureEnabled: false }} />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="plugins/store" />
             <Stack.Screen name="plugins/estoque" />

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BackHandler, View, StyleSheet, TouchableOpacity, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -24,6 +23,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import { onboardingService } from '../src/services/onboardingService';
 import CelebrationText from '@/app/components/CelebrationText';
 import ReportProcessing from '@/app/components/onboarding/report-processing';
+import { useForwardOnboarding } from '../src/hooks/use-forward-onboarding';
 import ReportError from '@/app/components/onboarding/report-error';
 
 const BG_COLOR = '#007F6A';
@@ -43,6 +43,7 @@ type Phase = 'thinking' | 'focused' | 'done' | 'error' | 'missing-key';
 
 export default function CelebrationScreen() {
   const router = useRouter();
+  useForwardOnboarding();
   const { currentUser, refreshUser } = useAuth();
   const openAnswers = useAppStore((s) => s.openAnswers);
   const onboardingContext = useAppStore((s) => s.onboardingContext);
@@ -55,8 +56,6 @@ export default function CelebrationScreen() {
   const startedRef = useRef(false);
   const requestInFlightRef = useRef(false);
   const finishingWithoutAiRef = useRef(false);
-  const phaseRef = useRef(phase);
-  phaseRef.current = phase;
   const disposedRef = useRef(false);
   useEffect(() => {
     disposedRef.current = false;
@@ -106,10 +105,9 @@ export default function CelebrationScreen() {
     (result: OnboardingExtractionResult, isSimulation: boolean) => {
       if (disposedRef.current) return;
       setPendingOnboardingExtraction(result, isSimulation);
-      setPhase('done');
-      buttonOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
+      router.replace('/onboarding-report-intro');
     },
-    [setPendingOnboardingExtraction, buttonOpacity],
+    [setPendingOnboardingExtraction, router],
   );
 
   /**
@@ -181,13 +179,8 @@ export default function CelebrationScreen() {
 
   }, [onboardingContext, applyResult, buttonOpacity]);
 
-  // Dispara a extração real assim que a tela monta — o fluxo antigo caía
-  // no mock por depender de uma função que lançava erro; agora a IA é
-  // chamada de verdade, e o mock só aparece como fallback explícito.
-  // O fluxo real é disparado no mount. Voltamos a disparar quando a tela
-  // volta a focar E estava pausada em 'missing-key' — só nesse caso o
-  // usuário pode ter vindo de configurar sua chave em /ai-settings e
-  // merece a IA re-tentar automaticamente sem precisar de botão.
+  // Geração começa ao montar. A configuração só retorna a esta rota
+  // após a confirmação explícita, nunca apenas ao testar ou cancelar.
   useEffect(() => {
     if (startedRef.current) return;
     const cleanup = runExtraction();
@@ -195,26 +188,11 @@ export default function CelebrationScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (phaseRef.current === 'missing-key') {
-        // Re-tenta a extração — se a chave foi configurada nas settings
-        // agora resolve via IA; se ainda não foi, volta pra 'missing-key'.
-        startedRef.current = false;
-        runExtraction();
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [runExtraction]),
-  );
-
   const handleRetry = useCallback(() => {
     if (requestInFlightRef.current) return;
     runExtraction();
   }, [runExtraction]);
 
-  const handleReviewAnswers = useCallback(() => {
-    router.replace('/onboarding');
-  }, [router]);
 
   const handleContinueWithoutAi = useCallback(async () => {
     if (finishingWithoutAiRef.current) return;
@@ -236,11 +214,11 @@ export default function CelebrationScreen() {
   }, [currentUser, openAnswers, onboardingContext, refreshUser, router]);
 
   const handleGoToSettings = useCallback(() => {
-    router.push('/ai-settings');
+    router.replace({ pathname: '/ai-settings', params: { from: 'onboarding' } });
   }, [router]);
 
   const handleSeeResults = useCallback(() => {
-    router.replace('/onboarding-summary');
+    router.replace('/onboarding-report-intro');
   }, [router]);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -272,16 +250,11 @@ export default function CelebrationScreen() {
 
   const processing = phase === 'thinking' || phase === 'focused';
 
-  useEffect(() => {
-    if (!processing) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => true);
-    return () => subscription.remove();
-  }, [processing]);
 
   if (processing) return <><Stack.Screen options={{ gestureEnabled: false }} /><ReportProcessing /></>;
 
   const genericError = phase === 'error' && !['unauthorized', 'missing-api-key', 'not-authenticated', 'provider-model', 'payment-required', 'quota-exceeded', 'invalid-input'].includes(error?.kind ?? '');
-  if (genericError) return <ReportError onRetry={handleRetry} onReview={handleReviewAnswers} onContinue={handleContinueWithoutAi} onSimulation={useSimulationFallback} finishing={finishingWithoutAi} finishError={finishError} />;
+  if (genericError) return <ReportError onRetry={handleRetry} onContinue={handleContinueWithoutAi} onSimulation={useSimulationFallback} finishing={finishingWithoutAi} finishError={finishError} />;
 
   return (
     <View style={styles.container}>

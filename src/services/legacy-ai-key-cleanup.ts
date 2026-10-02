@@ -6,8 +6,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 export async function clearLegacyAiKey(): Promise<void> {
   await AsyncStorage.removeItem('@lumio/ai-api-key-fallback');
   if (await SecureStore.isAvailableAsync()) {
-    await SecureStore.deleteItemAsync('@lumio/ai-api-key', {
-      keychainService: 'lumio-ai', keychainAccessible: SecureStore.WHEN_UNLOCKED,
-    });
+    // Keep the original Gemini legacy key identifier. Older SecureStore versions
+    // may reject its characters; cleanup must not block authentication.
+    try {
+      await SecureStore.deleteItemAsync('@lumio/ai-api-key', {
+        keychainService: 'lumio-ai', keychainAccessible: SecureStore.WHEN_UNLOCKED,
+      });
+    } catch {
+      // The current Gemini key lives in the backend; legacy cleanup is best effort.
+    }
   }
 }

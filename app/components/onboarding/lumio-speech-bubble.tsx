@@ -94,7 +94,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgCard, borderLeftWidth: 1, borderBottomWidth: 1,
     borderColor: '#8AD8BC', transform: [{ rotate: '45deg' }],
   },
-  text: { fontFamily: Typography.medium, fontSize: 13, lineHeight: 18, color: Colors.primary },
+  text: { fontFamily: Typography.medium, fontSize: 14, lineHeight: 20, color: Colors.primary },
   emphasis: { fontFamily: Typography.bold, color: Colors.accent },
   // Source images include transparent margins. Contain preserves those and the aspect ratio.
   mascot: { position: 'absolute', left: 0, top: -2, width: 88, height: 80 },

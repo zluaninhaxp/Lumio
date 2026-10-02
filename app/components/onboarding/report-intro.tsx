@@ -6,9 +6,9 @@ import { ReportBackdrop } from './report-processing';
 
 const REPORT_IMAGE = require('../../../assets/mascote-relatorio/Mascote Alegre com Laptop e Painéis Flutuantes.png');
 
-type Props = { onBack: () => void; onExplore: () => void; isSimulation?: boolean };
+type Props = { onExplore: () => void; isSimulation?: boolean };
 
-export default function ReportIntro({ onBack, onExplore, isSimulation = false }: Props) {
+export default function ReportIntro({ onExplore, isSimulation = false }: Props) {
   const { width, height } = useWindowDimensions();
   const compact = height < 700;
   const heroSize = Math.min(width * 0.8, height * (compact ? 0.3 : 0.35), 330);
@@ -16,11 +16,6 @@ export default function ReportIntro({ onBack, onExplore, isSimulation = false }:
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <View pointerEvents="none" accessible={false} style={styles.backdrop}><ReportBackdrop /></View>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar ao resumo">
-          <Ionicons name="chevron-back" size={26} color="#087E68" />
-        </TouchableOpacity>
-      </View>
       <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} showsVerticalScrollIndicator={false}>
         <View style={[styles.hero, { width: heroSize, height: heroSize }]}>
           <View pointerEvents="none" accessible={false} style={styles.halo} />
@@ -50,8 +45,6 @@ export default function ReportIntro({ onBack, onExplore, isSimulation = false }:
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F3FFF9', overflow: 'hidden' },
   backdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.52 },
-  header: { paddingHorizontal: 14, paddingTop: Spacing.sm, height: 60 },
-  backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: Colors.bgCard, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#3D8C75', shadowOpacity: 0.11, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   content: { flexGrow: 1, alignItems: 'center', justifyContent: 'space-around', paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xxxl, gap: Spacing.lg },
   contentCompact: { gap: Spacing.md },
   hero: { alignItems: 'center', justifyContent: 'center', maxWidth: '100%' },

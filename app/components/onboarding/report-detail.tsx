@@ -17,7 +17,6 @@ type Props = {
   extraction: OnboardingExtractionResult;
   isSimulation: boolean;
   activatedPlugins: string[];
-  onBack: () => void;
   onFinish: () => void;
   onSave: (next: OnboardingExtractionResult) => Promise<void>;
   onPluginActivation: (id: string, active: boolean) => void;
@@ -60,7 +59,7 @@ const listMeta: { key: ReportListKey; title: string; icon: keyof typeof Ionicons
   { key: 'task', title: 'Tags de tarefa', icon: 'pricetag-outline' },
 ];
 
-export default function ReportDetail({ extraction, isSimulation, activatedPlugins, onBack, onFinish, onSave, onPluginActivation, onConfigureAi }: Props) {
+export default function ReportDetail({ extraction, isSimulation, activatedPlugins, onFinish, onSave, onPluginActivation, onConfigureAi }: Props) {
   const sheetRef = useRef<BottomSheetHandle>(null);
   const { height: screenHeight } = useWindowDimensions();
   const [editing, setEditing] = useState<EditKey | null>(null);
@@ -101,9 +100,7 @@ export default function ReportDetail({ extraction, isSimulation, activatedPlugin
   return <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
     <View pointerEvents="none" style={styles.backdrop}><ReportBackdrop /></View>
     <View style={styles.header}>
-      <TouchableOpacity style={styles.backButton} onPress={onBack} accessibilityRole="button" accessibilityLabel="Voltar à introdução"><Ionicons name="chevron-back" size={25} color="#087E68" /></TouchableOpacity>
       <Text style={styles.headerTitle}>Relatório do seu negócio</Text>
-      <View style={styles.headerSpacer} />
     </View>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <ReportIntroCard />
@@ -146,9 +143,9 @@ export default function ReportDetail({ extraction, isSimulation, activatedPlugin
 }
 
 const styles = StyleSheet.create({
+  headerTitle: { flex: 1, textAlign: 'center', fontFamily: Typography.bold, fontSize: FontSize.md, color: '#202B38' },
   safe: { flex: 1, backgroundColor: '#F3FFF9', overflow: 'hidden' }, backdrop: { ...StyleSheet.absoluteFillObject, opacity: 0.38 },
   header: { minHeight: 60, paddingHorizontal: 14, paddingTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(243,255,249,0.74)' },
-  backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.86)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)', shadowColor: '#3D8C75', shadowOpacity: 0.09, shadowRadius: 11, shadowOffset: { width: 0, height: 3 }, elevation: 2 }, headerTitle: { flex: 1, textAlign: 'center', fontFamily: Typography.bold, fontSize: FontSize.md, color: '#202B38' }, headerSpacer: { width: 44 },
   content: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.xxxl, gap: Spacing.md, width: '100%', maxWidth: 530, alignSelf: 'center' },
   intro: { minHeight: 136, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, backgroundColor: Colors.bgCard, borderRadius: Radius.xl, overflow: 'hidden', shadowColor: '#3D8C75', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   introGlowTop: { position: 'absolute', width: 170, height: 105, top: -60, right: -35, borderRadius: Radius.full, backgroundColor: Colors.accentGlow, opacity: 0.6, transform: [{ rotate: '-20deg' }] }, introGlowBottom: { position: 'absolute', width: 170, height: 90, left: -56, bottom: -44, borderRadius: Radius.full, backgroundColor: Colors.accentLight, opacity: 0.65, transform: [{ rotate: '18deg' }] },

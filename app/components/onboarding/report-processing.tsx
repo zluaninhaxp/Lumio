@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { Colors, FontSize, Radius, Spacing, Typography } from '../../../src/constants/theme';
@@ -50,11 +49,6 @@ export default function ReportProcessing() {
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ReportBackdrop />
 
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} disabled accessibilityRole="button" accessibilityLabel="Voltar" accessibilityHint="Disponível quando o processamento terminar" accessibilityState={{ disabled: true }}>
-          <Ionicons name="chevron-back" size={26} color="#087E68" />
-        </TouchableOpacity>
-      </View>
 
       <View style={[styles.content, compact && styles.contentCompact]}>
         <View style={[styles.hero, { width: illustrationSize, height: illustrationSize }]}>
@@ -81,8 +75,6 @@ export default function ReportProcessing() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F3FFF9', overflow: 'hidden' },
   background: { ...StyleSheet.absoluteFillObject },
-  header: { paddingHorizontal: 14, paddingTop: Spacing.sm, height: 60 },
-  backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: Colors.bgCard, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#3D8C75', shadowOpacity: 0.11, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   content: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, gap: Spacing.md, transform: [{ translateY: -14 }] },
   contentCompact: { gap: Spacing.sm },
   hero: { alignItems: 'center', justifyContent: 'center', maxWidth: '100%', marginBottom: -32 },

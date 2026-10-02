@@ -11,9 +11,9 @@ const TIPS = [
   'Tentar novamente em alguns segundos',
 ];
 
-type Props = { onRetry: () => void; onReview: () => void; onContinue: () => void; onSimulation?: () => void; finishing?: boolean; finishError?: string | null };
+type Props = { onRetry: () => void; onContinue: () => void; onSimulation?: () => void; finishing?: boolean; finishError?: string | null };
 
-export default function ReportError({ onRetry, onReview, onContinue, onSimulation, finishing = false, finishError }: Props) {
+export default function ReportError({ onRetry, onContinue, onSimulation, finishing = false, finishError }: Props) {
   const { width, height } = useWindowDimensions();
   const compact = height < 700;
   const illustrationSize = Math.min(width, compact ? height * 0.32 : height * 0.39, 350);
@@ -21,11 +21,6 @@ export default function ReportError({ onRetry, onReview, onContinue, onSimulatio
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
       <ReportBackdrop />
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={onReview} disabled={finishing} accessibilityRole="button" accessibilityLabel="Voltar às respostas">
-          <Ionicons name="chevron-back" size={26} color="#087E68" />
-        </TouchableOpacity>
-      </View>
       <ScrollView contentContainerStyle={[styles.content, compact && styles.contentCompact]} showsVerticalScrollIndicator={false}>
         <View style={[styles.hero, { width: illustrationSize, height: illustrationSize }]}>
           <View pointerEvents="none" accessible={false} style={styles.heroHalo} />
@@ -58,8 +53,6 @@ export default function ReportError({ onRetry, onReview, onContinue, onSimulatio
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#F3FFF9', overflow: 'hidden' },
-  header: { paddingHorizontal: 14, paddingTop: Spacing.sm, height: 60 },
-  backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: Colors.bgCard, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.border, shadowColor: '#3D8C75', shadowOpacity: 0.11, shadowRadius: 10, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
   content: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, gap: Spacing.lg },
   contentCompact: { gap: Spacing.md },
   hero: { alignItems: 'center', justifyContent: 'center', maxWidth: '100%', marginBottom: -Spacing.lg },

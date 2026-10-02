@@ -63,8 +63,9 @@ const styles = StyleSheet.create({
   icon: { marginRight: 2 },
   text: {
     fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
+    fontSize: FontSize.sm + 1,
+    flexShrink: 1,
     color: '#FFFFFF',
-    lineHeight: 20,
+    lineHeight: 21,
   },
 });

@@ -2,6 +2,7 @@ import { AuthError } from '../types/errors';
 import type { AuthResult, PublicUser, Session } from '../types/user';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { photoService } from './photoService';
+import { throwAuthError } from './authError';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function client() {
@@ -20,11 +21,6 @@ async function profile(userId: string, fallback?: { name?: string; email?: strin
     onboardingCompleted: data?.onboarding_completed ?? false,
     createdAt: data?.created_at ?? new Date().toISOString(),
   };
-}
-function authError(message: string): never {
-  if (/already registered|already exists/i.test(message)) throw new AuthError('EMAIL_ALREADY_REGISTERED');
-  if (/invalid login credentials|invalid password/i.test(message)) throw new AuthError('INVALID_PASSWORD');
-  throw new Error('Não foi possível autenticar. Tente novamente.');
 }
 export interface RegisterInput { name: string; email: string; password: string }
 export interface LoginInput { email: string; password: string }
@@ -56,7 +52,7 @@ export const authService = {
     if (!EMAIL_REGEX.test(email.trim())) throw new AuthError('INVALID_EMAIL');
     if (password.length < 6) throw new AuthError('WEAK_PASSWORD');
     const { data, error } = await client().auth.signUp({ email: email.trim().toLowerCase(), password, options: { data: { name: name.trim() } } });
-    if (error) authError(error.message);
+    if (error) throwAuthError(error);
     if (!data.user) throw new Error('Não foi possível criar a conta.');
     if (!data.session) throw new AuthError('EMAIL_CONFIRMATION_REQUIRED');
     return { user: await profile(data.user.id, { name, email }), session: session(data.session.access_token, data.user.id) };
@@ -64,7 +60,7 @@ export const authService = {
   async login({ email, password }: LoginInput): Promise<AuthResult> {
     if (!EMAIL_REGEX.test(email.trim())) throw new AuthError('INVALID_EMAIL');
     const { data, error } = await client().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) authError(error.message);
+    if (error) throwAuthError(error);
     if (!data.user || !data.session) throw new Error('Sessão inválida.');
     return { user: await profile(data.user.id, { email }), session: session(data.session.access_token, data.user.id) };
   },

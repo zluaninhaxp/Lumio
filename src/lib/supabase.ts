@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
+import { authFetch } from './authFetch';
 
 // EXPO_PUBLIC_* is inlined by Metro during local development. EAS standalone
 // builds also need the values in the embedded app config, otherwise the web
@@ -15,6 +16,7 @@ export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey && !s
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!, {
+      global: { fetch: authFetch },
       auth: {
         storage: AsyncStorage,
         autoRefreshToken: true,
