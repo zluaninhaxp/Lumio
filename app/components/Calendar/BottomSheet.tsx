@@ -29,6 +29,9 @@ interface BottomSheetProps {
   maxHeight?: number;
   sheetHeight?: number | `${number}%`;
   dismissible?: boolean;
+  /** Off-white separates nested white surfaces without outlining each row. */
+  surface?: 'white' | 'offWhite';
+  backgroundDecoration?: React.ReactNode;
 }
 
 export interface BottomSheetHandle {
@@ -59,12 +62,19 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   maxHeight,
   sheetHeight,
   dismissible = true,
+  surface = 'white',
+  backgroundDecoration,
   modalRef,
 }, ref) {
   const insets = useSafeAreaInsets();
   const { height: windowHeight, width: windowWidth } = useWindowDimensions();
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
-  const [keyboardFrame, setKeyboardFrame] = useState(Keyboard.metrics());
+  // Keyboard.metrics() is available on native platforms, but React Native Web
+  // does not implement it. Keep native sizing intact and use the un-keyboarded
+  // layout on web, where the browser manages its own viewport.
+  const [keyboardFrame, setKeyboardFrame] = useState(() =>
+    Platform.OS === 'web' || typeof Keyboard.metrics !== 'function' ? undefined : Keyboard.metrics()
+  );
   const keyboardVisible = isBottomKeyboard(keyboardFrame, windowWidth, Dimensions.get('screen').height, insets.bottom);
   const [contentHeight, setContentHeight] = useState(0);
   const [scrollHeight, setScrollHeight] = useState(0);
@@ -89,6 +99,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   dismissibleRef.current = dismissible;
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     const show = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillChangeFrame' : 'keyboardDidShow', event => setKeyboardFrame(event.endCoordinates));
     const hide = Keyboard.addListener(Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide', () => setKeyboardFrame(undefined));
     return () => { show.remove(); hide.remove(); };
@@ -191,12 +202,14 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
             onLayout={({ nativeEvent }) => { heightRef.current = nativeEvent.layout.height; }}
             style={[
               styles.sheet,
+              surface === 'offWhite' && { backgroundColor: Colors.appBackground },
               { minHeight: layout.minHeight, maxHeight: layout.maxHeight, paddingBottom: layout.paddingBottom },
               layout.height !== undefined && { height: layout.height },
               styles.sizedSheet,
               { transform: [{ translateY }] },
             ]}
           >
+             {backgroundDecoration}
              <View
                style={styles.handleHitArea}
                hitSlop={{ top: 16, bottom: 16, left: 48, right: 48 }}

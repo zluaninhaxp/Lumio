@@ -20,7 +20,18 @@ function ProcessingRing() {
   return <View style={styles.ringTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Animated.View style={[styles.ringActive, spinStyle]} /></View>;
 }
 
-export function ReportBackdrop({ viewBox = '0 0 390 820', preserveAspectRatio = 'xMidYMid slice' }: { viewBox?: string; preserveAspectRatio?: string } = {}) {
+export function ReportBackdrop({ viewBox = '0 0 390 820', preserveAspectRatio = 'xMidYMid slice', variant = 'report' }: { viewBox?: string; preserveAspectRatio?: string; variant?: 'report' | 'account' } = {}) {
+  if (variant === 'account') return (
+    <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={styles.background}>
+      <Svg width="100%" height="100%" viewBox="0 0 390 820" preserveAspectRatio="none">
+        <Path d="M-30 145 C35 80 100 85 165 145 C205 182 235 92 286 82 C349 66 391 105 415 160 L415 250 C346 243 325 188 260 197 C184 209 168 160 117 173 C58 190 28 234 -30 218 Z" fill={Colors.accentLight} opacity="0.45" />
+        <Path d="M-28 186 C28 138 45 223 92 197 C137 172 173 136 228 153 C290 172 305 136 350 164 C386 187 403 224 414 254 L414 295 C346 286 319 251 267 258 C204 270 185 225 137 228 C63 235 40 260 -28 250 Z" fill={Colors.accentGlow} opacity="0.22" />
+        <Path d="M-40 385 C39 327 68 419 134 394 C207 366 238 313 313 335 C367 351 401 389 423 430 L423 497 C341 460 297 403 237 422 C159 447 121 426 71 455 C29 479 -15 465 -40 447 Z" fill={Colors.accentLight} opacity="0.24" />
+        <Path d="M-35 683 C25 631 66 662 112 708 C158 754 217 677 280 684 C355 692 364 755 418 741 L418 820 L-35 820 Z" fill={Colors.accentLight} opacity="0.32" />
+        <Path d="M-25 762 C36 704 76 782 139 765 C219 744 231 704 304 741 C350 764 380 776 415 765 L415 820 L-25 820 Z" fill={Colors.accentGlow} opacity="0.16" />
+      </Svg>
+    </View>
+  );
   return (
       <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={styles.background}>
         <Svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>

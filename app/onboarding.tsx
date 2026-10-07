@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { BackButton } from '../src/components/back-button';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, useReducedMotion, Easing } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -371,7 +372,7 @@ export default function OnboardingScreen() {
               <Image source={require('../assets/onboarding-hero.png')} style={styles.heroImage} resizeMode="cover" />
               <LinearGradient pointerEvents="none" colors={['rgba(249,255,252,0.94)', 'rgba(249,255,252,0.68)', 'rgba(249,255,252,0)']} locations={[0, 0.45, 1]} style={styles.headerVeil} />
               <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-                {(!showIntro || showAiTransition) && <TouchableOpacity style={styles.backButton} onPress={handleRestartOnboarding} accessibilityLabel={showAiTransition ? 'Voltar à última pergunta' : 'Voltar ao início do onboarding'}><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>}
+                {(!showIntro || showAiTransition) && <BackButton onPress={handleRestartOnboarding} accessibilityLabel={showAiTransition ? 'Voltar à última pergunta' : 'Voltar ao início do onboarding'} />}
                 <View style={styles.headerCenter}>
                   <Text style={styles.headerTitle}>Configurando seu Lumio</Text>
                   <View style={styles.progressRow}>{Array.from({ length: TOTAL_STAGES }).map((_, index) => <View key={index} style={[styles.progressSegment, index < stage && styles.progressActive]} />)}</View>
@@ -463,7 +464,6 @@ const styles = StyleSheet.create({
   headerVeil: { position: 'absolute', top: 0, left: 0, right: 0, height: 180 },
   heroCurve: { position: 'absolute', bottom: -1, left: 0, right: 0, height: 74 },
   header: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: 14, gap: 10 },
-  backButton: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)', shadowColor: '#3D8C75', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
   headerCenter: { flex: 1, minWidth: 0, paddingTop: 1 }, headerTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 16, lineHeight: 21, color: '#202B38' },
   progressRow: { flexDirection: 'row', gap: 5, marginTop: 9 }, progressSegment: { flex: 1, height: 8, borderRadius: 9, backgroundColor: 'rgba(213,232,224,0.88)' }, progressActive: { backgroundColor: '#079D80' },
   conversation: { flex: 1, minHeight: 210, paddingTop: 12, paddingBottom: 100 }, waves: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 150 },

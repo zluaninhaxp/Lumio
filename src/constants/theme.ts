@@ -54,7 +54,8 @@ export const SurfaceColors = {
 
 export const SurfaceElevation = {
   control: 'none',
-  card: '0 4px 10px -2px rgba(32,43,56,0.14), 0 1px 2px rgba(32,43,56,0.06)',
+  list: '0 1px 4px -2px rgba(32,43,56,0.08), 0 1px 1px rgba(32,43,56,0.03)',
+  card: '0 1px 4px -2px rgba(32,43,56,0.08), 0 1px 1px rgba(32,43,56,0.03)',
   message: '0 4px 8px -2px rgba(32,43,56,0.16), 0 1px 2px rgba(32,43,56,0.07)',
   overlay: '0 10px 24px -4px rgba(32,43,56,0.20), 0 2px 6px rgba(32,43,56,0.09)',
   floating: '0 5px 12px -2px rgba(32,43,56,0.22)',
@@ -65,7 +66,7 @@ export const SurfaceElevation = {
 // Older supported Android versions use native elevation instead, never both.
 function surfaceElevation(role: keyof typeof SurfaceElevation): { boxShadow?: string; elevation?: number } {
   if (Platform.OS === 'android' && Number(Platform.Version) < 28) {
-    const levels = { control: 0, card: 3, message: 2, overlay: 8, floating: 6, userMessage: 2 };
+    const levels = { control: 0, list: 1, card: 1, message: 2, overlay: 8, floating: 6, userMessage: 2 };
     return { elevation: levels[role] };
   }
   return { boxShadow: SurfaceElevation[role] };
@@ -76,6 +77,8 @@ export const SurfaceStyles = {
   filter: { backgroundColor: SurfaceColors.card, borderWidth: 1, borderColor: SurfaceColors.controlBorder, ...surfaceElevation('control') },
   tonal: { backgroundColor: SurfaceColors.control },
   card: { backgroundColor: SurfaceColors.card, borderWidth: 1, borderColor: SurfaceColors.subtleBorder, ...surfaceElevation('card') },
+  // Grouped navigation and read-only rows use depth rather than an outline.
+  list: { backgroundColor: SurfaceColors.card, ...surfaceElevation('list') },
   message: { backgroundColor: Colors.bubbleBot, ...surfaceElevation('message') },
   overlay: { backgroundColor: SurfaceColors.overlay, borderWidth: 1, borderColor: SurfaceColors.subtleBorder, ...surfaceElevation('overlay') },
   floating: { ...surfaceElevation('floating') },
