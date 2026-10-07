@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
+import { useVoiceRecognition } from '../../../src/hooks/useVoiceRecognition';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, {
@@ -27,75 +28,13 @@ interface VoiceInputProps {
  * via `expo-speech-recognition`. Não grava arquivo de áudio nem chama IA —
  * o texto final já sai pronto para ser salvo como resposta.
  *
- * Observação: por ser um módulo nativo, só funciona em um dev build
+ * Observação: por ser um módulo nativo, funciona em builds Android/iOS
  * (não funciona no Expo Go).
  */
 export default function VoiceInput({ onCapture, onPartialResult, disabled, appearance = 'default' }: VoiceInputProps) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [permissionDenied, setPermissionDenied] = useState(false);
-  const [speechUnavailable, setSpeechUnavailable] = useState(false);
-  const [partialTranscript, setPartialTranscript] = useState('');
-  const [speechModule, setSpeechModule] = useState<
-    typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule | null
-  >(null);
-  const speechModuleRef = useRef<
-    typeof import('expo-speech-recognition').ExpoSpeechRecognitionModule | null
-  >(null);
-  const onCaptureRef = useRef(onCapture);
-  const onPartialResultRef = useRef(onPartialResult);
-
-  useEffect(() => {
-    onCaptureRef.current = onCapture;
-    onPartialResultRef.current = onPartialResult;
-  }, [onCapture, onPartialResult]);
-
-  // Expo Go (and old standalone APKs) do not contain third-party native
-  // modules. Load this one lazily so text onboarding remains usable there.
-  useEffect(() => {
-    let mounted = true;
-    import('expo-speech-recognition')
-      .then(({ ExpoSpeechRecognitionModule }) => {
-        if (mounted) {
-          speechModuleRef.current = ExpoSpeechRecognitionModule;
-          setSpeechModule(ExpoSpeechRecognitionModule);
-        }
-      })
-      .catch(() => {
-        if (mounted) setSpeechUnavailable(true);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    const module = speechModule;
-    if (!module) return;
-    const subscriptions = [
-      module.addListener('start', () => {
-        setIsRecording(true);
-        onPartialResultRef.current?.('');
-      }),
-      module.addListener('result', (event) => {
-        const transcript = event.results[0]?.transcript ?? '';
-        setPartialTranscript(transcript);
-        onPartialResultRef.current?.(transcript);
-      }),
-      module.addListener('end', () => {
-        setIsRecording(false);
-        setPartialTranscript((finalText) => {
-          if (finalText.trim()) onCaptureRef.current(finalText.trim());
-          return '';
-        });
-      }),
-      module.addListener('error', (event) => {
-        setIsRecording(false);
-        if (event.error === 'not-allowed') setPermissionDenied(true);
-      }),
-    ];
-    return () => subscriptions.forEach((subscription) => subscription.remove());
-  }, [speechModule]);
-
+  const { status, press, openSettings } = useVoiceRecognition(onCapture, onPartialResult);
+  const isRecording = status.state === 'listening';
+  const busy = ['permission', 'starting', 'processing'].includes(status.state);
   const pulse = useSharedValue(1);
 
   useEffect(() => {
@@ -119,34 +58,6 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
     transform: [{ scale: pulse.value }],
   }));
 
-  const handlePress = async () => {
-    if (disabled) return;
-
-    const module = speechModuleRef.current;
-    if (!module) {
-      setSpeechUnavailable(true);
-      return;
-    }
-
-    if (isRecording) {
-      module.stop();
-      return;
-    }
-
-    const permission = await module.requestPermissionsAsync();
-    if (!permission.granted) {
-      setPermissionDenied(true);
-      return;
-    }
-    setPermissionDenied(false);
-
-    module.start({
-      lang: 'pt-BR',
-      interimResults: true,
-      continuous: false,
-    });
-  };
-
   return (
     <View style={styles.container}>
       <Animated.View style={pulseStyle}>
@@ -156,10 +67,10 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
           ]}
           accessibilityRole="button"
           accessibilityLabel={isRecording ? 'Parar gravação' : 'Falar mensagem'}
-          accessibilityState={{ disabled: !!disabled, selected: isRecording }}
+          accessibilityState={{ disabled: !!disabled || busy, selected: isRecording }}
           hitSlop={6}
-          onPress={handlePress}
-          disabled={disabled}
+          onPress={press}
+          disabled={disabled || busy}
           activeOpacity={0.8}
         >
           <View style={[
@@ -174,10 +85,15 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
           /></View>
         </TouchableOpacity>
       </Animated.View>
-      {permissionDenied && (
-        <Text style={styles.permissionText}>
-          Preciso de acesso ao microfone/reconhecimento de fala para ouvir sua resposta.
-        </Text>
+      {status.message && (
+        <View style={styles.permissionText}>
+          <Text style={{ fontSize: 11, color: Colors.danger, textAlign: 'center' }}>{status.message}</Text>
+          {status.state === 'blocked' && (
+            <TouchableOpacity accessibilityRole="button" onPress={openSettings}>
+              <Text style={{ fontSize: 12, color: Colors.accent, textAlign: 'center' }}>Abrir configurações</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       )}
     </View>
   );

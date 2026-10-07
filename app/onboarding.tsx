@@ -283,8 +283,8 @@ export default function OnboardingScreen() {
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
-    submitAnswer(transcript.trim(), true);
-  }, [submitAnswer]);
+    setInputValue(transcript.trim());
+  }, []);
 
   const handleSkip = useCallback(() => {
     const currentIndex = blockIndexRef.current;

@@ -1040,8 +1040,8 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
-    commitMessages(transcript.trim(), processMessage(transcript.trim()));
-  }, [processMessage, commitMessages]);
+    setInput(transcript.trim());
+  }, []);
 
   const headerHeight = useHeaderHeight();
   const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());

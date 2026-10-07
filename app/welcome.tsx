@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { StatusBar } from 'expo-status-bar';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, FontSize, Spacing } from '@/src/constants/theme';
 
@@ -28,7 +27,6 @@ export default function WelcomeScreen() {
   }, [leaving, router]);
   return (
     <SafeAreaView style={styles.safe} edges={['top', 'bottom']}>
-      <StatusBar style="dark" />
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.page, { minHeight: availableHeight }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.top, { height: heroHeight }]}>
           <View pointerEvents="none" style={styles.primaryShape} />

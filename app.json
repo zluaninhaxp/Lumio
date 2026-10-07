@@ -11,6 +11,11 @@
       "backgroundColor": "#00A878"
     },
     "userInterfaceStyle": "light",
+    "backgroundColor": "#F8FCFA",
+    "androidNavigationBar": {
+      "barStyle": "dark-content",
+      "enforceContrast": false
+    },
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -55,7 +60,7 @@
         {
           "photosPermission": "O Lumio precisa acessar suas fotos para usar uma imagem de perfil.",
           "cameraPermission": false,
-          "microphonePermission": false
+          "microphonePermission": "O Lumio usa o microfone para converter sua fala em texto."
         }
       ],
       [
@@ -66,7 +71,9 @@
         }
       ],
       "expo-secure-store",
-      "expo-audio"
+      "expo-audio",
+      ["expo-navigation-bar", { "barStyle": "dark" }],
+      "./plugins/withAndroidSystemBars.cjs"
     ],
     "experiments": {
       "typedRoutes": true

@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { ActivityIndicator, findNodeHandle, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { Colors, Radius, Spacing, SurfaceStyles } from '@/src/constants/theme';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -30,7 +29,7 @@ export default function AuthScreen({ mode }: { mode: Mode }) {
   const heroSize = Math.min(width * .58, (height - insets.top - insets.bottom) * (mode === 'register' ? .22 : .29), mode === 'register' ? 190 : 240);
   const goBack = () => { Keyboard.dismiss(); if (router.canGoBack()) router.back(); else router.replace('/welcome'); };
   const switchMode = () => { Keyboard.dismiss(); router.replace(mode === 'login' ? '/register' : '/login'); };
-  return <SafeAreaView style={s.safe} edges={['top', 'bottom', 'left', 'right']}><StatusBar style="dark" />
+  return <SafeAreaView style={s.safe} edges={['top', 'bottom', 'left', 'right']}>
     <View pointerEvents="none" style={s.backdrop}><ReportBackdrop /></View>
     {/* Explicit avoidance also supports Expo Go hosts that do not apply app.json resize. */}
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>

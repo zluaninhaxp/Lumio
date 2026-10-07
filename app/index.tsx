@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useAppStore } from '@/src/store';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -27,7 +26,7 @@ export default function Index() {
     else router.replace('/(tabs)/chat');
   }, [splashDone, loading, isAuthenticated, currentUser, router]);
 
-  return <View style={styles.container}><StatusBar style="light" /><Image source={SPLASH_IMAGE} resizeMode="contain" style={styles.image} /></View>;
+  return <View style={styles.container}><Image source={SPLASH_IMAGE} resizeMode="contain" style={styles.image} /></View>;
 }
 
 const styles = StyleSheet.create({

@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { Colors } from '@/src/constants/theme';
-import { StatusBar } from 'expo-status-bar';
+import { SystemBars } from '@/src/components/system-bars';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { useEffect, useState } from 'react';
@@ -35,7 +35,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AuthProvider>
-          <StatusBar style="dark" />
+          <SystemBars />
           {syncState.status === 'warning' && <View style={{ backgroundColor: '#FFF3CD', padding: 8 }}><Text style={{ color: '#6B4E00', textAlign: 'center' }}>{syncState.error}</Text></View>}
           {syncState.status === 'error' && <View style={{ backgroundColor: '#B42318', padding: 8 }}><Text style={{ color: 'white', textAlign: 'center' }}>{syncState.error}</Text></View>}
           <Stack screenOptions={({ route }) => ({ headerShown: false, contentStyle: { backgroundColor: ['index', 'welcome', 'auth', 'login', 'register', 'onboarding', 'celebration', 'onboarding-report-intro', 'onboarding-summary'].includes(route.name) ? Colors.bg : Colors.appBackground } })}>
