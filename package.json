@@ -13,6 +13,7 @@
     "test:bottom-sheet": "node scripts/bottom-sheet-layout.test.cjs",
     "test:system-bars": "node scripts/system-bars.test.cjs",
     "test:onboarding": "node scripts/onboarding-flow.test.cjs",
+    "test:alerts": "node scripts/app-alert.test.cjs",
     "test:ai": "node scripts/ai-architecture.test.cjs",
     "test:ai:remote": "node scripts/ai-security-remote.mjs",
     "test": "node --experimental-strip-types --test \"src/engine/__tests__/*.test.ts\" \"src/engine/taskEngine/__tests__/*.test.ts\" \"src/engine/calendarEngine/__tests__/*.test.ts\" \"src/engine/financialEngine/__tests__/*.test.ts\" \"src/engine/taxonomy/__tests__/*.test.ts\" \"src/store/__tests__/*.test.ts\"",

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,6 +18,7 @@ import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
 
 const EMPTY = { name: "", role: "", contact: "", commissionRate: "" };
 
@@ -89,13 +89,13 @@ export default function EquipeScreen() {
     let createdId: string | null = null;
     if (editingId) {
       if (!updateEmployeeItem(editingId, payload)) {
-        Alert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.");
+        AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
         return;
       }
     } else {
       createdId = addEmployeeItem(payload);
       if (!createdId) {
-        Alert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.");
+        AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
         return;
       }
     }
@@ -136,7 +136,7 @@ export default function EquipeScreen() {
     }
   };
   const remove = (id: string) =>
-    Alert.alert(
+    AppAlert.alert(
       "Excluir funcionário",
       "As tarefas e pedidos vinculados ficarão sem funcionário.",
       [
@@ -144,7 +144,7 @@ export default function EquipeScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => { if (!removeEmployeeItem(id)) Alert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.'); },
+          onPress: () => { if (!removeEmployeeItem(id)) AppAlert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.', undefined, { variant: 'warning' }); },
         },
       ],
     );
@@ -157,7 +157,7 @@ export default function EquipeScreen() {
         <Text style={styles.title}>Equipe</Text>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert("Desativar Equipe", "Os dados continuarão guardados.", [
+            AppAlert.alert("Desativar Equipe", "Os dados continuarão guardados.", [
               { text: "Cancelar", style: "cancel" },
               {
                 text: "Desativar",

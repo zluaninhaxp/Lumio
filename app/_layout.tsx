@@ -1,6 +1,8 @@
 import { Stack } from 'expo-router';
 import { Colors } from '@/src/constants/theme';
 import { SystemBars } from '@/src/components/system-bars';
+import { AppAlertHost } from '@/src/components/app-alert-host';
+import { AppFeedbackHost } from '@/src/components/app-feedback';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider } from '@/src/contexts/AuthContext';
 import { useEffect, useState } from 'react';
@@ -66,6 +68,8 @@ export default function RootLayout() {
             <Stack.Screen name="preferences" />
             <Stack.Screen name="ai-settings" />
           </Stack>
+          <AppAlertHost />
+          <AppFeedbackHost />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +22,7 @@ import {
   getPluginDefinition,
   isValidPluginId,
 } from "../../src/plugins/registry";
+import { AppAlert } from "@/src/services/appAlert";
 
 /**
  * Tela mínima genérica para os plugins ainda sem CRUD completo
@@ -72,7 +72,7 @@ export default function GenericPluginScreen() {
   };
 
   const handleDelete = (itemId: string) => {
-    Alert.alert(`Excluir ${def.itemLabel}`, "Tem certeza?", [
+    AppAlert.alert(`Excluir ${def.itemLabel}`, "Tem certeza?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
@@ -83,7 +83,7 @@ export default function GenericPluginScreen() {
   };
 
   const handleDeactivate = () => {
-    Alert.alert(
+    AppAlert.alert(
       `Desativar ${def.label}`,
       "O módulo sai da aba Apps, mas seus dados continuam guardados e voltam se você reativar.",
       [

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -20,6 +19,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { FornecedorItem, useAppStore } from "../../src/store";
 import { suggestedDueDate } from "../../src/utils/supplier";
+import { AppAlert } from "@/src/services/appAlert";
 
 const EMPTY_FORM = { name: "", contact: "", paymentTerm: "", notes: "" };
 const money = (value: number) =>
@@ -95,13 +95,13 @@ export default function FornecedoresScreen() {
     let createdId: string | null = null;
     if (editingId) {
       if (!updateFornecedorItem(editingId, payload)) {
-        Alert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.");
+        AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
         return;
       }
     } else {
       createdId = addFornecedorItem(payload);
       if (!createdId) {
-        Alert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.");
+        AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
         return;
       }
     }
@@ -142,7 +142,7 @@ export default function FornecedoresScreen() {
     }
   };
   const deleteSupplier = (id: string) =>
-    Alert.alert(
+    AppAlert.alert(
       "Excluir fornecedor",
       "Despesas vinculadas ficarão sem fornecedor, mas não serão excluídas.",
       [
@@ -176,7 +176,7 @@ export default function FornecedoresScreen() {
         <Text style={styles.headerTitle}>Fornecedores</Text>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Fornecedores",
               "O módulo sai da aba Apps, mas os dados continuam guardados.",
               [

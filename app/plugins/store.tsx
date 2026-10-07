@@ -3,8 +3,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Alert,
+  ScrollView
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,6 +16,7 @@ import {
   getPluginDefinition,
   PluginId,
 } from "../../src/plugins/registry";
+import { AppAlert } from "@/src/services/appAlert";
 
 export default function PluginStoreScreen() {
   const router = useRouter();
@@ -56,10 +56,10 @@ export default function PluginStoreScreen() {
       const labels = check.missing.map(
         (id) => getPluginDefinition(id)?.label ?? id,
       );
-      Alert.alert(
+      AppAlert.alert(
         "Dependência necessária",
         `Para ativar Comissões você precisa ter ${labels.join(" e ")} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
-        [{ text: "Entendi" }],
+        [{ text: "Entendi" }], { variant: 'warning' }
       );
       return;
     }

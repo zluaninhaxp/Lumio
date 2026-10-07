@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -23,6 +22,7 @@ import { getPluginDefinition } from "../../src/plugins/registry";
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { DeliveryStatus, Entrega, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
+import { AppAlert } from "@/src/services/appAlert";
 
 const statusLabels: Record<DeliveryStatus, string> = {
   "a caminho": "A caminho",
@@ -173,9 +173,9 @@ export default function EntregasScreen() {
         createExpense,
       )
     ) {
-      Alert.alert(
+      AppAlert.alert(
         "Entrega não criada",
-        "Este pedido já possui uma entrega ativa.",
+        "Este pedido já possui uma entrega ativa.", undefined, { variant: 'warning' }
       );
       return;
     }
@@ -191,7 +191,7 @@ export default function EntregasScreen() {
         <Text style={styles.title}>Entregas</Text>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert("Desativar Entregas", "Os dados continuam guardados.", [
+            AppAlert.alert("Desativar Entregas", "Os dados continuam guardados.", [
               { text: "Cancelar", style: "cancel" },
               {
                 text: "Desativar",

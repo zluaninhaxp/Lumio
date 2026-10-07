@@ -74,6 +74,7 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
   const stubs = {
     react: hooks, 'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) },
     'react-native': reactNative,
+    '@/src/services/appAlert': { AppAlert: { alert: (...args) => calls.push(['alert', ...args]) } },
     'react-native-safe-area-context': { useSafeAreaInsets: () => ({ top: 0, bottom: 0 }) },
     '@expo/vector-icons': { Ionicons: 'Ionicons' },
     'expo-linear-gradient': { LinearGradient: 'LinearGradient' },
@@ -205,9 +206,9 @@ test('failed report completion preserves the report and allows retry without nav
   await f.find(n => n.type === 'ReportDetail').props.onFinish();
   await f.settle();
   assert.equal(f.state.pendingOnboardingExtraction, extraction);
-  assert.deepEqual(f.calls.map(c => c[0]), ['save']);
+  assert.deepEqual(f.calls.map(c => c[0]), ['save', 'alert']);
   await f.find(n => n.type === 'ReportDetail').props.onFinish();
-  assert.equal(f.calls.length, 2);
+  assert.equal(f.calls.filter(c => c[0] === 'save').length, 2);
 });
 
 test('background report routes cannot redirect when completion clears the pending result', async () => {
@@ -275,7 +276,7 @@ test('skip requires custom confirmation; cancel stays; confirm completes without
   assert.equal(f.calls.filter(c => c[0] === 'complete').length, 0);
   await f.click('Continuar sem IA');
   // The footer and modal both have this label; select the modal's confirmation.
-  await f.find(n => n.type === 'Modal').props.children.props.children[1].props.children.find(n => n?.props?.onPress && f.text(n) === 'Continuar sem IA').props.onPress();
+  await f.find(n => n.props?.onPress && f.text(n) === 'Continuar sem IA' && n.props.accessibilityRole === 'button').props.onPress();
   await f.settle();
   assert.equal(f.state.onboardingCompleted, true);
   assert.equal(f.calls.filter(c => c[0] === 'testKey').length, 0);

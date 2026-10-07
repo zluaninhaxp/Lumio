@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ import { pluginFormStyles } from '../components/Forms/pluginFormStyles';
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
 import { CatalogItem, useAppStore } from '../../src/store';
 import { clearRelationDraft } from '../../src/utils/relationDraft';
+import { AppAlert } from "@/src/services/appAlert";
 
 type CatalogForm = { name: string; kind: 'produto' | 'servico'; unitPrice: string; unit: string; controlStock: boolean };
 const empty: CatalogForm = { name: '', kind: 'produto', unitPrice: '', unit: '', controlStock: false };
@@ -48,8 +49,8 @@ export default function CatalogoScreen() {
       }
     }
   };
-  const archive = (id: string) => Alert.alert('Arquivar item', 'Ele não aparecerá em novos documentos, mas o histórico será preservado.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Arquivar', style: 'destructive', onPress: () => archiveCatalogItem(id) }]);
-  const deactivate = () => Alert.alert('Desativar Catálogo', 'O módulo sai da aba Apps, mas os dados continuam guardados.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Desativar', style: 'destructive', onPress: () => { setPluginActivation('catalogo', false); router.back(); } }]);
+  const archive = (id: string) => AppAlert.alert('Arquivar item', 'Ele não aparecerá em novos documentos, mas o histórico será preservado.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Arquivar', style: 'destructive', onPress: () => archiveCatalogItem(id) }]);
+  const deactivate = () => AppAlert.alert('Desativar Catálogo', 'O módulo sai da aba Apps, mas os dados continuam guardados.', [{ text: 'Cancelar', style: 'cancel' }, { text: 'Desativar', style: 'destructive', onPress: () => { setPluginActivation('catalogo', false); router.back(); } }]);
   return <SafeAreaView style={styles.safe} edges={['top']}>
     <View style={styles.header}><TouchableOpacity onPress={() => router.back()} style={styles.icon}><Ionicons name="chevron-back" size={24} color={Colors.primary} /></TouchableOpacity><Text style={styles.title}>Catálogo</Text><TouchableOpacity onPress={deactivate} style={styles.icon}><Ionicons name="ellipsis-horizontal" size={22} color={Colors.primary} /></TouchableOpacity></View>
     <View style={styles.search}><Ionicons name="search-outline" size={18} color={Colors.textMuted} /><TextInput value={query} onChangeText={setQuery} placeholder="Buscar produto ou serviço" placeholderTextColor={Colors.textMuted} style={styles.searchInput} /></View>

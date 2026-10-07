@@ -1,6 +1,7 @@
+import { AppDialog } from '../src/components/app-dialog';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  Modal, Pressable, View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   BackHandler, Keyboard, KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +33,7 @@ import { onboardingRepository } from '../src/repositories/onboardingRepository';
 import UserReply from './components/onboarding/UserReply';
 import VoiceInput from './components/onboarding/VoiceInput';
 import { MessageComposer } from '../src/components/message-composer';
-import { Colors, SurfaceStyles } from '../src/constants/theme';
+import { Colors } from '../src/constants/theme';
 
 const BLOCK_COUNT = OPEN_QUESTIONS.length;
 const TOTAL_STAGES = BLOCK_COUNT + 1;
@@ -413,46 +414,19 @@ export default function OnboardingScreen() {
           : currentBlock ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}><MessageComposer value={inputValue} onChangeText={setInputValue} onFocus={() => setInputFocused(true)} placeholder="Você pode escrever ou falar ..." onSubmit={handleSubmit} submitLabel="Enviar resposta" voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" />} />{currentBlock.optional && !inputValue.trim() && <TouchableOpacity style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
         </View>
       </KeyboardAvoidingView>
-      <Modal
+      <AppDialog
         visible={restartConfirmationVisible || skipAiConfirmationVisible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={closeConfirmation}
-      >
-        <View style={styles.confirmationOverlay}>
-          <Pressable
-            style={StyleSheet.absoluteFill}
-            onPress={closeConfirmation}
-            accessibilityLabel="Fechar confirmação"
-          />
-          <View style={[styles.confirmationCard, { marginTop: insets.top / 2, marginBottom: insets.bottom / 2 }]} accessibilityRole="alert">
-            <View style={styles.confirmationIcon}>
-              <Ionicons name={skipAiConfirmationVisible ? 'sparkles-outline' : 'refresh'} size={25} color="#07856D" />
-            </View>
-            <Text style={styles.confirmationTitle}>{skipAiConfirmationVisible ? 'Continuar sem IA?' : 'Recomeçar do início?'}</Text>
-            <Text style={styles.confirmationMessage}>
-              {skipAiConfirmationVisible ? 'Sem configurar a IA agora, o Lumio não conseguirá gerar automaticamente a personalização inicial do seu negócio. Você ainda poderá configurar sua chave depois.' : 'Seu progresso nesta conversa será apagado. Quer voltar à apresentação e começar de novo?'}
-            </Text>
-            {!!saveError && skipAiConfirmationVisible && <Text style={styles.confirmationMessage}>{saveError}</Text>}
-            <TouchableOpacity
-              style={styles.confirmationPrimary}
-              disabled={saving}
-              onPress={skipAiConfirmationVisible ? finishWithoutAi : confirmRestartOnboarding}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.confirmationPrimaryText}>{skipAiConfirmationVisible ? (saving ? 'Salvando...' : 'Continuar sem IA') : 'Recomeçar'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.confirmationSecondary}
-              onPress={closeConfirmation}
-              activeOpacity={0.75}
-            >
-              <Text style={styles.confirmationSecondaryText}>{skipAiConfirmationVisible ? "Voltar e configurar" : "Continuar"}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        title={skipAiConfirmationVisible ? 'Continuar sem IA?' : 'Recomeçar do início?'}
+        message={skipAiConfirmationVisible ? 'Sem configurar a IA agora, o Lumio não conseguirá gerar automaticamente a personalização inicial do seu negócio. Você ainda poderá configurar sua chave depois.' : 'Seu progresso nesta conversa será apagado. Quer voltar à apresentação e começar de novo?'}
+        icon={skipAiConfirmationVisible ? 'sparkles-outline' : 'refresh'}
+        error={skipAiConfirmationVisible ? saveError : null}
+        loading={saving}
+        onCancel={closeConfirmation}
+        actions={[
+          { text: skipAiConfirmationVisible ? (saving ? 'Salvando...' : 'Continuar sem IA') : 'Recomeçar', onPress: skipAiConfirmationVisible ? finishWithoutAi : confirmRestartOnboarding },
+          { text: skipAiConfirmationVisible ? 'Voltar e configurar' : 'Continuar', style: 'cancel', onPress: closeConfirmation },
+        ]}
+      />
     </View>
   );
 
@@ -471,15 +445,7 @@ const styles = StyleSheet.create({
   messageStackTop: { justifyContent: 'flex-start' },
   messageContent: { width: '100%', alignItems: 'center', gap: 4 },
   keyboardContrast: { position: 'absolute', top: -24, bottom: -24, left: -20, right: -20, borderRadius: 40, overflow: 'hidden' },
-  confirmationOverlay: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, backgroundColor: 'rgba(18, 39, 32, 0.42)' },
-  confirmationCard: {
-      ...SurfaceStyles.overlay,
-    width: '100%', maxWidth: 360, alignItems: 'center', paddingHorizontal: 24, paddingTop: 28, paddingBottom: 18, borderRadius: 28 },
-  confirmationIcon: { width: 54, height: 54, marginBottom: 16, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E6F7F1' },
-  confirmationTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 19, lineHeight: 26, textAlign: 'center', color: '#202B38' },
   confirmationMessage: { marginTop: 9, marginBottom: 22, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 15, lineHeight: 22, textAlign: 'center', color: '#62736E' },
-  confirmationPrimary: { width: '100%', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, backgroundColor: '#00A878' },
-  confirmationPrimaryText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, lineHeight: 20, color: '#FFFFFF' },
   confirmationSecondary: { width: '100%', minHeight: 46, marginTop: 6, alignItems: 'center', justifyContent: 'center' },
   confirmationSecondaryText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, lineHeight: 20, color: '#087E68' },
   composerArea: { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 2, paddingHorizontal: 18, paddingTop: 14, backgroundColor: '#F3FFF9', borderTopLeftRadius: 44, borderTopRightRadius: 44 },

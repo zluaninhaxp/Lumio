@@ -3,8 +3,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   View,
-  Text,
-  Alert,
+  Text
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -22,6 +21,7 @@ import {
   useAudioRecorder,
 } from 'expo-audio';
 import { Colors, Radius, FontSize, Spacing } from '../../../src/constants/theme';
+import { AppAlert } from "@/src/services/appAlert";
 
 interface VoiceRecorderProps {
   onRecordingComplete: (uri: string) => void;
@@ -56,9 +56,9 @@ export default function VoiceRecorder({ onRecordingComplete, disabled = false }:
     try {
       const permission = await requestRecordingPermissionsAsync();
       if (!permission.granted) {
-        Alert.alert(
+        AppAlert.alert(
           'Permissão necessária',
-          'Ative o Microfone nas configurações do Lumio para gravar sua resposta.',
+          'Ative o Microfone nas configurações do Lumio para gravar sua resposta.', undefined, { variant: 'warning' }
         );
         return;
       }
@@ -77,7 +77,7 @@ export default function VoiceRecorder({ onRecordingComplete, disabled = false }:
       startPulse();
     } catch (error) {
       console.error('Erro ao iniciar gravação:', error);
-      Alert.alert('Erro', 'Não foi possível iniciar a gravação. Tente novamente.');
+      AppAlert.alert('Erro', 'Não foi possível iniciar a gravação. Tente novamente.', undefined, { variant: 'warning' });
     }
   }, [recorder, startPulse]);
 

@@ -98,6 +98,16 @@ export const Typography = {
   heavy: 'PlusJakartaSans_800ExtraBold',
 } as const;
 
+// Exact visual values of the approved onboarding confirmation.
+export const DialogTokens = {
+  backdrop: 'rgba(18, 39, 32, 0.42)',
+  icon: '#07856D',
+  secondary: '#087E68',
+  message: '#62736E',
+  radius: 28,
+  maxWidth: 360,
+} as const;
+
 export const Spacing = {
   xs: 4,
   sm: 8,

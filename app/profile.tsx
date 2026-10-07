@@ -2,7 +2,7 @@ import { AccountRow, AccountSection, BusinessBadge, AccountDivider, accountLayou
 import { InformationEditor, EditorField, BusinessIdentityFields } from '../src/components/information-editor';
 import type { BottomSheetHandle } from './components/Calendar/BottomSheet';
 import { useEffect, useState, useRef } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
@@ -14,18 +14,20 @@ import { photoService } from '../src/services/photoService';
 import { businessStateService } from '../src/services/businessStateService';
 import { useAppStore } from '../src/store';
 import { Colors, FontSize, Radius, Spacing, Typography } from '../src/constants/theme';
+import { AppAlert } from "@/src/services/appAlert";
+import { AppFeedback } from "@/src/components/app-feedback";
 
 type Editing = 'personal' | 'business' | null;
 export default function ProfileScreen() {
   const router = useRouter(); const { currentUser, updateUser, refreshUser } = useAuth(); const businessName = useAppStore(x => x.businessName); const businessType = useAppStore(x => x.businessType); const updateBusinessDetails = useAppStore(x => x.updateBusinessDetails);
   const [savingPhoto, setSavingPhoto] = useState(false);
-  const uploadPhoto = async () => { if (savingPhoto) return; setSavingPhoto(true); try { const url = await photoService.pickAndUpload(); if (url) await refreshUser(); } catch (cause) { Alert.alert('Foto', cause instanceof Error ? cause.message : 'Não foi possível salvar a foto.'); } finally { setSavingPhoto(false); } };
+  const uploadPhoto = async () => { if (savingPhoto) return; setSavingPhoto(true); try { const url = await photoService.pickAndUpload(); if (url) await refreshUser(); } catch (cause) { AppAlert.alert('Foto', cause instanceof Error ? cause.message : 'Não foi possível salvar a foto.', undefined, { variant: 'warning' }); } finally { setSavingPhoto(false); } };
   const [editing, setEditing] = useState<Editing>(null); const [name, setName] = useState(''); const [role, setRole] = useState(''); const [phone, setPhone] = useState(''); const [businessNameDraft, setBusinessNameDraft] = useState(''); const [businessTypeDraft, setBusinessTypeDraft] = useState(''); const [saving, setSaving] = useState(false); const [error, setError] = useState('');
   useEffect(() => { setName(currentUser?.name ?? ''); setRole(currentUser?.role ?? ''); setPhone(currentUser?.phone ?? ''); }, [currentUser]);
   useEffect(() => { setBusinessNameDraft(businessName); setBusinessTypeDraft(businessType); }, [businessName, businessType]);
   const cancel = () => { setEditing(null); setError(''); setName(currentUser?.name ?? ''); setRole(currentUser?.role ?? ''); setPhone(currentUser?.phone ?? ''); setBusinessNameDraft(businessName); setBusinessTypeDraft(businessType); };
-  const savePersonal = async () => { if (!name.trim()) return setError('Informe seu nome para continuar.'); setSaving(true); setError(''); try { await updateUser({ name, role, phone }); editorRef.current?.close(); Alert.alert('Dados atualizados', 'Suas informações foram salvas.'); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
-  const saveBusiness = async () => { if (!businessNameDraft.trim()) return setError('Informe o nome do negócio para continuar.'); if (!currentUser) return; setSaving(true); setError(''); try { const nextName = businessNameDraft.trim(); const nextType = businessTypeDraft.trim(); updateBusinessDetails(nextName, nextType); await businessStateService.commit(); const state = useAppStore.getState(); await onboardingService.saveStructuredProfile(currentUser.id, state.onboardingExtraction ? { ...state.onboardingExtraction, taxonomy: state.taxonomy } : state.taxonomy); editorRef.current?.close(); Alert.alert('Negócio atualizado', 'Nome e ramo foram salvos sem refazer sua configuração inicial.'); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
+  const savePersonal = async () => { if (!name.trim()) return setError('Informe seu nome para continuar.'); setSaving(true); setError(''); try { await updateUser({ name, role, phone }); editorRef.current?.close(); AppFeedback.show('Dados atualizados', 'Suas informações foram salvas.'); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
+  const saveBusiness = async () => { if (!businessNameDraft.trim()) return setError('Informe o nome do negócio para continuar.'); if (!currentUser) return; setSaving(true); setError(''); try { const nextName = businessNameDraft.trim(); const nextType = businessTypeDraft.trim(); updateBusinessDetails(nextName, nextType); await businessStateService.commit(); const state = useAppStore.getState(); await onboardingService.saveStructuredProfile(currentUser.id, state.onboardingExtraction ? { ...state.onboardingExtraction, taxonomy: state.taxonomy } : state.taxonomy); editorRef.current?.close(); AppFeedback.show('Negócio atualizado', 'Nome e ramo foram salvos sem refazer sua configuração inicial.'); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
   const editorRef = useRef<BottomSheetHandle>(null);
   const openEditor = (section: Editing) => { cancel(); setEditing(section); };
   return <AccountScreen><AccountHeader refined title="Meu perfil" onBack={() => router.back()} /><ScrollView contentContainerStyle={accountLayout.content} showsVerticalScrollIndicator={false}>

@@ -4,14 +4,14 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Alert,
+  ScrollView
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
 
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 const MONTH_NAMES = [
@@ -72,7 +72,7 @@ export default function ComissoesScreen() {
   const totalPending = pendingByEmployee.reduce((sum, e) => sum + e.amount, 0);
 
   const handlePay = (employeeId: string, name: string, amount: number) =>
-    Alert.alert(
+    AppAlert.alert(
       "Confirmar pagamento",
       `Concluir o saldo de ${money(amount)} de comissão de ${name}? Nenhuma transação será criada.`,
       [
@@ -85,7 +85,7 @@ export default function ComissoesScreen() {
     );
 
   const handleDeactivate = () =>
-    Alert.alert(
+    AppAlert.alert(
       "Desativar Comissões",
       "O módulo sai da aba Apps, mas os dados continuam guardados.",
       [

@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,6 +18,7 @@ import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore, ClienteItem } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
 
 const EMPTY_FORM = { name: "", contact: "", notes: "" };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -83,13 +83,13 @@ export default function ClientesScreen() {
     let createdId: string | null = null;
     if (editingId) {
       if (!updateClienteItem(editingId, payload)) {
-        Alert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.");
+        AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
         return;
       }
     } else {
       createdId = addClienteItem(payload);
       if (!createdId) {
-        Alert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.");
+        AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
         return;
       }
     }
@@ -130,7 +130,7 @@ export default function ClientesScreen() {
     }
   };
   const handleDelete = (id: string) =>
-    Alert.alert(
+    AppAlert.alert(
       "Excluir cliente",
       "As receitas vinculadas ficam sem cliente, mas não são excluídas.",
       [
@@ -143,7 +143,7 @@ export default function ClientesScreen() {
       ],
     );
   const handleDeactivate = () =>
-    Alert.alert(
+    AppAlert.alert(
       "Desativar Clientes",
       "O módulo sai da aba Apps, mas os dados continuam guardados.",
       [

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -22,6 +21,7 @@ import { getPluginDefinition } from "../../src/plugins/registry";
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
+import { AppAlert } from "@/src/services/appAlert";
 
 const periodLabels: Record<ContractPeriod, string> = {
   mensal: "Mensal",
@@ -158,7 +158,7 @@ export default function ContratosScreen() {
         createdAt: new Date().toISOString(),
       })
     ) {
-      Alert.alert("Contrato não criado", "Selecione um cliente válido.");
+      AppAlert.alert("Contrato não criado", "Selecione um cliente válido.", undefined, { variant: 'warning' });
       return;
     }
     refreshContratos();
@@ -183,7 +183,7 @@ export default function ContratosScreen() {
         <Text style={styles.title}>Contratos / Assinaturas</Text>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Contratos",
               "Os dados continuam guardados.",
               [
@@ -241,7 +241,7 @@ export default function ContratosScreen() {
               key={contract.id}
               onEdit={() => openEdit(contract)}
               onDelete={() =>
-                Alert.alert(
+                AppAlert.alert(
                   "Excluir contrato",
                   "As receitas previstas também serão removidas.",
                   [

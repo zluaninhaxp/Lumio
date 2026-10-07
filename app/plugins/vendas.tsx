@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Keyboard,
   TextInput,
-  Alert,
   Dimensions,
   ScrollView,
 } from "react-native";
@@ -24,6 +23,7 @@ import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
+import { AppAlert } from "@/src/services/appAlert";
 
 type DraftItem = Omit<OrderItem, "id" | "unitPrice"> & { id: string; unitPrice: number | string; addToCatalog?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -206,9 +206,9 @@ export default function VendasScreen() {
       ? (updatePedido(editingId, payload) ? editingId : null)
       : addVenda(payload);
     if (!saved) {
-      Alert.alert(
+      AppAlert.alert(
         "Venda não registrada",
-        "A quantidade disponível no estoque controlado não é suficiente.",
+        "A quantidade disponível no estoque controlado não é suficiente.", undefined, { variant: 'warning' }
       );
       return;
     }
@@ -217,7 +217,7 @@ export default function VendasScreen() {
   };
   const cancel = (id: string) => {
     if (!updatePedido(id, { status: "cancelado" }))
-      Alert.alert("Não foi possível cancelar a venda.");
+      AppAlert.alert("Não foi possível cancelar a venda.", undefined, undefined, { variant: 'warning' });
   };
   const clientName = (id?: string) =>
     id ? clienteItems.find((client) => client.id === id)?.name : undefined;
@@ -236,7 +236,7 @@ export default function VendasScreen() {
         <Text style={styles.headerTitle}>Vendas</Text>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Vendas",
               "O módulo sai da aba Apps, mas os dados continuam guardados.",
               [
@@ -293,7 +293,7 @@ export default function VendasScreen() {
           <SwipeableActions
             key={order.id}
             onEdit={() => openEdit(order)}
-            onDelete={() => { if (!removePedido(order.id)) Alert.alert('Venda vinculada', 'Há entregas ou comissões pagas vinculadas. O histórico foi preservado.'); }}
+            onDelete={() => { if (!removePedido(order.id)) AppAlert.alert('Venda vinculada', 'Há entregas ou comissões pagas vinculadas. O histórico foi preservado.', undefined, { variant: 'warning' }); }}
           >
           <View style={styles.card}>
             <View style={styles.cardHeader}>

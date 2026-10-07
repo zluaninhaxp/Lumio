@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Alert, Platform, ScrollView, Text } from 'react-native';
+import { ScrollView, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
 import { AccountRow, AccountSection, accountLayout } from '../src/components/account-menu';
@@ -7,6 +7,8 @@ import { InformationEditor, EditorField } from '../src/components/information-ed
 import type { BottomSheetHandle } from './components/Calendar/BottomSheet';
 import { useAuth } from '../src/hooks/useAuth';
 import { authService } from '../src/services/authService';
+import { AppAlert } from "@/src/services/appAlert";
+import { AppFeedback } from "@/src/components/app-feedback";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -29,14 +31,13 @@ export default function SettingsScreen() {
     if (!current) { setError('Informe sua senha atual para continuar.'); return; }
     if (editing === 'delete') {
       const message = 'Seus dados e sua foto serão removidos. Esta ação não pode ser desfeita.';
-      if (Platform.OS === 'web') { if (window.confirm(`Excluir conta definitivamente?\n\n${message}`)) void performDelete(); }
-      else Alert.alert('Excluir conta definitivamente?', message, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { void performDelete(); } }]);
+      AppAlert.alert('Excluir conta definitivamente?', message, [{ text: 'Cancelar', style: 'cancel' }, { text: 'Excluir', style: 'destructive', onPress: () => { void performDelete(); } }]);
       return;
     }
     if (next.length < 6) { setError('A nova senha deve ter pelo menos 6 caracteres.'); return; }
     if (next !== confirm) { setError('As senhas não coincidem.'); return; }
     pending.current = true; setSaving(true); setError('');
-    try { await authService.changePassword(currentUser.id, current, next); editor.current?.close(); Alert.alert('Senha atualizada', 'Sua senha foi alterada com sucesso.'); }
+    try { await authService.changePassword(currentUser.id, current, next); editor.current?.close(); AppFeedback.show('Senha atualizada', 'Sua senha foi alterada com sucesso.'); }
     catch { setError('Não foi possível atualizar a senha. Confira os dados e tente novamente.'); }
     finally { pending.current = false; setSaving(false); }
   };

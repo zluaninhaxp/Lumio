@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react';
-import { Alert } from 'react-native';
+import { } from 'react-native';
 import { Stack, useNavigation, useRouter } from 'expo-router';
 import { CommonActions, useIsFocused } from '@react-navigation/native';
 import { useAppStore } from '../src/store';
@@ -8,6 +8,7 @@ import { onboardingService } from '../src/services/onboardingService';
 import type { OnboardingExtractionResult } from '../src/ai/types';
 import ReportDetail from './components/onboarding/report-detail';
 import { useForwardOnboarding } from '../src/hooks/use-forward-onboarding';
+import { AppAlert } from "@/src/services/appAlert";
 
 export default function OnboardingSummaryScreen() {
   const router = useRouter();
@@ -56,7 +57,7 @@ export default function OnboardingSummaryScreen() {
       }));
     } catch {
       finishingRef.current = false;
-      Alert.alert('Não foi possível concluir', 'Suas respostas foram preservadas. Tente continuar novamente.');
+      AppAlert.alert('Não foi possível concluir', 'Suas respostas foram preservadas. Tente continuar novamente.', undefined, { variant: 'warning' });
     }
   }, [applyOnboardingExtraction, currentUser, extraction, onboardingContext, openAnswers, activatedPlugins, refreshUser, navigation]);
 

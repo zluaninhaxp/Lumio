@@ -1,5 +1,5 @@
 import { AccountRow, BusinessBadge } from '../../../src/components/account-menu';
-import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BottomSheet } from '../Calendar/BottomSheet';
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles, Typography } from '../../../src/constants/theme';
@@ -7,6 +7,7 @@ import { useAuth } from '../../../src/hooks/useAuth';
 import { UnsyncedChangesError } from '../../../src/contexts/AuthContext';
 import { useAppStore } from '../../../src/store';
 import { UserAvatar } from './UserAvatar';
+import { AppAlert } from "@/src/services/appAlert";
 
 export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const router = useRouter();
@@ -21,32 +22,20 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
     } catch (error) {
       if (error instanceof UnsyncedChangesError) {
         const message = 'As últimas alterações podem não ter sido salvas na sua conta. Se sair, talvez elas não apareçam quando você entrar em outro aparelho. Deseja sair mesmo assim?';
-        if (Platform.OS === 'web') {
-          if (typeof window !== 'undefined' && window.confirm(`Alterações não sincronizadas\n\n${message}`)) void finishLogout(true);
-        } else {
-          Alert.alert('Alterações não sincronizadas', message, [
-            { text: 'Continuar usando', style: 'cancel' },
-            { text: 'Sair mesmo assim', style: 'destructive', onPress: () => { void finishLogout(true); } },
-          ]);
-        }
+        AppAlert.alert('Alterações não sincronizadas', message, [
+          { text: 'Continuar usando', style: 'cancel' },
+          { text: 'Sair mesmo assim', style: 'destructive', onPress: () => { void finishLogout(true); } },
+        ], { icon: 'log-out-outline' });
         return;
       }
-      if (Platform.OS === 'web') {
-        if (typeof window !== 'undefined') window.alert('Erro\n\nNão foi possível sair. Tente novamente.');
-      } else {
-        Alert.alert('Erro', 'Não foi possível sair. Tente novamente.');
-      }
+      AppAlert.alert('Erro', 'Não foi possível sair. Tente novamente.', undefined, { variant: 'warning' });
     }
   };
   const confirmLogout = () => {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Deseja realmente sair da conta?')) void finishLogout();
-      return;
-    }
-    Alert.alert('Sair da conta', 'Deseja realmente sair?', [
+    AppAlert.alert('Sair da conta', 'Deseja realmente sair?', [
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Sair', style: 'destructive', onPress: () => { void finishLogout(); } },
-    ]);
+    ], { icon: 'log-out-outline' });
   };
   return <BottomSheet visible={visible} onClose={onClose} height={390} surface="offWhite">
     <View style={styles.identity}><UserAvatar user={currentUser} size={Spacing.xxxl * 2} /><View style={styles.identityText}><Text style={styles.name}>{currentUser?.name || 'Usuário'}</Text><Text style={styles.email}>{currentUser?.email}</Text><BusinessBadge name={businessName} /></View></View>

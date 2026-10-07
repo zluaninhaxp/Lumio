@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Linking,
   Platform,
   ScrollView,
@@ -20,6 +19,7 @@ import { useAuth } from '../src/hooks/useAuth';
 import ApiKeyInput from '../src/components/api-key-input';
 
 import { AIProviderError, MissingApiKeyError } from '../src/ai/aiProvider';
+import { AppAlert } from "@/src/services/appAlert";
 
 const AI_STUDIO_URL = 'https://aistudio.google.com/app/apikey';
 
@@ -108,7 +108,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
   }, [draft, hasKey, testState, onboarding, from, router, userId]);
 
   const handleRemove = useCallback(() => {
-    Alert.alert(
+    AppAlert.alert(
       'Remover chave de IA?',
       'Você precisará configurar uma nova chave para gerar relatórios de negócio com IA no onboarding.',
       [
@@ -127,7 +127,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
               setSaveError(null);
             } catch (error) {
               const msg = error instanceof AIProviderError ? error.message : 'Não foi possível remover a chave.';
-              Alert.alert('Erro', msg);
+              AppAlert.alert('Erro', msg, undefined, { variant: 'warning' });
             }
           },
         },

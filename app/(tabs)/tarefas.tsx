@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Modal, Alert, LayoutAnimation, Platform, UIManager, ActivityIndicator,
+  Modal, LayoutAnimation, Platform, UIManager, ActivityIndicator,
   Pressable, ScrollView, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -22,6 +22,7 @@ import { ChatIndicator } from '../components/ChatIndicator';
 import { BottomFade } from '../components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
+import { AppAlert } from "@/src/services/appAlert";
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -550,7 +551,7 @@ export default function TarefasScreen() {
           style={[styles.taskCard, item.done && styles.taskCardDone]}
           activeOpacity={0.7}
           onLongPress={() => {
-            Alert.alert('Excluir tarefa', `"${item.description}" será removida.`, [
+            AppAlert.alert('Excluir tarefa', `"${item.description}" será removida.`, [
               { text: 'Cancelar', style: 'cancel' },
               { text: 'Excluir', style: 'destructive', onPress: () => handleDelete(item.id) },
             ]);

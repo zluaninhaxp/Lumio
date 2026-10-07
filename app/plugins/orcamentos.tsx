@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   Dimensions,
   ScrollView,
 } from "react-native";
@@ -29,6 +28,8 @@ import {
   QuoteStatus,
   useAppStore,
 } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
+import { AppFeedback } from '@/src/components/app-feedback';
 
 type DraftItem = OrderItem;
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -163,9 +164,9 @@ export default function OrcamentosScreen() {
       ? orcamentos.find((quote) => quote.id === editingId)
       : undefined;
     if (current && current.status !== "pendente") {
-      Alert.alert(
+      AppAlert.alert(
         "Orçamento encerrado",
-        "Orçamentos aprovados, recusados ou expirados não podem ser editados.",
+        "Orçamentos aprovados, recusados ou expirados não podem ser editados.", undefined, { variant: 'warning' }
       );
       return;
     }
@@ -188,12 +189,12 @@ export default function OrcamentosScreen() {
   const approve = (id: string) => {
     const orderId = approveOrcamento(id);
     if (!orderId)
-      Alert.alert(
+      AppAlert.alert(
         "Orçamento não aprovado",
-        "Ele pode já ter sido convertido, estar expirado ou não estar pendente.",
+        "Ele pode já ter sido convertido, estar expirado ou não estar pendente.", undefined, { variant: 'warning' }
       );
     else
-      Alert.alert(
+      AppFeedback.show(
         "Orçamento aprovado",
         `Pedido ${orderId.slice(-6)} criado. Conclua o pedido em Pedidos / Vendas para gerar a receita.`,
       );
@@ -209,7 +210,7 @@ export default function OrcamentosScreen() {
         <Text style={styles.headerTitle}>Orçamentos</Text>
         <TouchableOpacity
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Orçamentos",
               "O módulo sai da aba Apps, mas os dados continuam guardados.",
               [

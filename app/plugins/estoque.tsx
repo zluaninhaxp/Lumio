@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -21,6 +20,7 @@ import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/cons
 import { EstoqueItem, useAppStore } from "../../src/store";
 import { CatalogItemSelector } from "../components/CatalogItemSelector";
 import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../src/utils/relationDraft";
+import { AppAlert } from "@/src/services/appAlert";
 
 const EMPTY_FORM = { catalogItemId: "", quantity: "", minAlert: "" };
 const EMPTY_MOVEMENT = { amount: "", reason: "" };
@@ -119,9 +119,9 @@ export default function EstoqueScreen() {
     if (!Number.isFinite(amount) || amount <= 0) return;
     const delta = movementType === "entrada" ? amount : -amount;
     if (!moveEstoqueItem(movementItem.id, delta, movement.reason)) {
-      Alert.alert(
+      AppAlert.alert(
         "Movimento não realizado",
-        "A saída não pode deixar o estoque negativo.",
+        "A saída não pode deixar o estoque negativo.", undefined, { variant: 'warning' }
       );
       return;
     }
@@ -129,17 +129,17 @@ export default function EstoqueScreen() {
   };
 
   const deleteItem = (id: string) =>
-    Alert.alert("Excluir item", "Tem certeza?", [
+    AppAlert.alert("Excluir item", "Tem certeza?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
         style: "destructive",
-        onPress: () => { if (!removeEstoqueItem(id)) Alert.alert('Item vinculado', 'Pedidos ou movimentos dependem deste item. O histórico foi preservado.'); },
+        onPress: () => { if (!removeEstoqueItem(id)) AppAlert.alert('Item vinculado', 'Pedidos ou movimentos dependem deste item. O histórico foi preservado.', undefined, { variant: 'warning' }); },
       },
     ]);
 
   const deactivate = () =>
-    Alert.alert(
+    AppAlert.alert(
       "Desativar Estoque",
       "O módulo sai da aba Apps, mas os dados continuam guardados.",
       [

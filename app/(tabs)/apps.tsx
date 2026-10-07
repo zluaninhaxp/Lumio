@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { onboardingService } from '../../src/services/onboardingService';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
+import { AppAlert } from "@/src/services/appAlert";
 
 export default function AppsScreen() {
   const router = useRouter();
@@ -29,10 +30,10 @@ export default function AppsScreen() {
     const check = canActivatePlugin(pluginId, activatedPlugins);
     if (!check.ok) {
       const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
-      Alert.alert(
+      AppAlert.alert(
         'Dependência necessária',
         `Para ativar ${getPluginDefinition(pluginId)?.label ?? pluginId}, você precisa ter ${labels.join(' e ')} ativados primeiro.`,
-        [{ text: 'Entendi' }],
+        [{ text: 'Entendi' }], { variant: 'warning' }
       );
       return;
     }
@@ -64,12 +65,12 @@ export default function AppsScreen() {
       await onboardingService.savePluginPreferences(currentUser.id, activatedPlugins, nextOrder);
     } catch (error) {
       console.warn('Falha ao salvar a ordem dos módulos:', error);
-      Alert.alert('Não foi possível salvar', 'A nova ordem ficará disponível nesta sessão. Tente novamente mais tarde.');
+      AppAlert.alert('Não foi possível salvar', 'A nova ordem ficará disponível nesta sessão. Tente novamente mais tarde.', undefined, { variant: 'warning' });
     }
   };
 
   const deactivateAllPlugins = () => {
-    Alert.alert(
+    AppAlert.alert(
       'Desativar todos os módulos?',
       'Eles sairão da sua lista de Apps, mas seus dados continuarão guardados para quando você quiser reativá-los.',
       [
@@ -86,7 +87,7 @@ export default function AppsScreen() {
               await onboardingService.savePluginPreferences(currentUser.id, [], []);
             } catch (error) {
               console.warn('Falha ao salvar a desativação dos módulos:', error);
-              Alert.alert('Não foi possível salvar', 'Os módulos foram desativados nesta sessão. Tente novamente mais tarde.');
+              AppAlert.alert('Não foi possível salvar', 'Os módulos foram desativados nesta sessão. Tente novamente mais tarde.', undefined, { variant: 'warning' });
             }
           },
         },
