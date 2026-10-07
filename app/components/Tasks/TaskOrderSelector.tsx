@@ -4,10 +4,8 @@ import {
   Animated,
   Dimensions,
   FlatList,
-  KeyboardAvoidingView,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ModalKeyboardViewport } from '../../../src/components/modal-keyboard-viewport';
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 
 type OrderOption = { id: string; label: string };
@@ -32,6 +31,7 @@ const OPTION_HEIGHT = 56;
 
 export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSelectorProps) {
   const [visible, setVisible] = useState(false);
+  const [modalViewportHeight, setModalViewportHeight] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const translateY = useRef(new Animated.Value(0)).current;
@@ -102,61 +102,63 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
-        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <Pressable style={styles.modalBackdrop} onPress={close}>
-            <Animated.View style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdropOpacity }]} />
-          </Pressable>
-          <Animated.View style={[styles.modalSheet, { transform: [{ translateY }] }]}>
-            <View style={styles.handleHitArea} {...panResponder.panHandlers}><View style={styles.handle} /></View>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalHeading}>
-                <Text style={styles.modalEyebrow}>Selecionar pedido</Text>
-                <Text style={styles.modalTitle}>Qual pedido será entregue?</Text>
-              </View>
-              <TouchableOpacity style={styles.closeButton} onPress={close} accessibilityLabel="Fechar seleção">
-                <Ionicons name="close" size={20} color={Colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.searchBox}>
-              <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
-              <TextInput
-                autoFocus
-                value={query}
-                onChangeText={setQuery}
-                placeholder="Buscar pedido"
-                placeholderTextColor={Colors.textMuted}
-                style={styles.searchInput}
-                autoCorrect={false}
-                clearButtonMode="while-editing"
-              />
-              {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accent} />}
-            </View>
-            <View style={styles.resultHeader}>
-              <Text style={styles.resultTitle}>{debouncedQuery ? 'Resultados' : 'Pedidos disponíveis'}</Text>
-              <Text style={styles.resultCount}>{options.length} encontrado{options.length === 1 ? '' : 's'}</Text>
-            </View>
-            <FlatList
-              data={options}
-              style={styles.resultList}
-              keyExtractor={(item) => item.id}
-              keyboardShouldPersistTaps="handled"
-              getItemLayout={(_, index) => ({ length: OPTION_HEIGHT, offset: OPTION_HEIGHT * index, index })}
-              contentContainerStyle={styles.resultContent}
-              renderItem={({ item }) => (
-                <TouchableOpacity style={styles.option} onPress={() => select(item.id)}>
-                  <View style={styles.avatar}><Text style={styles.avatarText}>{item.label.replace('Pedido ', '').slice(-2)}</Text></View>
-                  <Text style={styles.optionName} numberOfLines={1}>{item.label}</Text>
-                  {item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}
+        <ModalKeyboardViewport onHeightChange={setModalViewportHeight}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={close}>
+              <Animated.View style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdropOpacity }]} />
+            </Pressable>
+            <Animated.View style={[styles.modalSheet, modalViewportHeight !== null && { maxHeight: modalViewportHeight * .78, minHeight: Math.min(390, modalViewportHeight * .78) }, { transform: [{ translateY }] }]}>
+              <View style={styles.handleHitArea} {...panResponder.panHandlers}><View style={styles.handle} /></View>
+              <View style={styles.modalHeader}>
+                <View style={styles.modalHeading}>
+                  <Text style={styles.modalEyebrow}>Selecionar pedido</Text>
+                  <Text style={styles.modalTitle}>Qual pedido será entregue?</Text>
+                </View>
+                <TouchableOpacity style={styles.closeButton} onPress={close} accessibilityLabel="Fechar seleção">
+                  <Ionicons name="close" size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
-              )}
-              ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="receipt-outline" size={28} color={Colors.textMuted} /><Text style={styles.emptyTitle}>Nenhum pedido encontrado</Text></View>}
-            />
-            <TouchableOpacity style={styles.unassignButton} onPress={() => select(undefined)}>
-              <Ionicons name="close-circle-outline" size={18} color={Colors.textSecondary} />
-              <Text style={styles.unassignText}>Não atribuir</Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </KeyboardAvoidingView>
+              </View>
+              <View style={styles.searchBox}>
+                <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+                <TextInput
+                  autoFocus
+                  value={query}
+                  onChangeText={setQuery}
+                  placeholder="Buscar pedido"
+                  placeholderTextColor={Colors.textMuted}
+                  style={styles.searchInput}
+                  autoCorrect={false}
+                  clearButtonMode="while-editing"
+                />
+                {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accent} />}
+              </View>
+              <View style={styles.resultHeader}>
+                <Text style={styles.resultTitle}>{debouncedQuery ? 'Resultados' : 'Pedidos disponíveis'}</Text>
+                <Text style={styles.resultCount}>{options.length} encontrado{options.length === 1 ? '' : 's'}</Text>
+              </View>
+              <FlatList
+                data={options}
+                style={styles.resultList}
+                keyExtractor={(item) => item.id}
+                keyboardShouldPersistTaps="handled"
+                getItemLayout={(_, index) => ({ length: OPTION_HEIGHT, offset: OPTION_HEIGHT * index, index })}
+                contentContainerStyle={styles.resultContent}
+                renderItem={({ item }) => (
+                  <TouchableOpacity style={styles.option} onPress={() => select(item.id)}>
+                    <View style={styles.avatar}><Text style={styles.avatarText}>{item.label.replace('Pedido ', '').slice(-2)}</Text></View>
+                    <Text style={styles.optionName} numberOfLines={1}>{item.label}</Text>
+                    {item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}
+                  </TouchableOpacity>
+                )}
+                ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="receipt-outline" size={28} color={Colors.textMuted} /><Text style={styles.emptyTitle}>Nenhum pedido encontrado</Text></View>}
+              />
+              <TouchableOpacity style={styles.unassignButton} onPress={() => select(undefined)}>
+                <Ionicons name="close-circle-outline" size={18} color={Colors.textSecondary} />
+                <Text style={styles.unassignText}>Não atribuir</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </ModalKeyboardViewport>
       </Modal>
     </View>
   );

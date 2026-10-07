@@ -1,3 +1,4 @@
+import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useEffect, useMemo, useState } from "react";
 import {
   View,
@@ -341,7 +342,7 @@ export default function OrcamentosScreen() {
       >
         <View style={[styles.modalOverlay, formSheetBounded && styles.formSheetOverlay]}>
           <View style={[styles.modalCard, formSheetBounded && styles.formSheetCard]}>
-              <ScrollView
+              <ModalScrollView
                 style={[styles.formScroll, formSheetBounded && styles.formScrollBounded]}
                 showsVerticalScrollIndicator={false}
                 onContentSizeChange={(_, height) => setFormBodyHeight((current) => current === height ? current : height)}
@@ -407,7 +408,7 @@ export default function OrcamentosScreen() {
               >
                 <Text style={styles.actionText}>+ Adicionar item</Text>
               </TouchableOpacity>
-            </ScrollView>
+            </ModalScrollView>
             <View
               style={styles.formFooter}
               onLayout={(event) => setFormFooterHeight(event.nativeEvent.layout.height)}
@@ -565,9 +566,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   formScroll: { flexShrink: 1 },
-  formScrollBounded: { flex: 1 },
-  formSheetOverlay: { flex: 1 },
-  formSheetCard: { flex: 1 },
+  formScrollBounded: { flex: 1, minHeight: 0 },
+  formSheetOverlay: { flex: 1, flexShrink: 1, minHeight: 0 },
+  formSheetCard: { flex: 1, flexShrink: 1, minHeight: 0 },
   label: {
     color: Colors.textSecondary,
     fontFamily: "PlusJakartaSans_600SemiBold",

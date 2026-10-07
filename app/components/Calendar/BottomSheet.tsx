@@ -7,13 +7,13 @@ import {
   PanResponder,
   TouchableWithoutFeedback,
   useWindowDimensions,
-  ScrollView,
   Keyboard,
   Dimensions,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardProvider, KeyboardAvoidingView } from 'react-native-keyboard-controller';
+import { ModalScrollView } from '../../../src/components/modal-scroll-view';
 import { Colors, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 import { getBottomSheetLayout, isBottomKeyboard } from '../../../src/utils/bottomSheetLayout';
 
@@ -32,6 +32,8 @@ interface BottomSheetProps {
   /** Off-white separates nested white surfaces without outlining each row. */
   surface?: 'white' | 'offWhite';
   backgroundDecoration?: React.ReactNode;
+  /** Use the form's own viewport instead of nesting vertical scroll views. */
+  contentOwnsScroll?: boolean;
 }
 
 export interface BottomSheetHandle {
@@ -45,7 +47,9 @@ export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(funct
   return (
     <Modal visible={props.visible} transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={() => modalRef.current?.close()}>
       <SafeAreaProvider>
-        <BottomSheetContent {...props} ref={ref} modalRef={modalRef} />
+        <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
+          <BottomSheetContent {...props} ref={ref} modalRef={modalRef} />
+        </KeyboardProvider>
       </SafeAreaProvider>
     </Modal>
   );
@@ -64,6 +68,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   dismissible = true,
   surface = 'white',
   backgroundDecoration,
+  contentOwnsScroll,
   modalRef,
 }, ref) {
   const insets = useSafeAreaInsets();
@@ -76,8 +81,6 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
     Platform.OS === 'web' || typeof Keyboard.metrics !== 'function' ? undefined : Keyboard.metrics()
   );
   const keyboardVisible = isBottomKeyboard(keyboardFrame, windowWidth, Dimensions.get('screen').height, insets.bottom);
-  const [contentHeight, setContentHeight] = useState(0);
-  const [scrollHeight, setScrollHeight] = useState(0);
   const layout = getBottomSheetLayout({
     viewportHeight: viewportHeight ?? windowHeight,
     topInset: insets.top,
@@ -88,7 +91,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   });
   // Bounded consumers (sales, quotes, report editor) already own their scroll
   // and footer. Natural-height forms get an overflow-only scroll viewport.
-  const ownsScroll = maxHeight !== undefined || sheetHeight !== undefined;
+  const ownsScroll = contentOwnsScroll ?? (maxHeight !== undefined || sheetHeight !== undefined);
   const translateY = useRef(new Animated.Value(height)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const onCloseRef = useRef(onClose);
@@ -194,7 +197,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
         <KeyboardAvoidingView
           pointerEvents="box-none"
           style={styles.keyboardViewport}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior="padding"
         >
           <View pointerEvents="box-none" style={[styles.sheetViewport, { paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }]}
             onLayout={({ nativeEvent }) => setViewportHeight(nativeEvent.layout.height)}>
@@ -217,14 +220,11 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
              >
                <View style={styles.handle} />
              </View>
-            {ownsScroll ? children : (
-              <ScrollView style={styles.naturalContent} keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled showsVerticalScrollIndicator={false}
-                scrollEnabled={contentHeight > scrollHeight}
-                onLayout={({ nativeEvent }) => setScrollHeight(nativeEvent.layout.height)}
-                onContentSizeChange={(_, measuredHeight) => setContentHeight(measuredHeight)}>
+            {ownsScroll ? <View style={[styles.ownedContent, layout.height !== undefined && { flex: 1 }]}>{children}</View> : (
+              <ModalScrollView style={styles.naturalContent} keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
                 {children}
-              </ScrollView>
+              </ModalScrollView>
             )}
           </Animated.View>
           </View>
@@ -241,6 +241,7 @@ const styles = StyleSheet.create({
   keyboardViewport: { flex: 1 },
   sheetViewport: { flex: 1, justifyContent: 'flex-end' },
   naturalContent: { flexGrow: 0, flexShrink: 1 },
+  ownedContent: { flexShrink: 1, minHeight: 0 },
   backdrop: {
       ...SurfaceStyles.backdrop,
     ...StyleSheet.absoluteFillObject

@@ -314,7 +314,7 @@ export default function EntregasScreen() {
       >
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <View>
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar entrega" : "Nova entrega"}
               </Text>
@@ -372,7 +372,7 @@ export default function EntregasScreen() {
                   </Text>
                 </TouchableOpacity>
               )}
-            </ScrollView>
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>

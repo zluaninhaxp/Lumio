@@ -1,6 +1,7 @@
 import { forwardRef, useRef, useImperativeHandle, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ModalScrollView } from './modal-scroll-view';
 import { BottomSheet, type BottomSheetHandle } from '../../app/components/Calendar/BottomSheet';
 import { FormLabel } from '../../app/components/RequiredLabel';
 import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../constants/theme';
@@ -17,11 +18,11 @@ export const InformationEditor = forwardRef<BottomSheetHandle, { visible: boolea
   useImperativeHandle(ref, () => ({ close: () => sheetRef.current?.close() }));
   return <BottomSheet ref={sheetRef} visible={visible} onClose={onClose} dismissible={!saving} height={screenHeight} maxHeight={Math.min(screenHeight * 0.9, 720)}>
     <View style={styles.sheetHeader}><Text style={styles.sheetTitle}>{title}</Text><TouchableOpacity onPress={() => close()} disabled={saving} accessibilityRole="button" accessibilityLabel="Fechar edição" style={styles.closeButton}><Ionicons name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity></View>
-    <ScrollView style={[styles.formScroll, { maxHeight: Math.max(120, Math.min(screenHeight * 0.9, 720) - 124) }]} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
+    <ModalScrollView style={[styles.formScroll, { maxHeight: Math.max(120, Math.min(screenHeight * 0.9, 720) - 124) }]} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
       {children}
       {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
       <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => close()} disabled={saving} accessibilityRole="button"><Text style={styles.cancelText}>Cancelar</Text></TouchableOpacity><TouchableOpacity style={[styles.saveButton, destructive && { backgroundColor: Colors.danger }, saving && styles.saveDisabled]} onPress={onSave} disabled={saving} accessibilityRole="button"><Text style={styles.saveText}>{saving ? 'Salvando...' : saveLabel}</Text></TouchableOpacity></View>
-    </ScrollView>
+    </ModalScrollView>
   </BottomSheet>;
 });
 const styles = StyleSheet.create({
@@ -29,7 +30,7 @@ const styles = StyleSheet.create({
     ...SurfaceStyles.filter,
     width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center'
   },
-  formScroll: {}, form: { gap: Spacing.md, paddingBottom: Spacing.xl }, input: {
+  formScroll: { flexShrink: 1 }, form: { gap: Spacing.md, paddingBottom: Spacing.xl }, input: {
     ...SurfaceStyles.control,
     minHeight: 48, borderRadius: Radius.md, padding: Spacing.lg, fontFamily: Typography.regular, fontSize: FontSize.md, color: Colors.primary
   }, error: { fontFamily: Typography.medium, fontSize: FontSize.sm, color: Colors.danger },

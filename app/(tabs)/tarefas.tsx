@@ -1,3 +1,5 @@
+import { ModalKeyboardViewport } from '../../src/components/modal-keyboard-viewport';
+import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
@@ -742,71 +744,75 @@ export default function TarefasScreen() {
   // ─────── Tag Manager Modal ───────
   const renderTagManager = () => (
     <Modal visible={tagManager !== null} transparent animationType="fade">
-      <Pressable style={styles.modalOverlay} onPress={() => setTagManager(null)}>
-        <Pressable style={styles.pickerCard}>
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Tags</Text>
-            <TouchableOpacity
-              onPress={() => setTagManager(null)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={22} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </View>
+      <ModalKeyboardViewport>
+        <Pressable style={styles.modalOverlay} onPress={() => setTagManager(null)}>
+          <Pressable style={[styles.pickerCard, { maxHeight: '100%', flexShrink: 1 }]}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Tags</Text>
+              <TouchableOpacity
+                onPress={() => setTagManager(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={22} color={Colors.textMuted} />
+              </TouchableOpacity>
+            </View>
 
-          {allTaskTags.length === 0 && (
-            <Text style={styles.tagEmpty}>Nenhuma tag criada ainda.</Text>
-          )}
+            <ModalScrollView style={{ flexShrink: 1 }}>
+              {allTaskTags.length === 0 && (
+                <Text style={styles.tagEmpty}>Nenhuma tag criada ainda.</Text>
+              )}
 
-          <View style={styles.tagGrid}>
-            {allTaskTags.map((tag) => {
-              const c = getTagColor(tag);
-              const active = tagManager?.current.includes(tag) ?? false;
-              const canRemove = customTaskTags.includes(tag);
-              return (
-                <View key={tag} style={styles.tagRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.tagToggleChip,
-                      { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : 'transparent' },
-                    ]}
-                    onPress={() => {
-                      if (tagManager) handleToggleTag(tagManager.taskId, tag);
-                    }}
-                  >
-                    <Text style={[styles.tagToggleText, { color: active ? c.text : Colors.textSecondary }]}>
-                      {tag}
-                    </Text>
-                    {active && <Ionicons name="checkmark" size={14} color={c.text} style={{ marginLeft: 4 }} />}
-                  </TouchableOpacity>
-                  {canRemove && <TouchableOpacity
-                      onPress={() => handleRemoveGlobalTag(tag)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>}
-                </View>
-              );
-            })}
-          </View>
+              <View style={styles.tagGrid}>
+                {allTaskTags.map((tag) => {
+                  const c = getTagColor(tag);
+                  const active = tagManager?.current.includes(tag) ?? false;
+                  const canRemove = customTaskTags.includes(tag);
+                  return (
+                    <View key={tag} style={styles.tagRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.tagToggleChip,
+                          { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : 'transparent' },
+                        ]}
+                        onPress={() => {
+                          if (tagManager) handleToggleTag(tagManager.taskId, tag);
+                        }}
+                      >
+                        <Text style={[styles.tagToggleText, { color: active ? c.text : Colors.textSecondary }]}>
+                          {tag}
+                        </Text>
+                        {active && <Ionicons name="checkmark" size={14} color={c.text} style={{ marginLeft: 4 }} />}
+                      </TouchableOpacity>
+                      {canRemove && <TouchableOpacity
+                          onPress={() => handleRemoveGlobalTag(tag)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
+                        </TouchableOpacity>}
+                    </View>
+                  );
+                })}
+              </View>
 
-          <View style={styles.tagDivider} />
-          <View style={styles.tagAddRow}>
-            <TextInput
-              style={styles.tagAddInput}
-              placeholder="Nova tag..."
-              placeholderTextColor={Colors.textMuted}
-              value={newTagName}
-              onChangeText={setNewTagName}
-              onSubmitEditing={handleCreateTag}
-              returnKeyType="done"
-            />
-            <TouchableOpacity style={styles.tagAddBtn} onPress={handleCreateTag}>
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+              <View style={styles.tagDivider} />
+              <View style={styles.tagAddRow}>
+                <TextInput
+                  style={styles.tagAddInput}
+                  placeholder="Nova tag..."
+                  placeholderTextColor={Colors.textMuted}
+                  value={newTagName}
+                  onChangeText={setNewTagName}
+                  onSubmitEditing={handleCreateTag}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity style={styles.tagAddBtn} onPress={handleCreateTag}>
+                  <Ionicons name="add" size={18} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+            </ModalScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </ModalKeyboardViewport>
     </Modal>
   );
 

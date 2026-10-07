@@ -1,13 +1,12 @@
+import { ModalKeyboardViewport } from '../../../src/components/modal-keyboard-viewport';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
   Dimensions,
   FlatList,
-  KeyboardAvoidingView,
   Modal,
   PanResponder,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -94,6 +93,7 @@ export function TaskPeopleSelector({
   const router = useRouter();
   const { clienteItems, fornecedorItems, employeeItems, activatedPlugins } = useAppStore();
   const [activeRelation, setActiveRelation] = useState<Relation | null>(null);
+  const [modalViewportHeight, setModalViewportHeight] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [recentIds, setRecentIds] = useState<Partial<Record<Relation, string[]>>>({});
@@ -227,97 +227,96 @@ export function TaskPeopleSelector({
       })}
 
       <Modal visible={activeRelation !== null} transparent animationType="none" onRequestClose={closePicker}>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <Pressable style={styles.modalBackdrop} onPress={closePicker}>
-            <Animated.View style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdropOpacity }]} />
-          </Pressable>
-          <Animated.View style={[styles.modalSheet, { transform: [{ translateY: sheetTranslateY }] }]}>
-            {activeRelation && (
-              <>
-                <View style={styles.handleHitArea} {...panResponder.panHandlers}>
-                  <View style={styles.handle} />
-                </View>
-                <View style={styles.modalHeader}>
-                  <View style={styles.modalHeading}>
-                    <Text style={styles.modalEyebrow}>Selecionar {relationLabels[activeRelation].toLowerCase()}</Text>
-                    <Text style={styles.modalTitle}>Quem você quer vincular?</Text>
+        <ModalKeyboardViewport onHeightChange={setModalViewportHeight}>
+          <View style={styles.modalOverlay}>
+            <Pressable style={styles.modalBackdrop} onPress={closePicker}>
+              <Animated.View style={[StyleSheet.absoluteFillObject, styles.backdrop, { opacity: backdropOpacity }]} />
+            </Pressable>
+            <Animated.View style={[styles.modalSheet, modalViewportHeight !== null && { height: modalViewportHeight * .78, minHeight: modalViewportHeight * .58, maxHeight: modalViewportHeight * .91 }, { transform: [{ translateY: sheetTranslateY }] }]}>
+              {activeRelation && (
+                <>
+                  <View style={styles.handleHitArea} {...panResponder.panHandlers}>
+                    <View style={styles.handle} />
                   </View>
-                  <TouchableOpacity style={styles.closeButton} onPress={closePicker} accessibilityLabel="Fechar seleção">
-                    <Ionicons name="close" size={20} color={Colors.textSecondary} />
-                  </TouchableOpacity>
-                </View>
-
-                <TouchableOpacity style={styles.createButton} onPress={() => openRelationPlugin(activeRelation)}>
-                  <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accent} /></View>
-                  <View style={styles.createText}>
-                    <Text style={styles.createTitle}>Criar novo {relationLabels[activeRelation].toLowerCase()}</Text>
-                    <Text style={styles.createHint}>Cadastrar e voltar para este formulário</Text>
-                  </View>
-                  <Ionicons name="arrow-forward" size={17} color={Colors.accent} />
-                </TouchableOpacity>
-
-                <View style={styles.searchBox}>
-                  <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
-                  <TextInput
-                    autoFocus
-                    value={query}
-                    onChangeText={setQuery}
-                    placeholder={`Buscar por nome${activeRelation === 'employee' ? ' ou cargo' : ''}`}
-                    placeholderTextColor={Colors.textMuted}
-                    style={styles.searchInput}
-                    returnKeyType="search"
-                    autoCorrect={false}
-                    clearButtonMode="while-editing"
-                  />
-                  {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accent} />}
-                </View>
-
-                <View style={styles.resultHeader}>
-                  <Text style={styles.resultTitle}>{debouncedQuery ? 'Resultados' : activeItems.length > PREVIEW_LIMIT ? 'Recentes e sugestões' : 'Pessoas cadastradas'}</Text>
-                  <Text style={styles.resultCount}>{debouncedQuery ? `${activeOptions.length} encontrada${activeOptions.length === 1 ? '' : 's'}` : `${activeItems.length} cadastrada${activeItems.length === 1 ? '' : 's'}`}</Text>
-                </View>
-
-                <FlatList
-                  data={activeOptions}
-                  style={styles.resultList}
-                  keyExtractor={(item) => item.id}
-                  keyboardShouldPersistTaps="handled"
-                  initialNumToRender={10}
-                  getItemLayout={(_, index) => ({ length: OPTION_HEIGHT, offset: OPTION_HEIGHT * index, index })}
-                  contentContainerStyle={styles.resultContent}
-                  renderItem={({ item }) => {
-                    const selected = data[activeRelation].selected === item.id;
-                    return (
-                      <TouchableOpacity style={styles.option} onPress={() => selectPerson(activeRelation, item.id)}>
-                        <View style={styles.avatar}><Text style={styles.avatarText}>{initials(item.name)}</Text></View>
-                        <View style={styles.optionText}>
-                          <Text style={styles.optionName} numberOfLines={1}>{item.name}</Text>
-                          <Text style={styles.optionMeta} numberOfLines={1}>{relationDetails(item, activeRelation)}</Text>
-                        </View>
-                        {selected && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}
-                      </TouchableOpacity>
-                    );
-                  }}
-                  ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                      <Ionicons name={debouncedQuery ? 'search-outline' : 'people-outline'} size={28} color={Colors.textMuted} />
-                      <Text style={styles.emptyTitle}>{debouncedQuery ? 'Nenhuma pessoa encontrada' : 'Nenhuma pessoa cadastrada'}</Text>
-                      <Text style={styles.emptyHint}>{debouncedQuery ? 'Tente outro nome, contato ou cargo.' : 'Use “Criar novo” acima para cadastrar a primeira.'}</Text>
+                  <View style={styles.modalHeader}>
+                    <View style={styles.modalHeading}>
+                      <Text style={styles.modalEyebrow}>Selecionar {relationLabels[activeRelation].toLowerCase()}</Text>
+                      <Text style={styles.modalTitle}>Quem você quer vincular?</Text>
                     </View>
-                  }
-                />
+                    <TouchableOpacity style={styles.closeButton} onPress={closePicker} accessibilityLabel="Fechar seleção">
+                      <Ionicons name="close" size={20} color={Colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
 
-                <TouchableOpacity style={styles.unassignButton} onPress={() => selectPerson(activeRelation)}>
-                  <Ionicons name="close-circle-outline" size={18} color={Colors.textSecondary} />
-                  <Text style={styles.unassignText}>Não atribuir</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </Animated.View>
-        </KeyboardAvoidingView>
+                  <TouchableOpacity style={styles.createButton} onPress={() => openRelationPlugin(activeRelation)}>
+                    <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accent} /></View>
+                    <View style={styles.createText}>
+                      <Text style={styles.createTitle}>Criar novo {relationLabels[activeRelation].toLowerCase()}</Text>
+                      <Text style={styles.createHint}>Cadastrar e voltar para este formulário</Text>
+                    </View>
+                    <Ionicons name="arrow-forward" size={17} color={Colors.accent} />
+                  </TouchableOpacity>
+
+                  <View style={styles.searchBox}>
+                    <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+                    <TextInput
+                      autoFocus
+                      value={query}
+                      onChangeText={setQuery}
+                      placeholder={`Buscar por nome${activeRelation === 'employee' ? ' ou cargo' : ''}`}
+                      placeholderTextColor={Colors.textMuted}
+                      style={styles.searchInput}
+                      returnKeyType="search"
+                      autoCorrect={false}
+                      clearButtonMode="while-editing"
+                    />
+                    {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accent} />}
+                  </View>
+
+                  <View style={styles.resultHeader}>
+                    <Text style={styles.resultTitle}>{debouncedQuery ? 'Resultados' : activeItems.length > PREVIEW_LIMIT ? 'Recentes e sugestões' : 'Pessoas cadastradas'}</Text>
+                    <Text style={styles.resultCount}>{debouncedQuery ? `${activeOptions.length} encontrada${activeOptions.length === 1 ? '' : 's'}` : `${activeItems.length} cadastrada${activeItems.length === 1 ? '' : 's'}`}</Text>
+                  </View>
+
+                  <FlatList
+                    data={activeOptions}
+                    style={styles.resultList}
+                    keyExtractor={(item) => item.id}
+                    keyboardShouldPersistTaps="handled"
+                    initialNumToRender={10}
+                    getItemLayout={(_, index) => ({ length: OPTION_HEIGHT, offset: OPTION_HEIGHT * index, index })}
+                    contentContainerStyle={styles.resultContent}
+                    renderItem={({ item }) => {
+                      const selected = data[activeRelation].selected === item.id;
+                      return (
+                        <TouchableOpacity style={styles.option} onPress={() => selectPerson(activeRelation, item.id)}>
+                          <View style={styles.avatar}><Text style={styles.avatarText}>{initials(item.name)}</Text></View>
+                          <View style={styles.optionText}>
+                            <Text style={styles.optionName} numberOfLines={1}>{item.name}</Text>
+                            <Text style={styles.optionMeta} numberOfLines={1}>{relationDetails(item, activeRelation)}</Text>
+                          </View>
+                          {selected && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}
+                        </TouchableOpacity>
+                      );
+                    }}
+                    ListEmptyComponent={
+                      <View style={styles.emptyState}>
+                        <Ionicons name={debouncedQuery ? 'search-outline' : 'people-outline'} size={28} color={Colors.textMuted} />
+                        <Text style={styles.emptyTitle}>{debouncedQuery ? 'Nenhuma pessoa encontrada' : 'Nenhuma pessoa cadastrada'}</Text>
+                        <Text style={styles.emptyHint}>{debouncedQuery ? 'Tente outro nome, contato ou cargo.' : 'Use “Criar novo” acima para cadastrar a primeira.'}</Text>
+                      </View>
+                    }
+                  />
+
+                  <TouchableOpacity style={styles.unassignButton} onPress={() => selectPerson(activeRelation)}>
+                    <Ionicons name="close-circle-outline" size={18} color={Colors.textSecondary} />
+                    <Text style={styles.unassignText}>Não atribuir</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </Animated.View>
+          </View>
+        </ModalKeyboardViewport>
       </Modal>
     </View>
   );

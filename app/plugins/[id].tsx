@@ -1,3 +1,4 @@
+import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useState } from "react";
 import {
   View,
@@ -161,12 +162,13 @@ export default function GenericPluginScreen() {
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
+        contentOwnsScroll
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { flexShrink: 1 }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Novo {def.itemLabel}</Text>
-            <ScrollView
-              style={{ maxHeight: 360 }}
+            <ModalScrollView
+              style={{ maxHeight: 360, flexShrink: 1 }}
               showsVerticalScrollIndicator={false}
             >
               {def.fields.map((field) => (
@@ -219,7 +221,7 @@ export default function GenericPluginScreen() {
                   )}
                 </View>
               ))}
-            </ScrollView>
+            </ModalScrollView>
             <View style={styles.modalActions}>
               <TouchableOpacity
                 style={styles.modalCancel}

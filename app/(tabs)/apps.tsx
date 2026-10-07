@@ -266,9 +266,9 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.danger,
   },
   suggestionCard: {
+    ...SurfaceStyles.list,
     flexDirection: 'row',
     gap: Spacing.md,
-    backgroundColor: Colors.accentLight,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm, color: Colors.textMuted,
   },
   moduleCard: {
-      ...SurfaceStyles.card,
+    ...SurfaceStyles.list,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,

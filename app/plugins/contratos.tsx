@@ -339,7 +339,7 @@ export default function ContratosScreen() {
       >
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <View>
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar contrato" : "Novo contrato"}
               </Text>
@@ -386,7 +386,7 @@ export default function ContratosScreen() {
                 placeholder="2026-08-11"
                 placeholderTextColor={Colors.textMuted}
               />
-            </ScrollView>
+            </View>
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>

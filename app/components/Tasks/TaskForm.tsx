@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
@@ -79,7 +78,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+    <View style={styles.container}>
       <Text style={styles.title}>{initialData ? 'Editar tarefa' : 'Nova tarefa'}</Text>
 
       <Text style={styles.label}>Descrição</Text>
@@ -163,7 +162,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
            <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 

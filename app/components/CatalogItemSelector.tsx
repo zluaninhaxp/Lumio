@@ -1,3 +1,4 @@
+import { ModalKeyboardViewport } from '../../src/components/modal-keyboard-viewport';
 import { useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -13,6 +14,7 @@ type Props = {
 
 export function CatalogItemSelector({ selectedId, items, onChange, onBeforeNavigate }: Props) {
   const [visible, setVisible] = useState(false);
+  const [modalViewportHeight, setModalViewportHeight] = useState<number | null>(null);
   const [query, setQuery] = useState('');
   const selected = items.find((item) => item.id === selectedId);
   const results = useMemo(() => {
@@ -39,25 +41,27 @@ export function CatalogItemSelector({ selectedId, items, onChange, onBeforeNavig
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
-        <View style={styles.overlay}>
-          <TouchableOpacity style={styles.backdrop} onPress={close} />
-          <View style={styles.sheet}>
-            <View style={styles.handle} />
-            <View style={styles.header}>
-              <View><Text style={styles.eyebrow}>Selecionar produto</Text><Text style={styles.title}>Qual produto controlar?</Text></View>
-              <TouchableOpacity onPress={close} style={styles.close}><Ionicons name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+        <ModalKeyboardViewport onHeightChange={setModalViewportHeight}>
+          <View style={styles.overlay}>
+            <TouchableOpacity style={styles.backdrop} onPress={close} />
+            <View style={[styles.sheet, modalViewportHeight !== null && { height: modalViewportHeight * .78 }]}>
+              <View style={styles.handle} />
+              <View style={styles.header}>
+                <View><Text style={styles.eyebrow}>Selecionar produto</Text><Text style={styles.title}>Qual produto controlar?</Text></View>
+                <TouchableOpacity onPress={close} style={styles.close}><Ionicons name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+              </View>
+              <TouchableOpacity style={styles.createButton} onPress={() => { close(); onBeforeNavigate?.(); }}>
+                <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accent} /></View>
+                <View style={styles.createText}><Text style={styles.createTitle}>Criar novo produto</Text><Text style={styles.createHint}>Cadastrar no Catálogo e voltar para este formulário</Text></View>
+                <Ionicons name="arrow-forward" size={17} color={Colors.accent} />
+              </TouchableOpacity>
+              <View style={styles.searchBox}><Ionicons name="search-outline" size={18} color={Colors.textMuted} /><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Buscar produto" placeholderTextColor={Colors.textMuted} style={styles.searchInput} /></View>
+              <View style={styles.resultHeader}><Text style={styles.resultTitle}>{query ? 'Resultados' : 'Produtos cadastrados'}</Text><Text style={styles.resultCount}>{results.length} produto{results.length === 1 ? '' : 's'}</Text></View>
+              <View style={styles.list}>{results.map((item) => <TouchableOpacity key={item.id} style={styles.option} onPress={() => { onChange(item.id); close(); }}><View style={styles.avatar}><Ionicons name="cube-outline" size={17} color="#FFFFFF" /></View><View style={styles.optionText}><Text style={styles.optionName} numberOfLines={1}>{item.name}</Text><Text style={styles.optionMeta}>{item.unit}{item.controlStock ? ' · estoque controlado' : ''}</Text></View>{item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}</TouchableOpacity>)}</View>
+              {results.length === 0 && <View style={styles.emptyState}><Ionicons name="search-outline" size={28} color={Colors.textMuted} /><Text style={styles.emptyTitle}>Nenhum produto encontrado</Text><Text style={styles.emptyHint}>Use “Criar novo produto” acima para cadastrar.</Text></View>}
             </View>
-            <TouchableOpacity style={styles.createButton} onPress={() => { close(); onBeforeNavigate?.(); }}>
-              <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accent} /></View>
-              <View style={styles.createText}><Text style={styles.createTitle}>Criar novo produto</Text><Text style={styles.createHint}>Cadastrar no Catálogo e voltar para este formulário</Text></View>
-              <Ionicons name="arrow-forward" size={17} color={Colors.accent} />
-            </TouchableOpacity>
-            <View style={styles.searchBox}><Ionicons name="search-outline" size={18} color={Colors.textMuted} /><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Buscar produto" placeholderTextColor={Colors.textMuted} style={styles.searchInput} /></View>
-            <View style={styles.resultHeader}><Text style={styles.resultTitle}>{query ? 'Resultados' : 'Produtos cadastrados'}</Text><Text style={styles.resultCount}>{results.length} produto{results.length === 1 ? '' : 's'}</Text></View>
-            <View style={styles.list}>{results.map((item) => <TouchableOpacity key={item.id} style={styles.option} onPress={() => { onChange(item.id); close(); }}><View style={styles.avatar}><Ionicons name="cube-outline" size={17} color="#FFFFFF" /></View><View style={styles.optionText}><Text style={styles.optionName} numberOfLines={1}>{item.name}</Text><Text style={styles.optionMeta}>{item.unit}{item.controlStock ? ' · estoque controlado' : ''}</Text></View>{item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}</TouchableOpacity>)}</View>
-            {results.length === 0 && <View style={styles.emptyState}><Ionicons name="search-outline" size={28} color={Colors.textMuted} /><Text style={styles.emptyTitle}>Nenhum produto encontrado</Text><Text style={styles.emptyHint}>Use “Criar novo produto” acima para cadastrar.</Text></View>}
           </View>
-        </View>
+        </ModalKeyboardViewport>
       </Modal>
     </View>
   );
