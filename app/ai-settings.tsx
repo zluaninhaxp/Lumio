@@ -95,7 +95,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
       setTestMessage(null);
       activeRef.current = false;
       if (onboarding) router.replace('/celebration');
-      else if (from === 'settings') router.dismissTo({ pathname: '/profile', params: { aiKeySaved: '1' } });
+      else if (from === 'resources' || from === 'settings') router.dismissTo({ pathname: '/resources', params: { aiKeySaved: '1' } });
       else router.back();
     } catch (error) {
       if (!activeRef.current) return;

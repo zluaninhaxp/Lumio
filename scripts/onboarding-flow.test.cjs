@@ -353,11 +353,11 @@ test('new key is tested without persistence, then saved before navigating direct
   assert.deepEqual(f.calls, [['testKey'], ['saveKey', 'test-user'], ['replace', '/celebration']]);
 });
 
-test('settings save returns to profile with confirmation and never starts generation', async () => {
-  const f = fixture({ from: 'settings' }); await f.settings();
+test('resources save returns with confirmation and never starts generation', async () => {
+  const f = fixture({ from: 'resources' }); await f.settings();
   f.find(n => n.type === 'TextInput').props.onChangeText('temporary-key-entered-in-form'); await f.settle();
   await f.click('Testar conexão'); await f.click('Salvar chave');
-  assert.deepEqual(JSON.parse(JSON.stringify(f.calls.at(-1))), ['dismissTo', { pathname: '/profile', params: { aiKeySaved: '1' } }]);
+  assert.deepEqual(JSON.parse(JSON.stringify(f.calls.at(-1))), ['dismissTo', { pathname: '/resources', params: { aiKeySaved: '1' } }]);
   assert.equal(f.calls.filter(c => c[0] === 'replace').length, 0);
 });
 

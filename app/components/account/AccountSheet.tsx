@@ -1,8 +1,8 @@
-import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { AccountRow, BusinessBadge, AccountDivider, accountSurface } from '../../../src/components/account-menu';
+import { Alert, Platform, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { BottomSheet } from '../Calendar/BottomSheet';
-import { Colors, FontSize, Spacing } from '../../../src/constants/theme';
+import { Colors, FontSize, Spacing, SurfaceStyles, Typography } from '../../../src/constants/theme';
 import { useAuth } from '../../../src/hooks/useAuth';
 import { UnsyncedChangesError } from '../../../src/contexts/AuthContext';
 import { useAppStore } from '../../../src/store';
@@ -12,7 +12,7 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
   const router = useRouter();
   const { currentUser, logout } = useAuth();
   const businessName = useAppStore(x => x.businessName);
-  const goProfile = () => { onClose(); router.push('/profile'); };
+  const navigate = (path: '/profile' | '/settings' | '/resources') => { onClose(); router.push(path); };
   const finishLogout = async (discardUnsyncedChanges = false) => {
     try {
       await logout(discardUnsyncedChanges);
@@ -48,7 +48,16 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
       { text: 'Sair', style: 'destructive', onPress: () => { void finishLogout(); } },
     ]);
   };
-  return <BottomSheet visible={visible} onClose={onClose} height={390}><View style={styles.identity}><UserAvatar user={currentUser} size={60} /><View style={styles.identityText}><Text style={styles.name}>{currentUser?.name || 'Usuário'}</Text><Text style={styles.email}>{currentUser?.email}</Text>{!!businessName && <Text style={styles.business}>{businessName}</Text>}</View></View><View style={styles.divider} /><TouchableOpacity style={styles.item} onPress={goProfile} activeOpacity={.7}><Ionicons name="person-circle-outline" size={23} color={Colors.primary} /><View style={{ flex: 1 }}><Text style={styles.itemLabel}>Perfil e configurações</Text><Text style={styles.itemHint}>Dados pessoais, senha e recursos</Text></View><Ionicons name="chevron-forward" size={18} color={Colors.textMuted} /></TouchableOpacity><View style={styles.divider} /><TouchableOpacity style={styles.item} onPress={confirmLogout} activeOpacity={.7}><Ionicons name="log-out-outline" size={22} color={Colors.danger} /><Text style={[styles.itemLabel, { color: Colors.danger }]}>Sair da conta</Text></TouchableOpacity></BottomSheet>;
+  return <BottomSheet visible={visible} onClose={onClose} height={390}>
+    <View style={styles.identity}><UserAvatar user={currentUser} size={56} /><View style={styles.identityText}><Text style={styles.name}>{currentUser?.name || 'Usuário'}</Text><Text style={styles.email}>{currentUser?.email}</Text><BusinessBadge name={businessName} /></View></View>
+    <View style={[accountSurface, styles.shortcuts]}>
+      <AccountRow iconTreatment="tonal" icon="person-outline" title="Meu perfil" subtitle="Veja e edite seus dados" onPress={() => navigate('/profile')} />
+      <AccountDivider tonal />
+      <AccountRow iconTreatment="tonal" icon="settings-outline" title="Configurações" subtitle="Segurança, preferências e mais" onPress={() => navigate('/settings')} />
+      <AccountDivider tonal />
+      <AccountRow iconTreatment="tonal" icon="sparkles-outline" title="Recursos e integrações" subtitle="IA, conectividade e ferramentas" onPress={() => navigate('/resources')} />
+    </View><View style={styles.divider} /><View style={styles.logout}><AccountRow icon="log-out-outline" title="Sair da conta" iconTreatment="tonal" destructive chevron={false} onPress={confirmLogout} /></View>
+  </BottomSheet>;
 }
 
-const styles = StyleSheet.create({ identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg }, identityText: { flex: 1 }, name: { color: Colors.primary, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg }, email: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 3 }, business: { color: Colors.accent, fontSize: FontSize.sm, marginTop: 5, fontFamily: 'PlusJakartaSans_600SemiBold' }, divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.lg }, item: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: Spacing.md }, itemLabel: { color: Colors.primary, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.md }, itemHint: { color: Colors.textSecondary, fontSize: FontSize.xs, marginTop: 3 } });
+const styles = StyleSheet.create({ identity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.sm }, shortcuts: { marginTop: Spacing.lg }, identityText: { flex: 1, gap: Spacing.xs }, logout: { paddingHorizontal: Spacing.lg + SurfaceStyles.card.borderWidth }, name: { color: Colors.ink, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg }, email: { color: Colors.textSecondary, fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20 }, divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.sm }, });

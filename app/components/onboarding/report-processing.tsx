@@ -20,10 +20,10 @@ function ProcessingRing() {
   return <View style={styles.ringTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Animated.View style={[styles.ringActive, spinStyle]} /></View>;
 }
 
-export function ReportBackdrop() {
+export function ReportBackdrop({ viewBox = '0 0 390 820', preserveAspectRatio = 'xMidYMid slice' }: { viewBox?: string; preserveAspectRatio?: string } = {}) {
   return (
       <View pointerEvents="none" accessible={false} importantForAccessibility="no-hide-descendants" style={styles.background}>
-        <Svg width="100%" height="100%" viewBox="0 0 390 820" preserveAspectRatio="xMidYMid slice">
+        <Svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio={preserveAspectRatio}>
           <Defs>
             <RadialGradient id="topGlow"><Stop offset="0" stopColor={Colors.accentLight} stopOpacity="0.85" /><Stop offset="1" stopColor={Colors.accentLight} stopOpacity="0" /></RadialGradient>
             <RadialGradient id="bottomGlow"><Stop offset="0" stopColor={Colors.accentGlow} stopOpacity="0.8" /><Stop offset="1" stopColor={Colors.accentGlow} stopOpacity="0" /></RadialGradient>

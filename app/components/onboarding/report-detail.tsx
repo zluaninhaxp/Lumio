@@ -1,5 +1,6 @@
+import { InformationEditor, BusinessIdentityFields } from '../../../src/components/information-editor';
 import { useRef, useState, type ReactNode } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,7 +9,7 @@ import type { OnboardingExtractionResult } from '../../../src/ai/types';
 import { editReportList, editReportOverview, getReportItems, type ReportListKey } from '../../../src/ai/reportEditing';
 import { getPluginDefinition } from '../../../src/plugins/registry';
 import { ReportBackdrop } from './report-processing';
-import { BottomSheet, type BottomSheetHandle } from '../Calendar/BottomSheet';
+import type { BottomSheetHandle } from '../Calendar/BottomSheet';
 import { FormLabel } from '../RequiredLabel';
 
 const MASCOT = require('../../../assets/mascote-relatorio/Mascote gota verde translúcida com sorriso atrevido.png');
@@ -61,7 +62,7 @@ const listMeta: { key: ReportListKey; title: string; icon: keyof typeof Ionicons
 
 export default function ReportDetail({ extraction, isSimulation, activatedPlugins, onFinish, onSave, onPluginActivation, onConfigureAi }: Props) {
   const sheetRef = useRef<BottomSheetHandle>(null);
-  const { height: screenHeight } = useWindowDimensions();
+
   const [editing, setEditing] = useState<EditKey | null>(null);
   const [name, setName] = useState('');
   const [segment, setSegment] = useState('');
@@ -123,23 +124,16 @@ export default function ReportDetail({ extraction, isSimulation, activatedPlugin
       </ReportSection>}
       <TouchableOpacity style={styles.primaryButton} onPress={onFinish} accessibilityRole="button"><Text style={styles.primaryText}>Continuar para o Lumio</Text><Ionicons name="arrow-forward" size={20} color="#FFFFFF" /></TouchableOpacity>
     </ScrollView>
-    <BottomSheet ref={sheetRef} visible={editing !== null} onClose={() => setEditing(null)} dismissible={!saving} height={screenHeight} maxHeight={Math.min(screenHeight * 0.9, 720)}>
-        <View style={styles.sheetHeader}><Text style={styles.sheetTitle}>Editar {editing === 'overview' ? 'visão geral' : listMeta.find((item) => item.key === editing)?.title.toLocaleLowerCase()}</Text><TouchableOpacity onPress={() => sheetRef.current?.close()} disabled={saving} accessibilityRole="button" accessibilityLabel="Fechar edição" style={styles.closeButton}><Ionicons name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity></View>
-        <ScrollView style={[styles.formScroll, { maxHeight: Math.max(120, Math.min(screenHeight * 0.9, 720) - 124) }]} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
+    <InformationEditor ref={sheetRef} visible={editing !== null} onClose={() => setEditing(null)} title={`Editar ${editing === 'overview' ? 'visão geral' : listMeta.find((item) => item.key === editing)?.title.toLocaleLowerCase()}`} saving={saving} error={error} onSave={save}>
           {editing === 'overview' ? <>
-            <FormLabel>Nome do negócio</FormLabel><TextInput style={styles.input} value={name} onChangeText={setName} placeholder="Nome do negócio" placeholderTextColor={Colors.textMuted} maxLength={100} accessibilityLabel="Nome do negócio" />
-            <FormLabel>Segmento</FormLabel><TextInput style={styles.input} value={segment} onChangeText={setSegment} placeholder="Segmento" placeholderTextColor={Colors.textMuted} maxLength={120} accessibilityLabel="Segmento" />
+            <BusinessIdentityFields name={name} segment={segment} onNameChange={setName} onSegmentChange={setSegment} />
             <FormLabel>Sobre o negócio</FormLabel><TextInput style={[styles.input, styles.multiline]} value={summary} onChangeText={setSummary} multiline textAlignVertical="top" maxLength={1200} accessibilityLabel="Sobre o negócio" />
           </> : <>
             <Text style={styles.formHint}>Edite os nomes, remova itens ou adicione novos.</Text>
             {labels.map((label, index) => <View key={index} style={styles.listInputRow}><TextInput style={[styles.input, styles.listInput]} value={label} onChangeText={(value) => setLabels((current) => current.map((item, i) => i === index ? value : item))} maxLength={80} accessibilityLabel={`Item ${index + 1}`} /><TouchableOpacity onPress={() => setLabels((current) => current.filter((_, i) => i !== index))} accessibilityRole="button" accessibilityLabel={`Remover item ${index + 1}`} style={styles.removeButton}><Ionicons name="trash-outline" size={20} color={Colors.danger} /></TouchableOpacity></View>)}
             <TouchableOpacity onPress={() => setLabels((current) => [...current, ''])} style={styles.addButton} accessibilityRole="button"><Ionicons name="add" size={20} color={Colors.accent} /><Text style={styles.addText}>Adicionar item</Text></TouchableOpacity>
           </>}
-          {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
-          <View style={styles.modalActions}><TouchableOpacity style={styles.cancelButton} onPress={() => sheetRef.current?.close()} disabled={saving} accessibilityRole="button"><Text style={styles.cancelText}>Cancelar</Text></TouchableOpacity><TouchableOpacity style={[styles.saveButton, saving && styles.saveDisabled]} onPress={save} disabled={saving} accessibilityRole="button"><Text style={styles.saveText}>{saving ? 'Salvando...' : 'Salvar'}</Text></TouchableOpacity></View>
-        </ScrollView>
-    </BottomSheet>
-  </SafeAreaView>;
+    </InformationEditor></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
@@ -165,13 +159,7 @@ const styles = StyleSheet.create({
   primaryButton: {
       ...SurfaceStyles.floating,
     minHeight: 54, borderRadius: Radius.full, backgroundColor: Colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md }, primaryText: { fontFamily: Typography.bold, fontSize: FontSize.sm, color: '#FFFFFF', textAlign: 'center' }, finishButton: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm }, finishText: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: '#087E68' },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md }, sheetTitle: { flex: 1, fontFamily: Typography.bold, fontSize: FontSize.xl, color: Colors.primary }, closeButton: {
-      ...SurfaceStyles.filter,
-    width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
-  formScroll: {}, form: { gap: Spacing.md, paddingBottom: Spacing.xl }, formHint: { fontFamily: Typography.regular, fontSize: FontSize.sm, color: Colors.textSecondary }, input: {
+formHint: { fontFamily: Typography.regular, fontSize: FontSize.sm, color: Colors.textSecondary }, input: {
       ...SurfaceStyles.control,
     minHeight: 48, borderRadius: Radius.md, padding: Spacing.lg, fontFamily: Typography.regular, fontSize: FontSize.md, color: Colors.primary }, multiline: { minHeight: 110 }, listInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm }, listInput: { flex: 1 }, removeButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, addButton: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: Spacing.xs }, addText: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: Colors.accent }, error: { fontFamily: Typography.medium, fontSize: FontSize.sm, color: Colors.danger },
-  modalActions: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm }, cancelButton: {
-      ...SurfaceStyles.filter,
-    flex: 1, minHeight: 50, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' }, cancelText: { fontFamily: Typography.semibold, fontSize: FontSize.md, color: Colors.textSecondary }, saveButton: { flex: 1, minHeight: 50, borderRadius: Radius.md, backgroundColor: Colors.accent, alignItems: 'center', justifyContent: 'center' }, saveDisabled: { opacity: 0.55 }, saveText: { fontFamily: Typography.semibold, fontSize: FontSize.md, color: Colors.bgCard },
 });
