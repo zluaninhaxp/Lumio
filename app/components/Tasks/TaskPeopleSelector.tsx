@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 import { useAppStore } from '../../../src/store';
 import { getPluginDefinition } from '../../../src/plugins/registry';
 
@@ -211,9 +211,9 @@ export function TaskPeopleSelector({
         const current = data[relation];
         const selected = current.items.find((item) => item.id === current.selected);
         return (
-          <TouchableOpacity key={relation} style={styles.summary} onPress={() => setActiveRelation(relation)}>
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={relation} style={styles.summary} onPress={() => setActiveRelation(relation)}>
             <View style={styles.summaryIcon}>
-              <Ionicons name={relation === 'employee' ? 'briefcase-outline' : 'person-outline'} size={17} color={Colors.accent} />
+              <Ionicons name={relation === 'employee' ? 'briefcase-outline' : 'person-outline'} size={17} color={Colors.accentIcon} />
             </View>
             <View style={styles.summaryText}>
               <Text style={styles.label}>{relationLabels[relation]}</Text>
@@ -221,7 +221,7 @@ export function TaskPeopleSelector({
                 {selected?.name ?? 'Não atribuído'}
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={17} color={Colors.textMuted} />
+            <Ionicons name="chevron-forward" size={17} color={Colors.iconMuted} />
           </TouchableOpacity>
         );
       })}
@@ -243,34 +243,34 @@ export function TaskPeopleSelector({
                       <Text style={styles.modalEyebrow}>Selecionar {relationLabels[activeRelation].toLowerCase()}</Text>
                       <Text style={styles.modalTitle}>Quem você quer vincular?</Text>
                     </View>
-                    <TouchableOpacity style={styles.closeButton} onPress={closePicker} accessibilityLabel="Fechar seleção">
+                    <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.closeButton} hitSlop={7} onPress={closePicker} accessibilityLabel="Fechar seleção">
                       <Ionicons name="close" size={20} color={Colors.textSecondary} />
                     </TouchableOpacity>
                   </View>
 
-                  <TouchableOpacity style={styles.createButton} onPress={() => openRelationPlugin(activeRelation)}>
-                    <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accent} /></View>
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.createButton} onPress={() => openRelationPlugin(activeRelation)}>
+                    <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accentIcon} /></View>
                     <View style={styles.createText}>
                       <Text style={styles.createTitle}>Criar novo {relationLabels[activeRelation].toLowerCase()}</Text>
                       <Text style={styles.createHint}>Cadastrar e voltar para este formulário</Text>
                     </View>
-                    <Ionicons name="arrow-forward" size={17} color={Colors.accent} />
+                    <Ionicons name="arrow-forward" size={17} color={Colors.accentIcon} />
                   </TouchableOpacity>
 
                   <View style={styles.searchBox}>
-                    <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+                    <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
                     <TextInput
                       autoFocus
                       value={query}
                       onChangeText={setQuery}
                       placeholder={`Buscar por nome${activeRelation === 'employee' ? ' ou cargo' : ''}`}
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={Colors.placeholder}
                       style={styles.searchInput}
                       returnKeyType="search"
                       autoCorrect={false}
                       clearButtonMode="while-editing"
                     />
-                    {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accent} />}
+                    {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accentIcon} />}
                   </View>
 
                   <View style={styles.resultHeader}>
@@ -289,26 +289,26 @@ export function TaskPeopleSelector({
                     renderItem={({ item }) => {
                       const selected = data[activeRelation].selected === item.id;
                       return (
-                        <TouchableOpacity style={styles.option} onPress={() => selectPerson(activeRelation, item.id)}>
+                        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.option} onPress={() => selectPerson(activeRelation, item.id)}>
                           <View style={styles.avatar}><Text style={styles.avatarText}>{initials(item.name)}</Text></View>
                           <View style={styles.optionText}>
                             <Text style={styles.optionName} numberOfLines={1}>{item.name}</Text>
                             <Text style={styles.optionMeta} numberOfLines={1}>{relationDetails(item, activeRelation)}</Text>
                           </View>
-                          {selected && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}
+                          {selected && <Ionicons name="checkmark-circle" size={21} color={Colors.accentIcon} />}
                         </TouchableOpacity>
                       );
                     }}
                     ListEmptyComponent={
                       <View style={styles.emptyState}>
-                        <Ionicons name={debouncedQuery ? 'search-outline' : 'people-outline'} size={28} color={Colors.textMuted} />
+                        <Ionicons name={debouncedQuery ? 'search-outline' : 'people-outline'} size={28} color={Colors.iconMuted} />
                         <Text style={styles.emptyTitle}>{debouncedQuery ? 'Nenhuma pessoa encontrada' : 'Nenhuma pessoa cadastrada'}</Text>
                         <Text style={styles.emptyHint}>{debouncedQuery ? 'Tente outro nome, contato ou cargo.' : 'Use “Criar novo” acima para cadastrar a primeira.'}</Text>
                       </View>
                     }
                   />
 
-                  <TouchableOpacity style={styles.unassignButton} onPress={() => selectPerson(activeRelation)}>
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.unassignButton} onPress={() => selectPerson(activeRelation)}>
                     <Ionicons name="close-circle-outline" size={18} color={Colors.textSecondary} />
                     <Text style={styles.unassignText}>Não atribuir</Text>
                   </TouchableOpacity>
@@ -369,9 +369,9 @@ const styles = StyleSheet.create({
   },
   handleHitArea: { width: '100%', minHeight: 28, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border },
-  modalHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Spacing.md },
+  modalHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Spacing.md },
   modalHeading: { flex: 1, gap: 2 },
-  modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accent, textTransform: 'uppercase' },
+  modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accentText, textTransform: 'uppercase' },
   modalTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xl, color: Colors.primary },
   closeButton: {
       ...SurfaceStyles.filter,
@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   createButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.md, backgroundColor: Colors.accentLight, borderWidth: 1, borderColor: '#BFEBDD' },
   createIcon: { width: 28, height: 28, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgCard },
   createText: { flex: 1, gap: 2 },
-  createTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent },
+  createTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accentText },
   createHint: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary },
   searchBox: {
       ...SurfaceStyles.control,
@@ -392,7 +392,7 @@ const styles = StyleSheet.create({
   resultContent: { paddingBottom: Spacing.sm },
   option: { minHeight: OPTION_HEIGHT, paddingVertical: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   avatar: { width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary },
-  avatarText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs, color: '#FFFFFF' },
+  avatarText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs, color: Colors.onAction },
   optionText: { flex: 1, gap: 2 },
   optionName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.primary },
   optionMeta: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textMuted },

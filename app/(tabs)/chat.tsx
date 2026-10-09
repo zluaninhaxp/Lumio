@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Image,
-  TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard,
+  TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, BackHandler,
 } from 'react-native';
+import Animated, { FadeInDown, Easing, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +11,7 @@ import { useRouter } from 'expo-router';
 import { MessageComposer } from '../../src/components/message-composer';
 import { useHeaderHeight } from '@react-navigation/elements';
 import { BottomSurface } from '../../src/components/bottom-surface';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
 import { normalizeMessage } from '../../src/engine/taskEngine/normalize';
@@ -89,7 +90,10 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
 const { currentUser } = useAuth();
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
-  const isCommandMenuOpen = input.startsWith('/') && !input.includes(' ');
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
+  const [availableHeight, setAvailableHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const isCommandMenuOpen = !commandMenuDismissed && input.startsWith('/') && !input.includes(' ');
   const commandSuggestions = isCommandMenuOpen
     ? getCommandDefinitions().filter((item) => {
         const query = input.slice(1).toLocaleLowerCase();
@@ -97,7 +101,7 @@ const { currentUser } = useAuth();
           && !!item.pluginId
           && activatedPlugins.includes(item.pluginId)
           && (!query || item.name.includes(query) || item.label.toLocaleLowerCase().includes(query));
-      }).slice(0, 6)
+      })
     : [];
   const hasAllCommandPlugins = getCommandDefinitions()
     .filter((item) => item.menuOnly && item.pluginId)
@@ -1046,10 +1050,28 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   const headerHeight = useHeaderHeight();
   const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
   useEffect(() => {
-    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
-    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      setCommandMenuDismissed(false);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      setCommandMenuDismissed(true);
+    });
     return () => { show.remove(); hide.remove(); };
   }, []);
+  useEffect(() => {
+    if (!isCommandMenuOpen) return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      setCommandMenuDismissed(true);
+      return true;
+    });
+    return () => back.remove();
+  }, [isCommandMenuOpen]);
+  const showCommandPanel = isCommandMenuOpen && (commandSuggestions.length > 0 || activatedPlugins.length === 0);
+  // Measure inside keyboard avoidance: IME and tab changes share the composer viewport.
+  const commandPanelMaxHeight = Math.max(0, Math.min(availableHeight * 0.65, availableHeight - composerHeight - 48));
+  const changeInput = (text: string) => { setCommandMenuDismissed(false); setInput(text); };
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const grouped = index > 0 && messages[index - 1].type === item.type;
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
@@ -1085,7 +1107,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
             </View>
             <View style={styles.quickActionsRow}>
               {fallbackActions.map(({ label, value }) => (
-                <TouchableOpacity key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1115,7 +1137,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {item.quickActions && item.quickActions.length > 0 && (
             <View style={styles.quickActionsRow}>
               {item.quickActions.map((action) => (
-                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
                   ? handleGenericQuickAction(item, action.value)
                   : item.ambiguity?.type === 'task_or_event'
                     ? handleTaskEventChoice(item, action.value as 'task' | 'event')
@@ -1128,7 +1150,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {item.actions && item.actions.length > 0 && (
             <View style={styles.actionsRow}>
               {item.actions.map((action) => (
-                <TouchableOpacity key={action} style={styles.actionBtn}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action} style={styles.actionBtn}>
                   <Text style={styles.actionText}>{action}</Text>
                 </TouchableOpacity>
               ))}
@@ -1158,6 +1180,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         behavior="padding"
         keyboardVerticalOffset={headerHeight}
       >
+        <View style={styles.flex} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
         <FlatList
           style={styles.readingArea}
           ref={flatListRef}
@@ -1172,11 +1195,16 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           onContentSizeChange={scrollToBottom}
         />
 
-        {commandSuggestions.length > 0 && (
-          <View style={styles.commandMenu} accessibilityLabel="Ações disponíveis">
+        {showCommandPanel && (
+          <Animated.View style={[styles.commandMenu, { maxHeight: commandPanelMaxHeight }]}
+            entering={FadeInDown.duration(160).withInitialValues({ transform: [{ translateY: 8 }] }).easing(Easing.bezier(0.23, 1, 0.32, 1)).reduceMotion(ReduceMotion.System)}
+            accessibilityLabel="Ações disponíveis">
+          <ScrollView style={styles.commandScroll} contentContainerStyle={styles.commandContent}
+            keyboardShouldPersistTaps="always" keyboardDismissMode="none" showsVerticalScrollIndicator>
+          {commandSuggestions.length > 0 ? <>
             <Text style={styles.commandMenuTitle}>O que você quer fazer?</Text>
             {commandSuggestions.map((command) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={command.name}
                 style={styles.commandSuggestion}
                 onPress={() => runCommandSuggestion(command.name)}
@@ -1190,50 +1218,51 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
                   <Text style={styles.commandLabel}>{command.label}</Text>
                   <Text style={styles.commandUsage} numberOfLines={1}>{command.usage.replace(/^\/\w+\s*/, '')}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                <Ionicons name="chevron-forward" size={16} color={Colors.iconMuted} />
               </TouchableOpacity>
             ))}
             {hasAllCommandPlugins ? (
               <View style={styles.commandAllActive} accessibilityLabel="Todos os módulos com comando estão ativos">
-                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.accent} />
+                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.accentIcon} />
                 <Text style={styles.commandAppsLinkText}>Você já ativou todos os módulos</Text>
               </View>
             ) : (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.commandAppsLink}
                 onPress={() => router.push('/(tabs)/apps' as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Adicionar mais módulos"
               >
-                <Ionicons name="add-circle-outline" size={16} color={Colors.accent} />
+                <Ionicons name="add-circle-outline" size={16} color={Colors.accentIcon} />
                 <Text style={styles.commandAppsLinkText}>Adicionar mais módulos</Text>
               </TouchableOpacity>
             )}
-          </View>
-        )}
-        {isCommandMenuOpen && activatedPlugins.length === 0 && (
-          <View style={styles.commandMenu} accessibilityLabel="Nenhum módulo ativo">
+          </> : <View accessibilityLabel="Nenhum módulo ativo">
             <View style={styles.commandEmptyIcon}>
-              <Ionicons name="apps-outline" size={20} color={Colors.accent} />
+              <Ionicons name="apps-outline" size={20} color={Colors.accentIcon} />
             </View>
             <Text style={styles.commandEmptyTitle}>Ative seu primeiro módulo</Text>
             <Text style={styles.commandEmptyText}>Os comandos aparecem aqui quando você ativar um módulo.</Text>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.commandEmptyButton}
               onPress={() => router.push('/(tabs)/apps' as any)}
               accessibilityRole="button"
               accessibilityLabel="Ir para a tela de Apps"
             >
               <Text style={styles.commandEmptyButtonText}>Ver Apps</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              <Ionicons name="arrow-forward" size={16} color={Colors.onAction} />
             </TouchableOpacity>
-          </View>
+          </View>}
+          </ScrollView>
+          </Animated.View>
         )}
 
-        <BottomSurface style={styles.inputBar}>
-          <MessageComposer value={input} onChangeText={setInput} placeholder="Digite aqui..." onSubmit={handleSend}
+        <BottomSurface style={styles.inputBar} organicEdge={!showCommandPanel}
+          onLayout={event => setComposerHeight(event.nativeEvent.layout.height)}>
+          <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend}
             voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInput} appearance="onboarding" />} />
         </BottomSurface>
+        </View>
       </KeyboardAvoidingView>
       <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>
@@ -1269,7 +1298,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 13,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 
   messagesList: {
@@ -1279,12 +1308,15 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   commandMenu: {
-      ...SurfaceStyles.overlay,
-    marginHorizontal: Spacing.xl,
-    marginBottom: Spacing.xs,
-    padding: Spacing.sm,
-    borderRadius: Radius.lg
+    backgroundColor: Colors.bottomSurface,
+    flexShrink: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.composerDivider,
+    overflow: 'hidden',
   },
+  commandScroll: { flexGrow: 0, flexShrink: 1 },
+  commandContent: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm },
   commandMenuTitle: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -1298,7 +1330,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
+    minHeight: 56,
   },
   commandIcon: {
     width: 32,
@@ -1317,7 +1349,8 @@ const styles = StyleSheet.create({
   commandUsage: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.xs,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   commandHint: {
     paddingHorizontal: Spacing.sm,
@@ -1328,14 +1361,14 @@ const styles = StyleSheet.create({
   },
   commandAppsLink: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
-    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+    minHeight: 48, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
   },
   commandAllActive: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
-    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+    minHeight: 48, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
   },
   commandAppsLinkText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent,
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accentText,
   },
   commandEmptyIcon: {
     width: 36, height: 36, borderRadius: Radius.full, backgroundColor: Colors.accentLight,
@@ -1350,11 +1383,11 @@ const styles = StyleSheet.create({
   },
   commandEmptyButton: {
     alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.actionBackground, borderRadius: Radius.full, paddingHorizontal: Spacing.md,
     minHeight: 40, marginTop: Spacing.md,
   },
   commandEmptyButtonText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.onAction,
   },
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
@@ -1370,7 +1403,7 @@ const styles = StyleSheet.create({
   userText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
-    color: '#FFFFFF',
+    color: Colors.onAction,
     lineHeight: 22,
   },
 
@@ -1442,7 +1475,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     backgroundColor: Colors.accentLight,
   },
   conversationActionText: {
@@ -1470,7 +1503,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: Radius.full,
     borderWidth: 1.5,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     backgroundColor: Colors.bgCard,
   },
   quickActionText: {

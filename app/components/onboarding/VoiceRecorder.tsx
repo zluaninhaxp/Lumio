@@ -20,7 +20,7 @@ import {
   setAudioModeAsync,
   useAudioRecorder,
 } from 'expo-audio';
-import { Colors, Radius, FontSize, Spacing } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Radius, FontSize, Spacing } from '../../../src/constants/theme';
 import { AppAlert } from "@/src/services/appAlert";
 
 interface VoiceRecorderProps {
@@ -124,7 +124,7 @@ export default function VoiceRecorder({ onRecordingComplete, disabled = false }:
       <TouchableOpacity
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
-        activeOpacity={0.7}
+        activeOpacity={ControlOpacity.pressed}
         disabled={disabled}
         style={[
           styles.button,
@@ -135,7 +135,7 @@ export default function VoiceRecorder({ onRecordingComplete, disabled = false }:
         <Ionicons
           name={isRecording ? 'mic' : 'mic-outline'}
           size={22}
-          color={isRecording ? '#FFFFFF' : Colors.textSecondary}
+          color={isRecording ? Colors.onAction : Colors.textSecondary}
         />
       </TouchableOpacity>
     </View>
@@ -158,8 +158,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonRecording: {
-    backgroundColor: Colors.danger,
-    borderColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
+    borderColor: Colors.dangerIcon,
   },
   buttonDisabled: {
     opacity: 0.4,
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: Radius.full,
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
     zIndex: -1,
   },
   recordingLabel: {
@@ -177,6 +177,6 @@ const styles = StyleSheet.create({
     bottom: -22,
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.xs,
-    color: Colors.danger,
+    color: Colors.dangerText,
   },
 });

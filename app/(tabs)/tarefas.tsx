@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
+import { ControlOpacity, CategoryColors, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { daysUntil } from '../../src/utils/supplier';
 import { FAB } from '../components/Calendar/FAB';
@@ -36,9 +36,9 @@ type Priority = 'alta' | 'media' | 'baixa';
 type FilterKey = 'todas' | 'hoje' | 'importante' | 'concluidas';
 
 const PRIORITY_CONFIG = {
-  alta: { label: 'Alta', color: Colors.danger, icon: 'flag' as const },
-  media: { label: 'Média', color: Colors.warning, icon: 'flash' as const },
-  baixa: { label: 'Baixa', color: Colors.accent, icon: 'arrow-down' as const },
+  alta: { label: 'Alta', color: Colors.dangerText, tint: Colors.danger + '18', icon: 'flag' as const },
+  media: { label: 'Média', color: Colors.warningText, tint: Colors.warning + '18', icon: 'flash' as const },
+  baixa: { label: 'Baixa', color: Colors.accentText, tint: Colors.accent + '18', icon: 'arrow-down' as const },
 } as const;
 
 const PRIORITY_WEIGHT: Record<Priority, number> = { alta: 0, media: 1, baixa: 2 };
@@ -51,12 +51,12 @@ const FILTERS: { key: FilterKey; label: string; icon: any }[] = [
 ];
 
 const TAG_COLORS = [
-  { bg: '#EBF5FF', text: '#2563EB' },
-  { bg: '#FEF3C7', text: '#D97706' },
-  { bg: '#FCE7F3', text: '#DB2777' },
-  { bg: '#D1FAE5', text: '#059669' },
-  { bg: '#EDE9FE', text: '#7C3AED' },
-  { bg: '#FFEDD5', text: '#EA580C' },
+  CategoryColors.blue,
+  CategoryColors.amber,
+  CategoryColors.pink,
+  CategoryColors.green,
+  CategoryColors.purple,
+  CategoryColors.orange,
   { bg: '#E0F2FE', text: '#0284C7' },
   { bg: '#FEE2E2', text: '#DC2626' },
 ];
@@ -471,7 +471,7 @@ export default function TarefasScreen() {
       {hasNoTasksAtAll && !searchQuery ? (
         <>
           <View style={styles.emptyIconCircle}>
-            <Ionicons name="checkbox-outline" size={36} color={Colors.accent} />
+            <Ionicons name="checkbox-outline" size={36} color={Colors.accentIcon} />
           </View>
           <Text style={styles.emptyTitle}>Nenhuma tarefa ainda</Text>
           <Text style={styles.emptySubtitle}>
@@ -480,7 +480,7 @@ export default function TarefasScreen() {
         </>
       ) : (
         <>
-          <Ionicons name="search-outline" size={40} color={Colors.textMuted} style={{ marginBottom: Spacing.md }} />
+          <Ionicons name="search-outline" size={40} color={Colors.decorativeMuted} style={{ marginBottom: Spacing.md }} />
           <Text style={styles.emptyTitle}>Nenhum resultado</Text>
           <Text style={styles.emptySubtitle}>
             {searchQuery
@@ -488,7 +488,7 @@ export default function TarefasScreen() {
               : 'Nenhuma tarefa corresponde ao filtro selecionado.'}
           </Text>
           {(searchQuery || activeFilter !== 'todas') && (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.clearFilterBtn}
               onPress={() => {
                 setSearchQuery('');
@@ -505,21 +505,21 @@ export default function TarefasScreen() {
 
   // ─────── Swipe Actions ───────
   const renderRightActions = (taskId: string) => (
-    <TouchableOpacity
+    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
       style={styles.swipeDelete}
       onPress={() => { closeOpenSwipeable(); handleDelete(taskId); }}
     >
-      <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+      <Ionicons name="trash-outline" size={20} color={Colors.onAction} />
       <Text style={styles.swipeActionText}>Excluir</Text>
     </TouchableOpacity>
   );
 
   const renderLeftActions = (task: Task) => (
-    <TouchableOpacity
+    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
       style={styles.swipeComplete}
       onPress={() => handleStartEdit(task)}
     >
-      <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+      <Ionicons name="create-outline" size={20} color={Colors.onAction} />
       <Text style={styles.swipeActionText}>Editar</Text>
     </TouchableOpacity>
   );
@@ -551,7 +551,7 @@ export default function TarefasScreen() {
       >
         <TouchableOpacity
           style={[styles.taskCard, item.done && styles.taskCardDone]}
-          activeOpacity={0.7}
+          activeOpacity={ControlOpacity.pressed}
           onLongPress={() => {
             AppAlert.alert('Excluir tarefa', `"${item.description}" será removida.`, [
               { text: 'Cancelar', style: 'cancel' },
@@ -560,17 +560,17 @@ export default function TarefasScreen() {
           }}
         >
           <View style={styles.taskMainRow}>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={[styles.checkbox, item.done && styles.checkboxDone]}
               onPress={() => handleToggle(item.id)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              {item.done && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+              {item.done && <Ionicons name="checkmark" size={13} color={Colors.onAction} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.taskBody}
-              activeOpacity={1}
+              activeOpacity={ControlOpacity.pressed}
               onPress={() => handleToggleExpand(item.id)}
             >
               <View style={styles.taskDescriptionRow}>
@@ -584,7 +584,7 @@ export default function TarefasScreen() {
               </View>
 
               <View style={styles.taskMetaRow}>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.taskMetaTag}
                   onPress={() => setPriorityPicker({ taskId: item.id, current: item.priority })}
                 >
@@ -599,23 +599,23 @@ export default function TarefasScreen() {
                 </TouchableOpacity>
 
                 {item.dueDate && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={[styles.taskMetaTag, isOverdue && styles.taskMetaTagOverdue]}
                     onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate, currentLabel: item.dueDateLabel ?? null })}
                   >
                     <Ionicons
                       name="calendar-outline"
                       size={10}
-                      color={isOverdue ? Colors.danger : Colors.textSecondary}
+                      color={isOverdue ? Colors.dangerIcon : Colors.textSecondary}
                     />
-                    <Text style={[styles.taskMetaText, { color: isOverdue ? Colors.danger : Colors.textSecondary }]}>
+                    <Text style={[styles.taskMetaText, { color: isOverdue ? Colors.dangerText : Colors.textSecondary }]}>
                       {formatTaskDate(item)}
                     </Text>
                   </TouchableOpacity>
                 )}
 
                 {!item.dueDate && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={styles.taskMetaTag}
                     onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate, currentLabel: item.dueDateLabel ?? null })}
                   >
@@ -627,7 +627,7 @@ export default function TarefasScreen() {
                 {item.tags.map((tag) => {
                   const c = getTagColor(tag);
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                       key={tag}
                       style={[styles.tagChip, { backgroundColor: c.bg }]}
                       onPress={() => setTagManager({ taskId: item.id, current: item.tags })}
@@ -639,9 +639,9 @@ export default function TarefasScreen() {
                   );
                 })}
 
-                <TouchableOpacity style={styles.taskMetaTag} onPress={() => setEmployeePicker(item.id)}>
-                  <Ionicons name="person-outline" size={10} color={item.employeeId || item.clientId || item.supplierId ? Colors.accent : Colors.textSecondary} />
-                  <Text style={[styles.taskMetaText, (item.employeeId || item.clientId || item.supplierId) && { color: Colors.accent }]} numberOfLines={1}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.taskMetaTag} onPress={() => setEmployeePicker(item.id)}>
+                  <Ionicons name="person-outline" size={10} color={item.employeeId || item.clientId || item.supplierId ? Colors.accentIcon : Colors.textSecondary} />
+                  <Text style={[styles.taskMetaText, (item.employeeId || item.clientId || item.supplierId) && { color: Colors.accentText }]} numberOfLines={1}>
                     {[
                       clienteItems.find((client) => client.id === item.clientId)?.name,
                       fornecedorItems.find((supplier) => supplier.id === item.supplierId)?.name,
@@ -650,15 +650,15 @@ export default function TarefasScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.tagChipAdd}
                   onPress={() => setTagManager({ taskId: item.id, current: item.tags })}
                 >
-                  <Ionicons name="add" size={12} color={Colors.textMuted} />
+                  <Ionicons name="add" size={12} color={Colors.iconMuted} />
                 </TouchableOpacity>
 
                 {progress.total > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={styles.taskMetaTag}
                     onPress={() => handleToggleExpand(item.id)}
                   >
@@ -669,7 +669,7 @@ export default function TarefasScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => handleToggleExpand(item.id)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.chevronBtn}
@@ -677,7 +677,7 @@ export default function TarefasScreen() {
               <Ionicons
                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color={Colors.textMuted}
+                color={Colors.iconMuted}
               />
             </TouchableOpacity>
           </View>
@@ -701,20 +701,20 @@ export default function TarefasScreen() {
                   </View>
                   {item.subtasks.map((sub) => (
                     <View key={sub.id} style={styles.subtaskItem}>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         style={[styles.subtaskCheck, sub.done && styles.subtaskCheckDone]}
                         onPress={() => handleToggleSubtask(item.id, sub.id)}
                       >
-                        {sub.done && <Ionicons name="checkmark" size={10} color="#FFFFFF" />}
+                        {sub.done && <Ionicons name="checkmark" size={10} color={Colors.onAction} />}
                       </TouchableOpacity>
                       <Text style={[styles.subtaskText, sub.done && styles.subtaskTextDone]} numberOfLines={2}>
                         {sub.text}
                       </Text>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         onPress={() => handleRemoveSubtask(item.id, sub.id)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Ionicons name="close" size={14} color={Colors.textMuted} />
+                        <Ionicons name="close" size={14} color={Colors.iconMuted} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -722,11 +722,11 @@ export default function TarefasScreen() {
               )}
 
               <View style={styles.addSubtaskRow}>
-                <Ionicons name="add" size={15} color={Colors.textMuted} style={{ marginRight: Spacing.sm }} />
+                <Ionicons name="add" size={15} color={Colors.iconMuted} style={{ marginRight: Spacing.sm }} />
                 <TextInput
                   style={styles.addSubtaskInput}
                   placeholder="Adicionar subtarefa..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={Colors.placeholder}
                   value={newSubtaskTexts[item.id] ?? ''}
                   onChangeText={(t) => setNewSubtaskTexts((prev) => ({ ...prev, [item.id]: t }))}
                   onSubmitEditing={() => handleAddSubtask(item.id)}
@@ -749,11 +749,11 @@ export default function TarefasScreen() {
           <Pressable style={[styles.pickerCard, { maxHeight: '100%', flexShrink: 1 }]}>
             <View style={styles.pickerHeader}>
               <Text style={styles.pickerTitle}>Tags</Text>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 onPress={() => setTagManager(null)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons name="close" size={22} color={Colors.textMuted} />
+                <Ionicons name="close" size={22} color={Colors.iconMuted} />
               </TouchableOpacity>
             </View>
 
@@ -769,7 +769,7 @@ export default function TarefasScreen() {
                   const canRemove = customTaskTags.includes(tag);
                   return (
                     <View key={tag} style={styles.tagRow}>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         style={[
                           styles.tagToggleChip,
                           { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : 'transparent' },
@@ -783,11 +783,11 @@ export default function TarefasScreen() {
                         </Text>
                         {active && <Ionicons name="checkmark" size={14} color={c.text} style={{ marginLeft: 4 }} />}
                       </TouchableOpacity>
-                      {canRemove && <TouchableOpacity
+                      {canRemove && <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                           onPress={() => handleRemoveGlobalTag(tag)}
                           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                         >
-                          <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
+                          <Ionicons name="close-circle-outline" size={18} color={Colors.iconMuted} />
                         </TouchableOpacity>}
                     </View>
                   );
@@ -799,14 +799,14 @@ export default function TarefasScreen() {
                 <TextInput
                   style={styles.tagAddInput}
                   placeholder="Nova tag..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={Colors.placeholder}
                   value={newTagName}
                   onChangeText={setNewTagName}
                   onSubmitEditing={handleCreateTag}
                   returnKeyType="done"
                 />
-                <TouchableOpacity style={styles.tagAddBtn} onPress={handleCreateTag}>
-                  <Ionicons name="add" size={18} color="#FFFFFF" />
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.tagAddBtn} onPress={handleCreateTag}>
+                  <Ionicons name="add" size={18} color={Colors.onAction} />
                 </TouchableOpacity>
               </View>
             </ModalScrollView>
@@ -823,15 +823,15 @@ export default function TarefasScreen() {
         <Pressable style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Prioridade</Text>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => setPriorityPicker(null)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={22} color={Colors.textMuted} />
+              <Ionicons name="close" size={22} color={Colors.iconMuted} />
             </TouchableOpacity>
           </View>
           {(Object.keys(PRIORITY_CONFIG) as Priority[]).map((p) => (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               key={p}
               style={[styles.pickerOption, priorityPicker?.current === p && styles.pickerOptionActive]}
               onPress={() => {
@@ -840,7 +840,7 @@ export default function TarefasScreen() {
                 }
               }}
             >
-              <View style={[styles.pickerIconCircle, { backgroundColor: PRIORITY_CONFIG[p].color + '18' }]}>
+              <View style={[styles.pickerIconCircle, { backgroundColor: PRIORITY_CONFIG[p].tint }]}>
                 <Ionicons name={PRIORITY_CONFIG[p].icon} size={20} color={PRIORITY_CONFIG[p].color} />
               </View>
               <View style={{ marginLeft: Spacing.md, flex: 1 }}>
@@ -850,7 +850,7 @@ export default function TarefasScreen() {
                 </Text>
               </View>
               {priorityPicker?.current === p && (
-                <Ionicons name="checkmark-circle" size={22} color={Colors.accent} />
+                <Ionicons name="checkmark-circle" size={22} color={Colors.accentIcon} />
               )}
             </TouchableOpacity>
           ))}
@@ -871,11 +871,11 @@ export default function TarefasScreen() {
         <Pressable style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Data de vencimento</Text>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => setDatePicker(null)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={22} color={Colors.textMuted} />
+              <Ionicons name="close" size={22} color={Colors.iconMuted} />
             </TouchableOpacity>
           </View>
 
@@ -902,7 +902,7 @@ export default function TarefasScreen() {
           <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.accent} />
+          <ActivityIndicator size="large" color={Colors.accentIcon} />
           <Text style={styles.loadingText}>Carregando tarefas...</Text>
         </View>
         <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
@@ -926,28 +926,28 @@ export default function TarefasScreen() {
             <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
           </View>
 
-          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
+          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.dangerIcon} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
 
           <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={17} color={Colors.textMuted} style={styles.searchIcon} />
+            <Ionicons name="search-outline" size={17} color={Colors.iconMuted} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar tarefas..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={17} color={Colors.textMuted} />
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={17} color={Colors.iconMuted} />
               </TouchableOpacity>
             )}
           </View>
@@ -967,7 +967,7 @@ export default function TarefasScreen() {
                 else if (f.key === 'importante') chipCount = tasks.filter((t) => t.priority === 'alta').length;
 
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     key={f.key}
                     style={[styles.filterChip, isActive && styles.filterChipActive]}
                     onPress={() => {
@@ -978,7 +978,7 @@ export default function TarefasScreen() {
                     <Ionicons
                       name={isActive ? f.icon.replace('-outline', '') : f.icon}
                       size={14}
-                      color={isActive ? '#FFFFFF' : Colors.textSecondary}
+                      color={isActive ? Colors.onAction : Colors.textSecondary}
                     />
                     <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                       {f.label}
@@ -994,7 +994,7 @@ export default function TarefasScreen() {
                 );
               })}
 
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={[
                   styles.filterChip,
                   (showTagFilter || activeTagFilters.length > 0) && styles.filterChipTagActive,
@@ -1004,12 +1004,12 @@ export default function TarefasScreen() {
                 <Ionicons
                   name="pricetag-outline"
                   size={14}
-                  color={activeTagFilters.length > 0 ? Colors.accent : Colors.textSecondary}
+                  color={activeTagFilters.length > 0 ? Colors.accentIcon : Colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.filterChipText,
-                    activeTagFilters.length > 0 && { color: Colors.accent },
+                    activeTagFilters.length > 0 && { color: Colors.accentText },
                   ]}
                 >
                   {activeTagFilters.length > 0
@@ -1017,14 +1017,14 @@ export default function TarefasScreen() {
                     : 'Tags'}
                 </Text>
                 {activeTagFilters.length > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={(e) => {
                       e.stopPropagation?.();
                       setActiveTagFilters([]);
                     }}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
-                    <Ionicons name="close-circle" size={14} color={Colors.accent} />
+                    <Ionicons name="close-circle" size={14} color={Colors.accentIcon} />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -1034,7 +1034,7 @@ export default function TarefasScreen() {
                 const chipCount = tasks.filter((t) => t.done).length;
 
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     key={f.key}
                     style={[styles.filterChip, isActive && styles.filterChipActive]}
                     onPress={() => {
@@ -1045,7 +1045,7 @@ export default function TarefasScreen() {
                     <Ionicons
                       name={isActive ? f.icon.replace('-outline', '') : f.icon}
                       size={14}
-                      color={isActive ? '#FFFFFF' : Colors.textSecondary}
+                      color={isActive ? Colors.onAction : Colors.textSecondary}
                     />
                     <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                       {f.label}
@@ -1127,7 +1127,7 @@ export default function TarefasScreen() {
         <Modal visible={employeePicker !== null} transparent animationType="fade" onRequestClose={() => setEmployeePicker(null)}>
           <Pressable style={styles.modalOverlay} onPress={() => setEmployeePicker(null)}>
             <Pressable style={styles.pickerCard}>
-              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir tarefa</Text><TouchableOpacity onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.textMuted} /></TouchableOpacity></View>
+              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir tarefa</Text><TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.iconMuted} /></TouchableOpacity></View>
               {taskBeingAssigned && (
                 <TaskPeopleSelector
                   clientId={taskBeingAssigned.clientId}
@@ -1153,7 +1153,7 @@ export default function TarefasScreen() {
                       const c = getTagColor(tag);
                       const active = activeTagFilters.includes(tag);
                       return (
-                        <TouchableOpacity
+                        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                           key={tag}
                           style={[
                             styles.tagFilterChip,
@@ -1175,7 +1175,7 @@ export default function TarefasScreen() {
                   </View>
                 )}
                 {activeTagFilters.length > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={styles.tagFilterClear}
                     onPress={() => setActiveTagFilters([])}
                   >
@@ -1242,8 +1242,8 @@ const styles = StyleSheet.create({
   suggestionBody: { flex: 1 },
   suggestionText: { fontFamily: 'PlusJakartaSans_500Medium', color: Colors.primary, fontSize: FontSize.xs },
   suggestionMeta: { color: Colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
-  suggestionButton: { backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  suggestionButtonText: { color: '#FFFFFF', fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
+  suggestionButton: { backgroundColor: Colors.actionBackground, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  suggestionButtonText: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
 
   // Header
   header: {
@@ -1295,7 +1295,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  filterChip: {
+  filterChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
@@ -1317,7 +1317,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  filterChipTextActive: { color: '#FFFFFF' },
+  filterChipTextActive: { color: Colors.onAction },
   filterChipBadge: {
     backgroundColor: Colors.mintBackground,
     borderRadius: Radius.full,
@@ -1333,7 +1333,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textMuted,
   },
-  filterChipBadgeTextActive: { color: '#FFFFFF' },
+  filterChipBadgeTextActive: { color: Colors.onAction },
 
   // List
   listContent: {
@@ -1367,8 +1367,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   checkboxDone: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   taskBody: {
     flex: 1,
@@ -1448,7 +1448,7 @@ const styles = StyleSheet.create({
   },
   subtaskProgressBarFill: {
     height: '100%',
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
   },
   subtaskProgressText: {
@@ -1476,8 +1476,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   subtaskCheckDone: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   subtaskText: {
     flex: 1,
@@ -1528,7 +1528,7 @@ const styles = StyleSheet.create({
   },
 
   // Tag chips on cards
-  tagChip: {
+  tagChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radius.sm,
@@ -1550,7 +1550,7 @@ const styles = StyleSheet.create({
 
   // Swipe
   swipeDelete: {
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -1560,7 +1560,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   swipeComplete: {
-    backgroundColor: Colors.warning,
+    backgroundColor: Colors.warningActionBackground,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -1569,11 +1569,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     gap: 4,
   },
-  swipeCompleteUndo: { backgroundColor: Colors.warning },
+  swipeCompleteUndo: { backgroundColor: Colors.warningActionBackground },
   swipeActionText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 11,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 
   // Empty
@@ -1616,7 +1616,7 @@ const styles = StyleSheet.create({
   clearFilterBtnText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 
   // Loading
@@ -1739,7 +1739,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1793,6 +1793,6 @@ const styles = StyleSheet.create({
   tagFilterClearText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: Colors.danger,
+    color: Colors.dangerText,
   },
 });

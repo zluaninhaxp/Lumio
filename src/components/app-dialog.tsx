@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, findNodeHandle, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, DialogTokens, SurfaceStyles, Typography } from '../constants/theme';
+import { ControlOpacity, Colors, DialogTokens, SurfaceStyles, Typography } from '../constants/theme';
 
 export type DialogAction = {
   text?: string;
@@ -34,16 +34,16 @@ export function AppDialog({ visible, title, message, error, actions, onCancel, v
   const destructive = variant === 'destructive';
   const card = <View onLayout={event => setCardHeight(event.nativeEvent.layout.height)} style={[styles.card, { marginTop: insets.top / 2, marginBottom: insets.bottom / 2 }]} accessibilityRole="alert" accessibilityViewIsModal>
           <View style={[styles.icon, destructive && { backgroundColor: Colors.dangerLight }]}>
-            <Ionicons name={icon ?? (destructive ? 'trash-outline' : variant === 'warning' ? 'alert-circle-outline' : 'help-circle-outline')} size={25} color={destructive ? Colors.danger : DialogTokens.icon} />
+            <Ionicons name={icon ?? (destructive ? 'trash-outline' : variant === 'warning' ? 'alert-circle-outline' : 'help-circle-outline')} size={25} color={destructive ? Colors.dangerIcon : DialogTokens.icon} />
           </View>
           <Text ref={titleRef} accessibilityRole="header" style={styles.title}>{title}</Text>
           {!!message && <Text style={styles.message}>{message}</Text>}
           {!!error && <Text style={styles.message}>{error}</Text>}
           {ordered.map((action, index) => {
             const secondary = action.style === 'cancel';
-            return <TouchableOpacity key={index} style={[secondary ? styles.secondary : styles.primary, !message && !error && index === 0 && { marginTop: 22 }, action.style === 'destructive' && { backgroundColor: Colors.danger }]}
+            return <TouchableOpacity key={index} style={[secondary ? styles.secondary : styles.primary, !message && !error && index === 0 && { marginTop: 22 }, action.style === 'destructive' && { backgroundColor: Colors.dangerActionBackground }]}
               disabled={loading} accessibilityRole="button" accessibilityLabel={action.text ?? 'OK'} accessibilityState={{ disabled: loading, busy: loading }}
-              activeOpacity={secondary ? 0.75 : 0.85} onPress={() => {
+              activeOpacity={ControlOpacity.pressed} onPress={() => {
                 if (pressed.current || loading) return;
                 pressed.current = true;
                 action.onPress?.();
@@ -74,7 +74,7 @@ const styles = StyleSheet.create({
   icon: { width: 54, height: 54, marginBottom: 16, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.accentLight },
   title: { fontFamily: Typography.bold, fontSize: 19, lineHeight: 26, textAlign: 'center', color: Colors.ink },
   message: { marginTop: 9, marginBottom: 22, fontFamily: Typography.regular, fontSize: 15, lineHeight: 22, textAlign: 'center', color: DialogTokens.message },
-  primary: { width: '100%', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, backgroundColor: Colors.accent },
+  primary: { width: '100%', minHeight: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, backgroundColor: Colors.actionBackground },
   primaryText: { fontFamily: Typography.bold, fontSize: 15, lineHeight: 20, color: Colors.bgCard, textAlign: 'center' },
   secondary: { width: '100%', minHeight: 46, marginTop: 6, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontFamily: Typography.semibold, fontSize: 14, lineHeight: 20, color: DialogTokens.secondary, textAlign: 'center' },

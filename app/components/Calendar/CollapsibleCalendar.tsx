@@ -8,7 +8,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { CalendarDayCell } from './CalendarDayCell';
 import type { CalendarEvent } from '../../../src/store';
 
@@ -38,10 +38,10 @@ function getEventDotsForDay(
   const colors: Array<{ color: string }> = [];
   const uniqueTypes = [...new Set(dayEvents.map((e) => e.type))];
   uniqueTypes.forEach((type) => {
-    colors.push({ color: type === 'event' ? Colors.accent : Colors.warning });
+    colors.push({ color: type === 'event' ? Colors.accentIcon : Colors.warningIcon });
   });
   if (colors.length === 0 && dayEvents.length > 0) {
-    colors.push({ color: Colors.accent });
+    colors.push({ color: Colors.accentIcon });
   }
   return colors;
 }
@@ -114,20 +114,20 @@ export function CollapsibleCalendar({
   return (
     <View style={styles.container} {...panResponder.panHandlers}>
       <View style={styles.monthNav}>
-        <TouchableOpacity onPress={onPrevMonth} style={styles.navBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onPrevMonth} style={styles.navBtn}>
           <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={onToggleExpand} activeOpacity={0.7}>
+        <TouchableOpacity onPress={onToggleExpand} activeOpacity={ControlOpacity.pressed}>
           <View style={styles.monthLabelRow}>
             <Text style={styles.monthLabel}>{monthLabel}</Text>
             <Ionicons
               name={calendarExpanded ? 'chevron-up' : 'chevron-down'}
               size={16}
-              color={Colors.textMuted}
+              color={Colors.iconMuted}
             />
           </View>
         </TouchableOpacity>
-        <TouchableOpacity onPress={onNextMonth} style={styles.navBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onNextMonth} style={styles.navBtn}>
           <Ionicons name="chevron-forward" size={20} color={Colors.textSecondary} />
         </TouchableOpacity>
       </View>
@@ -160,7 +160,7 @@ export function CollapsibleCalendar({
                 key={wd.dateStr}
                 style={styles.cell}
                 onPress={() => onSelectDay(wd.day)}
-                activeOpacity={0.7}
+                activeOpacity={ControlOpacity.pressed}
               >
                 <Text style={styles.weekDayLabel}>{wd.label}</Text>
                 <View
@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: Spacing.lg,
   },
-  navBtn: { padding: Spacing.xs },
+  navBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   monthLabelRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -232,15 +232,15 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { width: '14.28%', alignItems: 'center', paddingVertical: 4 },
+  cell: { minHeight: 48, justifyContent: 'center', width: '14.28%', alignItems: 'center', paddingVertical: 4 },
   dayCircleSelected: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: 15,
     overflow: 'hidden',
   },
   dayCircleToday: {
     borderWidth: 1.5,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     borderRadius: 15,
     overflow: 'hidden',
   },
@@ -249,8 +249,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.primary,
   },
-  dayTextSelected: { color: '#FFF', fontFamily: 'PlusJakartaSans_700Bold' },
-  dayTextToday: { color: Colors.accent, fontFamily: 'PlusJakartaSans_700Bold' },
+  dayTextSelected: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_700Bold' },
+  dayTextToday: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_700Bold' },
 
   weekStrip: {
     flexDirection: 'row',

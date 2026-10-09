@@ -57,7 +57,7 @@ function AnimatedSegment({
     const w = isActive ? withTiming(1, { duration: 500 }) : withTiming(0, { duration: 300 });
     return {
       flex: w,
-      backgroundColor: isCurrent ? Colors.accent : isActive ? Colors.accentLight : Colors.border,
+      backgroundColor: isCurrent ? Colors.actionBackground : isActive ? Colors.accentLight : Colors.border,
     };
   });
 

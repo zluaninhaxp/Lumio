@@ -12,7 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../src/constants/theme';
 import { aiKeyService } from '../src/services/ai-key-service';
 import { useAiKeyStatus } from '../src/hooks/use-ai-key-status';
 import { useAuth } from '../src/hooks/useAuth';
@@ -172,7 +172,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
       >
         <Text style={s.sectionTitle}>PROVEDOR</Text>
         <View style={styles.providerCard}>
-          <Ionicons name="sparkles" size={22} color={Colors.accent} />
+          <Ionicons name="sparkles" size={22} color={Colors.accentIcon} />
           <View style={styles.providerText}>
             <Text style={styles.providerName}>Google Gemini</Text>
             <Text style={styles.providerDesc}>
@@ -187,11 +187,11 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
         <View style={s.card}>
           {loadingInfo ? (
             <View style={styles.statusRow}>
-              <ActivityIndicator color={Colors.accent} />
+              <ActivityIndicator color={Colors.accentIcon} />
               <Text style={styles.statusText}>Verificando chave salva...</Text>
             </View>
           ) : keyInfo.status === 'error' ? (
-            <View><Text style={s.error}>{keyInfo.error}</Text><TouchableOpacity onPress={refreshKeyInfo}><Text style={styles.helpLinkText}>Tentar novamente</Text></TouchableOpacity></View>
+            <View><Text style={s.error}>{keyInfo.error}</Text><TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={refreshKeyInfo}><Text style={styles.helpLinkText}>Tentar novamente</Text></TouchableOpacity></View>
           ) : hasKey ? (
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, styles.statusDotOk]} />
@@ -213,7 +213,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
             value={draft}
             onChangeText={(value) => { setDraft(value); setTestState('idle'); setTestMessage(null); setSaveError(null); setSaveState('idle'); }}
             placeholder="AIza..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={Colors.placeholder}
             autoCapitalize="none"
             autoCorrect={false}
             spellCheck={false}
@@ -244,27 +244,27 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
                 style={styles.testBtn}
                 onPress={handleTest}
                 disabled={busy || !userId}
-                activeOpacity={0.85}
+                activeOpacity={ControlOpacity.pressed}
               >
                 {testState === 'testing' ? (
-                  <ActivityIndicator color={Colors.accent} />
+                  <ActivityIndicator color={Colors.accentIcon} />
                 ) : (
                   <>
-                    <Ionicons name="flash-outline" size={18} color={Colors.accent} />
+                    <Ionicons name="flash-outline" size={18} color={Colors.accentIcon} />
                     <Text style={styles.testBtnText}>Testar conexão</Text>
                   </>
                 )}
               </TouchableOpacity>
               {testState === 'ok' && (
                 <View style={[styles.testResult, styles.testResultOk]}>
-                  <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
-                  <Text style={[styles.testResultText, { color: Colors.success }]}>{testMessage}</Text>
+                  <Ionicons name="checkmark-circle" size={18} color={Colors.successIcon} />
+                  <Text style={[styles.testResultText, { color: Colors.successText }]}>{testMessage}</Text>
                 </View>
               )}
               {testState === 'error' && (
                 <View style={[styles.testResult, styles.testResultError]}>
-                  <Ionicons name="alert-circle" size={18} color={Colors.danger} />
-                  <Text style={[styles.testResultText, { color: Colors.danger }]}>{testMessage}</Text>
+                  <Ionicons name="alert-circle" size={18} color={Colors.dangerIcon} />
+                  <Text style={[styles.testResultText, { color: Colors.dangerText }]}>{testMessage}</Text>
                 </View>
               )}
               {!!saveError && <Text style={s.error}>{saveError}</Text>}
@@ -272,23 +272,23 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
                 style={[s.primary, { marginTop: Spacing.md }, busy && { opacity: 0.7 }]}
                 onPress={handleSave}
                 disabled={busy || !userId}
-                activeOpacity={0.85}
+                activeOpacity={ControlOpacity.pressed}
               >
-                {saveState === 'saving' ? <ActivityIndicator color="#FFFFFF" /> :
+                {saveState === 'saving' ? <ActivityIndicator color={Colors.onAction} /> :
                   <Text style={s.primaryText}>{onboarding ? 'Salvar e continuar' : 'Salvar chave'}</Text>}
               </TouchableOpacity>}
             </View>
 
-            {hasKey && <><Text style={[s.sectionTitle, { marginTop: Spacing.xxl, color: Colors.danger }]}>REMOVER</Text>
-            <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} disabled={busy} activeOpacity={0.7}>
-              <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+            {hasKey && <><Text style={[s.sectionTitle, { marginTop: Spacing.xxl, color: Colors.dangerText }]}>REMOVER</Text>
+            <TouchableOpacity style={styles.removeBtn} onPress={handleRemove} disabled={busy} activeOpacity={ControlOpacity.pressed}>
+              <Ionicons name="trash-outline" size={18} color={Colors.dangerIcon} />
               <Text style={styles.removeBtnText}>Remover chave da conta</Text>
             </TouchableOpacity></>}
           </>
         )}
 
-        <TouchableOpacity style={styles.helpLink} onPress={openAiStudio} activeOpacity={0.7}>
-          <Ionicons name="open-outline" size={16} color={Colors.accent} />
+        <TouchableOpacity style={styles.helpLink} onPress={openAiStudio} activeOpacity={ControlOpacity.pressed}>
+          <Ionicons name="open-outline" size={16} color={Colors.accentIcon} />
           <Text style={styles.helpLinkText}>Abrir Google AI Studio para gerar uma chave</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -329,8 +329,8 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
   },
-  statusDotOk: { backgroundColor: Colors.success },
-  statusDotEmpty: { backgroundColor: Colors.textMuted },
+  statusDotOk: { backgroundColor: Colors.successIcon },
+  statusDotEmpty: { backgroundColor: Colors.iconMuted },
   statusText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
@@ -363,13 +363,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     minHeight: 48,
     borderWidth: 1.5,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     borderRadius: 14,
   },
   testBtnText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.md,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   testResult: {
     flexDirection: 'row',
@@ -394,13 +394,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     minHeight: 50,
     borderWidth: 1.5,
-    borderColor: Colors.danger,
+    borderColor: Colors.dangerIcon,
     borderRadius: 14,
   },
   removeBtnText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.md,
-    color: Colors.danger,
+    color: Colors.dangerText,
   },
   helpLink: {
     flexDirection: 'row',
@@ -413,6 +413,6 @@ const styles = StyleSheet.create({
   helpLinkText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

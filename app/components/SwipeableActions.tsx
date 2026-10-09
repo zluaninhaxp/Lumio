@@ -2,7 +2,7 @@ import { useCallback, useRef, type ReactNode } from "react";
 import { Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
-import { Colors, Radius, Spacing } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Radius, Spacing } from "../../src/constants/theme";
 
 let openSwipeable: Swipeable | null = null;
 
@@ -29,14 +29,14 @@ export function SwipeableActions({ children, onEdit, onDelete }: SwipeableAction
     <Swipeable
       ref={swipeableRef}
       renderLeftActions={onEdit ? () => (
-        <TouchableOpacity style={styles.editAction} onPress={() => { close(); onEdit(); }}>
-          <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.editAction} onPress={() => { close(); onEdit(); }}>
+          <Ionicons name="create-outline" size={20} color={Colors.onAction} />
           <Text style={styles.actionText}>Editar</Text>
         </TouchableOpacity>
       ) : undefined}
       renderRightActions={onDelete ? () => (
-        <TouchableOpacity style={styles.deleteAction} onPress={() => { close(); onDelete(); }}>
-          <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.deleteAction} onPress={() => { close(); onDelete(); }}>
+          <Ionicons name="trash-outline" size={20} color={Colors.onAction} />
           <Text style={styles.actionText}>Excluir</Text>
         </TouchableOpacity>
       ) : undefined}
@@ -54,7 +54,7 @@ export function SwipeableActions({ children, onEdit, onDelete }: SwipeableAction
 
 const styles = StyleSheet.create({
   editAction: {
-    backgroundColor: Colors.warning,
+    backgroundColor: Colors.warningActionBackground,
     justifyContent: "center",
     alignItems: "center",
     width: 80,
@@ -64,7 +64,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   deleteAction: {
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
     justifyContent: "center",
     alignItems: "center",
     width: 80,
@@ -76,6 +76,6 @@ const styles = StyleSheet.create({
   actionText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: 11,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
 });

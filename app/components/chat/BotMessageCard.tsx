@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { Colors, CategoryColors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 /**
  * Card visual para a resposta do bot no chat.
@@ -47,16 +47,16 @@ interface BotMessageCardProps {
 }
 
 const KIND_CONFIG: Record<BotCardKind, { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; bg: string }> = {
-  task: { icon: 'checkmark-circle-outline', label: 'Tarefa', color: Colors.accent, bg: Colors.accentLight },
-  event: { icon: 'calendar-outline', label: 'Evento', color: Colors.accent, bg: Colors.accentLight },
-  deadline: { icon: 'time-outline', label: 'Prazo', color: Colors.warning, bg: '#FEF3C7' },
-  finance: { icon: 'wallet-outline', label: 'Financeiro', color: Colors.accent, bg: Colors.accentLight },
-  client: { icon: 'person-outline', label: 'Cliente cadastrado', color: Colors.accent, bg: Colors.accentLight },
-  supplier: { icon: 'briefcase-outline', label: 'Fornecedor cadastrado', color: Colors.accent, bg: Colors.accentLight },
-  employee: { icon: 'people-outline', label: 'Funcionário cadastrado', color: Colors.accent, bg: Colors.accentLight },
-  stock: { icon: 'cube-outline', label: 'Item no estoque', color: Colors.accent, bg: Colors.accentLight },
-  catalog: { icon: 'pricetags-outline', label: 'Item no catálogo', color: Colors.accent, bg: Colors.accentLight },
-  module: { icon: 'apps-outline', label: 'Módulo', color: Colors.accent, bg: Colors.accentLight },
+  task: { icon: 'checkmark-circle-outline', label: 'Tarefa', color: Colors.accentText, bg: Colors.accentLight },
+  event: { icon: 'calendar-outline', label: 'Evento', color: Colors.accentText, bg: Colors.accentLight },
+  deadline: { icon: 'time-outline', label: 'Prazo', color: Colors.warningText, bg: '#FEF3C7' },
+  finance: { icon: 'wallet-outline', label: 'Financeiro', color: Colors.accentText, bg: Colors.accentLight },
+  client: { icon: 'person-outline', label: 'Cliente cadastrado', color: Colors.accentText, bg: Colors.accentLight },
+  supplier: { icon: 'briefcase-outline', label: 'Fornecedor cadastrado', color: Colors.accentText, bg: Colors.accentLight },
+  employee: { icon: 'people-outline', label: 'Funcionário cadastrado', color: Colors.accentText, bg: Colors.accentLight },
+  stock: { icon: 'cube-outline', label: 'Item no estoque', color: Colors.accentText, bg: Colors.accentLight },
+  catalog: { icon: 'pricetags-outline', label: 'Item no catálogo', color: Colors.accentText, bg: Colors.accentLight },
+  module: { icon: 'apps-outline', label: 'Módulo', color: Colors.accentText, bg: Colors.accentLight },
 };
 
 function formatAmount(value: number): string {
@@ -64,12 +64,12 @@ function formatAmount(value: number): string {
 }
 
 const TAG_COLORS = [
-  { bg: '#EBF5FF', text: '#2563EB' },
-  { bg: '#FEF3C7', text: '#D97706' },
-  { bg: '#FCE7F3', text: '#DB2777' },
-  { bg: '#D1FAE5', text: '#059669' },
-  { bg: '#EDE9FE', text: '#7C3AED' },
-  { bg: '#FFEDD5', text: '#EA580C' },
+  CategoryColors.blue,
+  CategoryColors.amber,
+  CategoryColors.pink,
+  CategoryColors.green,
+  CategoryColors.purple,
+  CategoryColors.orange,
 ];
 
 function getTagColor(tag: string) {
@@ -82,7 +82,7 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
   const cfg = KIND_CONFIG[card.kind];
   const badgeIcon = card.badgeIcon ?? cfg.icon;
   const badgeLabel = card.badgeLabel ?? cfg.label;
-  const dateColor = card.kind === 'deadline' ? Colors.warning : Colors.accent;
+  const dateColor = card.kind === 'deadline' ? Colors.warningText : Colors.accentText;
   // Tags em TAREFAS e FINANÇAS (categoria como chip); eventos não têm.
   const showTags = card.kind !== 'event' && card.tags && card.tags.length > 0;
   const financeTags = card.kind === 'finance' && card.category ? [card.category] : card.tags;
@@ -134,7 +134,7 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
           </Text>
           {card.pending && (
             <View style={styles.pendingChip}>
-              <Ionicons name="time-outline" size={11} color={Colors.warning} />
+              <Ionicons name="time-outline" size={11} color={Colors.warningIcon} />
               <Text style={styles.pendingText}>{card.direction === 'income' ? 'a receber' : 'a pagar'}</Text>
             </View>
           )}
@@ -160,9 +160,11 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-      ...SurfaceStyles.card,
+    ...SurfaceStyles.message,
     borderRadius: Radius.lg,
-    padding: Spacing.md,
+    borderTopLeftRadius: Radius.sm,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
     marginBottom: Spacing.xs,
   },
   cardHeader: {
@@ -235,7 +237,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_800ExtraBold',
     fontSize: FontSize.md,
   },
-  amountIn: { color: Colors.accent },
+  amountIn: { color: Colors.accentText },
   amountOut: { color: Colors.primary },
   pendingChip: {
     flexDirection: 'row',
@@ -249,7 +251,7 @@ const styles = StyleSheet.create({
   pendingText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.xs,
-    color: Colors.warning,
+    color: Colors.warningText,
   },
   tagsRow: {
     flexDirection: 'row',

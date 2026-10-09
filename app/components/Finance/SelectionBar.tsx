@@ -7,7 +7,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface SelectionBarProps {
   selectedCount: number;
@@ -37,7 +37,7 @@ export function SelectionBar({
             contentContainerStyle={styles.categoryRow}
           >
             {categoryOptions.map((cat) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={cat}
                 style={styles.categoryChip}
                 onPress={() => {
@@ -52,21 +52,21 @@ export function SelectionBar({
         </View>
       )}
       <View style={styles.bar}>
-        <TouchableOpacity onPress={onCancel} style={styles.barBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onCancel} style={styles.barBtn}>
           <Ionicons name="close" size={20} color={Colors.textSecondary} />
         </TouchableOpacity>
         <Text style={styles.count}>
           {selectedCount} {selectedCount === 1 ? 'selecionada' : 'selecionadas'}
         </Text>
         <View style={styles.actions}>
-          <TouchableOpacity
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed}
             style={styles.barBtn}
             onPress={() => setShowCategories(!showCategories)}
           >
             <Ionicons name="pricetag-outline" size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.deleteBtn} onPress={onDelete}>
-            <Ionicons name="trash-outline" size={18} color={Colors.danger} />
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.deleteBtn} onPress={onDelete}>
+            <Ionicons name="trash-outline" size={18} color={Colors.dangerIcon} />
           </TouchableOpacity>
         </View>
       </View>
@@ -134,6 +134,6 @@ const styles = StyleSheet.create({
   categoryChipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

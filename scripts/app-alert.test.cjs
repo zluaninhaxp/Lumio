@@ -99,7 +99,7 @@ function dialogFixture() {
     if (name === 'react-native') return native;
     if (name === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 24, bottom: 24 }) };
     if (name === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
-    return { Colors: {}, DialogTokens: {}, SurfaceStyles: { overlay: {} }, Typography: {} };
+    return { ControlOpacity: { pressed: 0.98 }, Colors: {}, DialogTokens: {}, SurfaceStyles: { overlay: {} }, Typography: {} };
   } });
   function nodes(node) { return !node ? [] : Array.isArray(node) ? node.flatMap(nodes) : typeof node === 'object' ? [node, ...nodes(node.props.children)] : []; }
   return props => { cursor = 0; const tree = module.exports.AppDialog(props); effects.splice(0).forEach(effect => effect()); return { tree, nodes: nodes(tree) }; };

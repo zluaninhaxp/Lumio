@@ -11,7 +11,7 @@ import Animated, {
   Easing,
   cancelAnimation,
 } from 'react-native-reanimated';
-import { Colors, Radius } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Radius } from '../../../src/constants/theme';
 
 interface VoiceInputProps {
   /** Chamado com o texto final transcrito pelo reconhecimento nativo do aparelho. */
@@ -71,7 +71,7 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
           hitSlop={6}
           onPress={press}
           disabled={disabled || busy}
-          activeOpacity={0.8}
+          activeOpacity={ControlOpacity.pressed}
         >
           <View style={[
             styles.micBtn,
@@ -81,16 +81,16 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
           ]}><Ionicons
             name={isRecording ? 'stop' : 'mic'}
             size={appearance === 'onboarding' ? 16 : 20}
-            color={isRecording ? '#FFFFFF' : Colors.accent}
+            color={isRecording ? Colors.onAction : Colors.accentIcon}
           /></View>
         </TouchableOpacity>
       </Animated.View>
       {status.message && (
         <View style={styles.permissionText}>
-          <Text style={{ fontSize: 11, color: Colors.danger, textAlign: 'center' }}>{status.message}</Text>
+          <Text style={{ fontSize: 11, color: Colors.dangerText, textAlign: 'center' }}>{status.message}</Text>
           {status.state === 'blocked' && (
-            <TouchableOpacity accessibilityRole="button" onPress={openSettings}>
-              <Text style={{ fontSize: 12, color: Colors.accent, textAlign: 'center' }}>Abrir configurações</Text>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} accessibilityRole="button" onPress={openSettings}>
+              <Text style={{ fontSize: 12, color: Colors.accentText, textAlign: 'center' }}>Abrir configurações</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -110,7 +110,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
   },
   micBtnOnboarding: {
     width: 32,
@@ -121,8 +121,8 @@ const styles = StyleSheet.create({
     borderColor: '#DCF2E8',
   },
   micBtnRecording: {
-    backgroundColor: Colors.danger,
-    borderColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
+    borderColor: Colors.dangerIcon,
   },
   micBtnDisabled: {
     opacity: 0.4,
@@ -132,7 +132,7 @@ const styles = StyleSheet.create({
     top: 50,
     width: 180,
     fontSize: 11,
-    color: Colors.danger,
+    color: Colors.dangerText,
     textAlign: 'center',
   },
 });

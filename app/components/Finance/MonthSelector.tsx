@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSize } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, FontSize } from '../../../src/constants/theme';
 
 interface MonthSelectorProps {
   label: string;
@@ -12,11 +12,11 @@ interface MonthSelectorProps {
 export function MonthSelector({ label, onPrevious, onNext }: MonthSelectorProps) {
   return (
     <View style={styles.container}>
-      <TouchableOpacity onPress={onPrevious} style={styles.arrow} hitSlop={8}>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onPrevious} style={styles.arrow} hitSlop={8}>
         <Ionicons name="chevron-back" size={20} color={Colors.primary} />
       </TouchableOpacity>
       <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity onPress={onNext} style={styles.arrow} hitSlop={8}>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onNext} style={styles.arrow} hitSlop={8}>
         <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
       </TouchableOpacity>
     </View>

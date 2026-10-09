@@ -1,3 +1,4 @@
+import { FormActionStyles } from '../../../src/components/form-action-styles';
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 
 export const taskFormStyles = {
@@ -28,31 +29,9 @@ export const taskFormStyles = {
     gap: Spacing.sm,
     marginTop: Spacing.sm,
   },
-  cancelBtn: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    alignItems: 'center' as const,
-  },
-  cancelBtnText: {
-    fontFamily: 'PlusJakartaSans_500Medium',
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  saveBtn: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
-    alignItems: 'center' as const,
-  },
-  saveBtnDisabled: {
-      ...SurfaceStyles.actionDisabled,
-    opacity: 0.5 },
-  saveBtnText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.sm,
-    color: '#FFF',
-  },
+  cancelBtn: FormActionStyles.secondary,
+  cancelBtnText: FormActionStyles.secondaryText,
+  saveBtn: FormActionStyles.primary,
+  saveBtnDisabled: FormActionStyles.disabled,
+  saveBtnText: FormActionStyles.primaryText,
 };

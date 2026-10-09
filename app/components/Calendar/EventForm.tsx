@@ -1,3 +1,4 @@
+import { useSheetDraft } from '../../../src/components/sheet-draft';
 import React, { useState, useMemo } from 'react';
 import {
   View,
@@ -8,7 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
 import { useAppStore } from '../../../src/store';
 import { TagSelector } from '../TagSelector';
@@ -39,6 +40,8 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
     supplierId: initialData?.supplierId,
     employeeId: initialData?.employeeId,
   });
+
+  const requestClose = useSheetDraft({ description, type, eventType, taskTag, time, date, people }, onCancel);
 
   const calendarEventTypes = useAppStore((s) => s.calendarEventTypes);
   const addCalendarEventType = useAppStore((s) => s.addCalendarEventType);
@@ -94,12 +97,12 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
         value={description}
         onChangeText={setDescription}
         placeholder="Descreva o item..."
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
       />
 
       <Text style={styles.label}>Tipo</Text>
       <View style={styles.typeRow}>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.typeBtn, type === 'event' && styles.typeBtnActive]}
           onPress={() => handleSelectType('event')}
         >
@@ -107,7 +110,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
             Evento
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.typeBtn, type === 'task' && styles.typeBtnActive]}
           onPress={() => handleSelectType('task')}
         >
@@ -152,14 +155,14 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
         value={time}
         onChangeText={(value) => setTime(formatTimeInput(value))}
         placeholder="00:00"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
         keyboardType="numbers-and-punctuation"
         maxLength={5}
       />
 
-      <TouchableOpacity style={styles.detailsToggle} onPress={() => setDetailsVisible((visible) => !visible)}>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.detailsToggle} onPress={() => setDetailsVisible((visible) => !visible)}>
         <Text style={styles.detailsToggleText}>{detailsVisible ? 'Menos detalhes' : 'Mais detalhes'}</Text>
-        <Ionicons name={detailsVisible ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.accent} />
+        <Ionicons name={detailsVisible ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.accentIcon} />
       </TouchableOpacity>
 
       {detailsVisible && (
@@ -178,10 +181,10 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose}>
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !description.trim() && styles.saveBtnDisabled]}
           onPress={handleSave}
           disabled={!description.trim()}
@@ -209,7 +212,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  typeBtnTextActive: { color: '#FFF' },
+  typeBtnTextActive: { color: Colors.onAction },
   detailsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -220,7 +223,7 @@ const styles = StyleSheet.create({
   detailsToggleText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   eventTypeRow: {
     gap: Spacing.sm,
@@ -233,13 +236,13 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full
   },
   eventTypeChipActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   eventTypeChipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
-  eventTypeChipTextActive: { color: '#FFF' },
+  eventTypeChipTextActive: { color: Colors.onAction },
 });

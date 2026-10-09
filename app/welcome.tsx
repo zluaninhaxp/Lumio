@@ -3,7 +3,7 @@ import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowD
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Colors, FontSize, Spacing } from '@/src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Spacing } from '@/src/constants/theme';
 
 const WELCOME_IMAGE = require('../assets/welcome.png');
 const LUMIO_LOGO = require('../assets/lumio.png');
@@ -41,8 +41,8 @@ export default function WelcomeScreen() {
           <Text style={[styles.title, { fontSize: titleSize, lineHeight: Math.round(titleSize * 1.13) }]}>Seu negócio,{"\n"}mais leve.</Text>
           <Text style={[styles.subtitle, { fontSize: subtitleSize, lineHeight: Math.round(subtitleSize * 1.48) }]}>Organize sua rotina e cuide do que faz seu negócio acontecer.</Text>
           <View style={styles.actions}>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => openAuth('register')} activeOpacity={.85} accessibilityRole="button"><Text style={styles.primaryButtonText}>Começar agora</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" /></TouchableOpacity>
-            <TouchableOpacity style={styles.loginButton} onPress={() => openAuth('login')} activeOpacity={.7} accessibilityRole="button"><Text style={styles.loginText}>Já uso o Lumio</Text><Text style={styles.loginTextBold}>Entrar</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.primaryButton} onPress={() => openAuth('register')} activeOpacity={ControlOpacity.pressed} accessibilityRole="button"><Text style={styles.primaryButtonText}>Começar agora</Text><Ionicons name="arrow-forward" size={19} color={Colors.onAction} /></TouchableOpacity>
+            <TouchableOpacity style={styles.loginButton} onPress={() => openAuth('login')} activeOpacity={ControlOpacity.pressed} accessibilityRole="button"><Text style={styles.loginText}>Já uso o Lumio</Text><Text style={styles.loginTextBold}>Entrar</Text></TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -55,5 +55,5 @@ const styles = StyleSheet.create({
   primaryShape: { position: 'absolute', width: 620, height: 610, top: -250, left: -104, borderRadius: 260, backgroundColor: Colors.accentLight, transform: [{ rotate: '-9deg' }] }, secondaryShape: { position: 'absolute', width: 560, height: 370, top: 300, right: -210, borderTopLeftRadius: 250, borderBottomLeftRadius: 210, borderTopRightRadius: 170, borderBottomRightRadius: 290, backgroundColor: Colors.accentSoft, transform: [{ rotate: '-12deg' }] },
   hero: { flex: 1, width: '100%', maxWidth: 520, alignSelf: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.lg, alignItems: 'center', justifyContent: 'space-between' }, logo: { width: 102, height: 30, alignSelf: 'flex-start', zIndex: 2 }, heroGlow: { position: 'absolute', width: 310, height: 270, borderRadius: 140, top: '30%', backgroundColor: Colors.accentGlow, opacity: .65, transform: [{ rotate: '-12deg' }] }, artExitWrap: { width: '100%', flex: 1, alignItems: 'center' }, illustration: { width: '100%', flex: 1, maxWidth: 430, maxHeight: 390, marginTop: 4, zIndex: 1 },
   content: { flexShrink: 0, width: '100%', maxWidth: 520, alignSelf: 'center', paddingHorizontal: Spacing.xl, paddingBottom: Spacing.sm }, title: { fontFamily: 'PlusJakartaSans_800ExtraBold', letterSpacing: -.8, color: Colors.primary }, subtitle: { maxWidth: 340, marginTop: Spacing.md, fontFamily: 'PlusJakartaSans_400Regular', color: Colors.textSecondary },
-  actions: { width: '100%', marginTop: Spacing.xl }, primaryButton: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderRadius: 18, backgroundColor: Colors.accent, shadowColor: Colors.accent, shadowOpacity: .16, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3 }, primaryButtonText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.md, color: '#FFFFFF' }, loginButton: { minHeight: 42, marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, loginText: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm, color: Colors.textSecondary }, loginTextBold: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.accent },
+  actions: { width: '100%', marginTop: Spacing.xl }, primaryButton: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderRadius: 18, backgroundColor: Colors.actionBackground, shadowColor: Colors.accent, shadowOpacity: .16, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 3 }, primaryButtonText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.md, color: Colors.onAction }, loginButton: { minHeight: 42, marginTop: Spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, loginText: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm, color: Colors.textSecondary }, loginTextBold: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.accentText },
 });

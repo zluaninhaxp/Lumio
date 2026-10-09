@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   PLUGIN_LIST,
@@ -82,9 +82,9 @@ export default function PluginStoreScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Loja de módulos</Text>
@@ -136,9 +136,9 @@ export default function PluginStoreScreen() {
                 <TouchableOpacity
                   style={styles.activeTag}
                   onPress={() => router.push(def.route as any)}
-                  activeOpacity={0.8}
+                  activeOpacity={ControlOpacity.pressed}
                 >
-                  <Ionicons name="checkmark" size={14} color={Colors.accent} />
+                  <Ionicons name="checkmark" size={14} color={Colors.accentIcon} />
                   <Text style={styles.activeTagText}>Já ativo</Text>
                 </TouchableOpacity>
               ) : (
@@ -148,7 +148,7 @@ export default function PluginStoreScreen() {
                     blocked && styles.activateBtnDisabled,
                   ]}
                   onPress={() => tryActivate(def.id)}
-                  activeOpacity={0.8}
+                  activeOpacity={ControlOpacity.pressed}
                 >
                   <Text style={styles.activateBtnText}>Ativar</Text>
                 </TouchableOpacity>
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  backBtn: { padding: Spacing.xs },
+  backBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -194,7 +194,7 @@ const styles = StyleSheet.create({
   },
   cardHighlighted: {
     borderWidth: 2,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     backgroundColor: Colors.accentLight,
   },
   cardIcon: {
@@ -219,20 +219,20 @@ const styles = StyleSheet.create({
   dependencyNote: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: FontSize.xs,
-    color: Colors.warning,
+    color: Colors.warningText,
     marginTop: 4,
   },
   activateBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 8,
   },
-  activateBtnDisabled: { backgroundColor: Colors.textMuted },
+  activateBtnDisabled: { backgroundColor: Colors.textDisabled },
   activateBtnText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
   activeTag: {
     flexDirection: "row",
@@ -246,6 +246,6 @@ const styles = StyleSheet.create({
   activeTagText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

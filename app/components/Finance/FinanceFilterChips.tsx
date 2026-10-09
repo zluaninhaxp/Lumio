@@ -9,7 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface FinanceFilterChipsProps {
   options: string[];
@@ -75,7 +75,7 @@ export function FinanceFilterChips({
                   active && isExpense && styles.chipExpense,
                 ]}
                 onPress={() => onSelect(option)}
-                activeOpacity={0.7}
+                activeOpacity={ControlOpacity.pressed}
               >
                 <Text style={[styles.chipText, active && styles.chipTextActive]}>
                   {option}
@@ -91,7 +91,7 @@ export function FinanceFilterChips({
         pointerEvents={searchVisible ? 'auto' : 'none'}
       >
         <View style={styles.searchInputWrap}>
-          <TouchableOpacity onPress={onSearchToggle} hitSlop={8} accessibilityLabel="Fechar busca">
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onSearchToggle} hitSlop={8} accessibilityLabel="Fechar busca">
             <Ionicons name="chevron-back" size={19} color={Colors.textSecondary} />
           </TouchableOpacity>
           <TextInput
@@ -99,18 +99,18 @@ export function FinanceFilterChips({
             value={search}
             onChangeText={onSearchChange}
             placeholder="Buscar transação..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={Colors.placeholder}
             autoFocus={searchVisible}
             returnKeyType="search"
             accessibilityLabel="Buscar transações"
           />
           {search.length > 0 && (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => onSearchChange('')}
               hitSlop={8}
               accessibilityLabel="Limpar busca"
             >
-              <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+              <Ionicons name="close-circle" size={18} color={Colors.iconMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     alignItems: 'center',
   },
-  chip: {
+  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
@@ -144,14 +144,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipIncome: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  chipExpense: { backgroundColor: Colors.danger, borderColor: Colors.danger },
+  chipIncome: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
+  chipExpense: { backgroundColor: Colors.dangerActionBackground, borderColor: Colors.dangerIcon },
   chipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  chipTextActive: { color: '#FFF' },
+  chipTextActive: { color: Colors.onAction },
   searchLayer: {
     position: 'absolute',
     left: 0,

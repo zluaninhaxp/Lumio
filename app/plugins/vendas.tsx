@@ -13,13 +13,13 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
@@ -60,6 +60,7 @@ export default function VendasScreen() {
     activatedPlugins,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | undefined>();
@@ -231,11 +232,11 @@ export default function VendasScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Vendas</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
               "Desativar Vendas",
@@ -263,12 +264,12 @@ export default function VendasScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar venda ou item"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -281,7 +282,7 @@ export default function VendasScreen() {
             <Ionicons
               name="receipt-outline"
               size={46}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>
               {query
@@ -302,7 +303,7 @@ export default function VendasScreen() {
                 <Ionicons
                   name="receipt-outline"
                   size={18}
-                  color={Colors.accent}
+                  color={Colors.accentIcon}
                 />
               </View>
                 <View style={styles.cardMain}>
@@ -337,7 +338,7 @@ export default function VendasScreen() {
               <Text style={styles.total}>{money(order.total)}</Text>
               <View style={styles.actions}>
                 {order.status !== "cancelado" && (
-                  <TouchableOpacity onPress={() => cancel(order.id)}>
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => cancel(order.id)}>
                     <Text style={styles.cancelText}>Cancelar</Text>
                   </TouchableOpacity>
                 )}
@@ -347,9 +348,9 @@ export default function VendasScreen() {
           </SwipeableActions>
         ))}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={{ clientId, items, status, employeeId }} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         minHeight={0}
         maxHeight={FORM_SHEET_MAX_HEIGHT}
@@ -390,12 +391,12 @@ export default function VendasScreen() {
                   <RequiredLabel>Item {index + 1}</RequiredLabel>
                   <DocumentItemPicker item={item} catalogItems={catalogItems} onChange={(updates) => updateItem(item.id, updates)} />
                   {!item.catalogItemId && (
-                    <TouchableOpacity
+                    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                       style={styles.stockCheckboxRow}
                       onPress={() => updateItem(item.id, { addToCatalog: !item.addToCatalog })}
                     >
                       <View style={[styles.checkbox, item.addToCatalog && styles.checkboxActive]}>
-                        {item.addToCatalog && <Ionicons name="checkmark" size={15} color="#FFFFFF" />}
+                        {item.addToCatalog && <Ionicons name="checkmark" size={15} color={Colors.onAction} />}
                       </View>
                       <Text style={styles.stockCheckboxLabel}>Vincular este item ao Catálogo</Text>
                     </TouchableOpacity>
@@ -413,7 +414,7 @@ export default function VendasScreen() {
                           })
                         }
                         placeholder="Qtd."
-                        placeholderTextColor={Colors.textMuted}
+                        placeholderTextColor={Colors.placeholder}
                         keyboardType="decimal-pad"
                       />
                     </View>
@@ -430,18 +431,18 @@ export default function VendasScreen() {
                           })
                         }
                         placeholder="Preço"
-                        placeholderTextColor={Colors.textMuted}
+                        placeholderTextColor={Colors.placeholder}
                         keyboardType="decimal-pad"
                       />
                     </View>
                   </View>
                 </View>
               ))}
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.addItemButton}
                 onPress={addDraftItem}
               >
-                <Ionicons name="add" size={17} color={Colors.accent} />
+                <Ionicons name="add" size={17} color={Colors.accentIcon} />
                 <Text style={styles.actionText}>Adicionar item</Text>
               </TouchableOpacity>
             </ModalScrollView>
@@ -451,13 +452,13 @@ export default function VendasScreen() {
               >
               <Text style={styles.totalPreview}>Total: {money(total)}</Text>
               <View style={styles.modalActions}>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.modalCancel}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => modalVisibleSheet.current?.requestClose()}
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalConfirm} onPress={saveOrder}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder}>
                   <Text style={styles.modalConfirmText}>Salvar</Text>
                 </TouchableOpacity>
               </View>
@@ -478,7 +479,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -552,23 +553,23 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   total: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.md,
   },
   actions: { flexDirection: "row", gap: Spacing.md },
   concludeText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
   },
   actionText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
   },
   cancelText: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
   },
@@ -580,7 +581,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -627,7 +628,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
-  chipTextActive: { color: "#FFFFFF" },
+  chipTextActive: { color: Colors.onAction },
   itemForm: {
       ...SurfaceStyles.control,
     position: "relative",
@@ -683,7 +684,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
   },
   stockSuggestionPrice: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
   },
@@ -704,8 +705,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.bgCard,
   },
   checkboxActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   stockCheckboxLabel: {
     color: Colors.primary,
@@ -751,11 +752,11 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
   },
   modalConfirmText: {
-    color: "#FFFFFF",
+    color: Colors.onAction,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   ...pluginFormStyles,

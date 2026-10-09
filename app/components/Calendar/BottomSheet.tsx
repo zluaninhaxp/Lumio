@@ -1,4 +1,4 @@
-import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,10 +17,15 @@ import { ModalScrollView } from '../../../src/components/modal-scroll-view';
 import { Colors, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 import { getBottomSheetLayout, isBottomKeyboard } from '../../../src/utils/bottomSheetLayout';
 
+import { SheetDraftContext, type DraftEntry } from '../../../src/components/sheet-draft';
+import { AppAlert } from '../../../src/services/appAlert';
+
 const SHEET_HEIGHT = 420;
 
 interface BottomSheetProps {
   visible: boolean;
+  /** Editable values for forms whose state lives outside the sheet. */
+  draft?: unknown;
   onClose: () => void;
   children: React.ReactNode;
   /** Initial animation distance only; does not set the sheet's layout height. */
@@ -37,7 +42,10 @@ interface BottomSheetProps {
 }
 
 export interface BottomSheetHandle {
+  /** Completed save / explicit programmatic dismissal. */
   close: () => void;
+  /** User dismissal: confirms unsaved changes. */
+  requestClose: () => void;
 }
 
 // A native Modal has its own window: measure its insets rather than inheriting
@@ -45,7 +53,7 @@ export interface BottomSheetHandle {
 export const BottomSheet = forwardRef<BottomSheetHandle, BottomSheetProps>(function BottomSheet(props, ref) {
   const modalRef = useRef<BottomSheetHandle | null>(null);
   return (
-    <Modal visible={props.visible} transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={() => modalRef.current?.close()}>
+    <Modal visible={props.visible} transparent statusBarTranslucent navigationBarTranslucent animationType="none" onRequestClose={() => modalRef.current?.requestClose()}>
       <SafeAreaProvider>
         <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
           <BottomSheetContent {...props} ref={ref} modalRef={modalRef} />
@@ -59,6 +67,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   modalRef: React.MutableRefObject<BottomSheetHandle | null>;
 }>(function BottomSheetContent({
   visible,
+  draft,
   onClose,
   children,
   height = SHEET_HEIGHT,
@@ -98,6 +107,17 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   const dismissibleRef = useRef(dismissible);
   const heightRef = useRef(height);
   const closingRef = useRef(false);
+  const drafts = useMemo(() => new Map<object, DraftEntry>(), [visible]);
+  const draftState = useRef({ visible: false, initial: '', current: '' });
+  const snapshot = JSON.stringify(draft) ?? '';
+  if (visible && !draftState.current.visible) draftState.current.initial = snapshot;
+  draftState.current.visible = visible;
+  draftState.current.current = snapshot;
+  const draftsRef = useRef(drafts);
+  draftsRef.current = drafts;
+  const confirmationRef = useRef(false);
+  const keyboardVisibleRef = useRef(keyboardVisible);
+  keyboardVisibleRef.current = keyboardVisible;
   onCloseRef.current = onClose;
   dismissibleRef.current = dismissible;
 
@@ -128,6 +148,25 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   const close = useCallback(
     (force = false) => {
       if ((!force && !dismissibleRef.current) || closingRef.current) return;
+      if (!force && (draftState.current.initial !== draftState.current.current ||
+          [...draftsRef.current.values()].some(entry => entry.initial !== entry.current))) {
+        if (confirmationRef.current) return;
+        confirmationRef.current = true;
+        const session = draftsRef.current;
+        // A cancelled drag must leave the sheet at its original position.
+        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 70, friction: 10 }).start();
+        Keyboard.dismiss();
+        const keepEditing = () => { confirmationRef.current = false; };
+        AppAlert.alert('Descartar alterações?', 'Você tem alterações não salvas. Deseja descartá-las?', [
+          { text: 'Continuar editando', style: 'cancel', onPress: keepEditing },
+          { text: 'Descartar', style: 'destructive', onPress: () => {
+            confirmationRef.current = false;
+            if (session === draftsRef.current && draftState.current.visible) close(true);
+          } },
+        ], { cancelable: true, onDismiss: keepEditing });
+        return;
+      }
+      Keyboard.dismiss();
       closingRef.current = true;
       Animated.parallel([
         Animated.timing(translateY, {
@@ -148,8 +187,15 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
     [translateY, backdropOpacity]
   );
 
-  useImperativeHandle(ref, () => ({ close: () => close(true) }), [close]);
-  useImperativeHandle(modalRef, () => ({ close: () => close() }), [close]);
+  useImperativeHandle(ref, () => ({ close: () => close(true), requestClose: () => close() }), [close]);
+  useImperativeHandle(modalRef, () => ({ close: () => close(), requestClose: () => {
+    if (Platform.OS === 'android' && (Keyboard.isVisible() || keyboardVisibleRef.current)) {
+      Keyboard.dismiss();
+      return;
+    }
+    close();
+  } }), [close]);
+  const draftContext = useMemo(() => ({ drafts, requestClose: () => close() }), [drafts, close]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -220,12 +266,14 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
              >
                <View style={styles.handle} />
              </View>
+            <SheetDraftContext.Provider value={draftContext}>
             {ownsScroll ? <View style={[styles.ownedContent, layout.height !== undefined && { flex: 1 }]}>{children}</View> : (
               <ModalScrollView style={styles.naturalContent} keyboardShouldPersistTaps="handled"
                 nestedScrollEnabled showsVerticalScrollIndicator={false} bounces={false} overScrollMode="never">
                 {children}
               </ModalScrollView>
             )}
+            </SheetDraftContext.Provider>
           </Animated.View>
           </View>
         </KeyboardAvoidingView>

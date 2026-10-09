@@ -1,7 +1,7 @@
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
 import { ReportBackdrop } from './report-processing';
 
 const REPORT_IMAGE = require('../../../assets/mascote-relatorio/Mascote Alegre com Laptop e Painéis Flutuantes.png');
@@ -26,13 +26,13 @@ export default function ReportIntro({ onExplore, isSimulation = false }: Props) 
           <Text style={styles.description}>Confira um panorama detalhado do seu negócio, com base nas suas respostas do onboarding.</Text>
         </View>
         <View style={styles.infoCard}>
-          <View style={styles.infoIcon}><Ionicons name="information-circle-outline" size={28} color={Colors.accent} /></View>
+          <View style={styles.infoIcon}><Ionicons name="information-circle-outline" size={28} color={Colors.accentIcon} /></View>
           <View style={styles.infoCopy}>
             <Text style={styles.infoTitle}>Importante</Text>
             <Text style={styles.infoText}>{isSimulation ? 'Este é um relatório simulado com base nas informações que você nos forneceu. Ele serve como um ponto de partida e pode ser editado a qualquer momento.' : 'Este é um relatório gerado por IA com base nas informações que você nos forneceu. Ele serve como um ponto de partida e pode ser editado a qualquer momento.'}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.exploreButton} onPress={onExplore} activeOpacity={0.85} accessibilityRole="button">
+        <TouchableOpacity style={styles.exploreButton} onPress={onExplore} activeOpacity={ControlOpacity.pressed} accessibilityRole="button">
           <Ionicons name="document-text-outline" size={21} color={Colors.bgCard} />
           <Text style={styles.exploreText}>Explorar meu relatório</Text>
           <Ionicons name="arrow-forward" size={21} color={Colors.bgCard} />
@@ -62,6 +62,6 @@ const styles = StyleSheet.create({
   infoText: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20, color: Colors.textSecondary },
   exploreButton: {
       ...SurfaceStyles.floating,
-    width: '100%', maxWidth: 390, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, backgroundColor: Colors.accent, borderRadius: Radius.full },
+    width: '100%', maxWidth: 390, minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.md, backgroundColor: Colors.actionBackground, borderRadius: Radius.full },
   exploreText: { fontFamily: Typography.bold, fontSize: FontSize.md, color: Colors.bgCard },
 });

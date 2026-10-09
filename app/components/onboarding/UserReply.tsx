@@ -36,7 +36,7 @@ export default function UserReply({ text, isVoice }: UserReplyProps) {
   return (
     <Animated.View style={[styles.wrapper, animatedStyle]}>
       <View style={styles.chip}>
-        {isVoice && <Ionicons name="mic" size={13} color="#FFFFFF" style={styles.icon} />}
+        {isVoice && <Ionicons name="mic" size={13} color={Colors.onAction} style={styles.icon} />}
         <Text style={styles.text} numberOfLines={3}>{text}</Text>
       </View>
     </Animated.View>
@@ -65,7 +65,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm + 1,
     flexShrink: 1,
-    color: '#FFFFFF',
+    color: Colors.onAction,
     lineHeight: 21,
   },
 });

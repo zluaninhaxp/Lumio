@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Keyboard, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../constants/theme';
 import type { CatalogItem, OrderItem } from '../store';
 
 type Props = {
@@ -65,7 +65,7 @@ export function DocumentItemPicker({ item, catalogItems, onChange, allowStandalo
   return (
     <View style={styles.wrap}>
       <View style={styles.inputRow}>
-        <Ionicons name="search-outline" size={17} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={17} color={Colors.iconMuted} />
         <TextInput
           style={styles.input}
           value={item.catalogItemId ? item.name : query || item.name}
@@ -78,13 +78,13 @@ export function DocumentItemPicker({ item, catalogItems, onChange, allowStandalo
             onChange({ name: value, catalogItemId: undefined, kind: undefined, stockItemId: undefined });
           }}
           placeholder="Buscar no catálogo ou digitar item"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
         />
       </View>
       {focused && (
         <View style={styles.results}>
           {results.map((candidate) => (
-            <TouchableOpacity key={candidate.id} style={styles.result} onPress={() => select(candidate)}>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={candidate.id} style={styles.result} onPress={() => select(candidate)}>
               <View style={styles.resultCopy}>
                 <Text style={styles.name} numberOfLines={1}>{candidate.name}</Text>
                 <Text style={styles.meta}>{candidate.kind === 'produto' ? 'Produto' : 'Serviço'} · {candidate.unit}</Text>
@@ -93,13 +93,13 @@ export function DocumentItemPicker({ item, catalogItems, onChange, allowStandalo
             </TouchableOpacity>
           ))}
           {allowStandalone ? (
-            <TouchableOpacity style={styles.standalone} onPress={makeStandalone}>
-              <Ionicons name="create-outline" size={17} color={Colors.accent} />
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.standalone} onPress={makeStandalone}>
+              <Ionicons name="create-outline" size={17} color={Colors.accentIcon} />
               <Text style={styles.standaloneText}>Item avulso (fora do catálogo)</Text>
             </TouchableOpacity>
           ) : onCreateCatalog ? (
-            <TouchableOpacity style={styles.standalone} onPress={onCreateCatalog}>
-              <Ionicons name="add-circle-outline" size={17} color={Colors.accent} />
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.standalone} onPress={onCreateCatalog}>
+              <Ionicons name="add-circle-outline" size={17} color={Colors.accentIcon} />
               <Text style={styles.standaloneText}>Cadastrar produto no Catálogo</Text>
             </TouchableOpacity>
           ) : null}
@@ -122,9 +122,9 @@ const styles = StyleSheet.create({
   resultCopy: { flex: 1 },
   name: { color: Colors.primary, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm },
   meta: { color: Colors.textMuted, fontSize: FontSize.xs, marginTop: 2 },
-  price: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
+  price: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
   standalone: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md },
-  standaloneText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm },
+  standaloneText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm },
 });
 
 export default DocumentItemPicker;

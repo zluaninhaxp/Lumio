@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -11,14 +11,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { AppAlert } from "@/src/services/appAlert";
@@ -51,6 +51,7 @@ export default function ContratosScreen() {
     setPluginActivation,
     activatedPlugins,
   } = useAppStore();
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -177,11 +178,11 @@ export default function ContratosScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.title}>Contratos / Assinaturas</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
               "Desativar Contratos",
@@ -209,12 +210,12 @@ export default function ContratosScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar contrato ou cliente"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -227,7 +228,7 @@ export default function ContratosScreen() {
             <Ionicons
               name="document-lock-outline"
               size={48}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>{query ? "Nenhum contrato encontrado." : "Nenhum contrato cadastrado."}</Text>
           </View>
@@ -261,7 +262,7 @@ export default function ContratosScreen() {
                   <Ionicons
                     name="repeat-outline"
                     size={20}
-                    color={Colors.accent}
+                    color={Colors.accentIcon}
                   />
                 </View>
                 <View style={styles.cardMain}>
@@ -304,7 +305,7 @@ export default function ContratosScreen() {
                       <Text style={styles.receivableText}>
                         {transaction.expectedDate} · {money(transaction.amount)}
                       </Text>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         onPress={() =>
                           markTransactionReceived(transaction.id, true)
                         }
@@ -317,7 +318,7 @@ export default function ContratosScreen() {
               )}
               <View style={styles.actions}>
                 {contract.status === "ativo" && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={() =>
                       updateContrato(contract.id, { status: "cancelado" })
                     }
@@ -331,9 +332,9 @@ export default function ContratosScreen() {
           );
         })}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={{ clientId, value, period, startDate }} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -357,12 +358,12 @@ export default function ContratosScreen() {
                 onChangeText={setValue}
                 keyboardType="decimal-pad"
                 placeholder="R$ 0,00"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder}
               />
               <Text style={styles.label}>Periodicidade</Text>
               <View style={styles.periodRow}>
                 {(Object.keys(periodLabels) as ContractPeriod[]).map((item) => (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     key={item}
                     style={[styles.chip, period === item && styles.chipActive]}
                     onPress={() => setPeriod(item)}
@@ -384,14 +385,14 @@ export default function ContratosScreen() {
                 value={startDate}
                 onChangeText={setStartDate}
                 placeholder="2026-08-11"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder}
               />
             </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save}>
                 <Text style={styles.saveText}>Salvar contrato</Text>
               </TouchableOpacity>
             </View>
@@ -411,7 +412,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   title: {
     color: Colors.primary,
     fontFamily: "PlusJakartaSans_700Bold",
@@ -469,7 +470,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   overdue: {
-    color: Colors.warning,
+    color: Colors.warningText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
     marginTop: Spacing.xs,
@@ -499,7 +500,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   receiveText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
   },
@@ -510,7 +511,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
-  delete: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
+  delete: { color: Colors.dangerText, fontFamily: "PlusJakartaSans_600SemiBold" },
   fab: {
       ...SurfaceStyles.floating,
     position: "absolute",
@@ -519,7 +520,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -576,7 +577,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { color: Colors.textSecondary, fontSize: FontSize.sm },
-  chipTextActive: { color: "#FFF" },
+  chipTextActive: { color: Colors.onAction },
   modalActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -585,7 +586,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
   },
   saveButton: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -602,7 +603,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
-  saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  saveText: { color: Colors.onAction, fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
-  cancel: { color: Colors.warning, fontFamily: "PlusJakartaSans_600SemiBold" },
+  cancel: { color: Colors.warningText, fontFamily: "PlusJakartaSans_600SemiBold" },
 });

@@ -33,6 +33,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
   },
   segmentActive: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.accentIcon,
   },
 });

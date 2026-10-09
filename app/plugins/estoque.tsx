@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -11,12 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { EstoqueItem, useAppStore } from "../../src/store";
 import { CatalogItemSelector } from "../components/CatalogItemSelector";
 import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../src/utils/relationDraft";
@@ -41,7 +41,9 @@ export default function EstoqueScreen() {
     activatedPlugins,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const formVisibleSheet = useRef<BottomSheetHandle>(null);
   const [formVisible, setFormVisible] = useState(false);
+  const movementVisibleSheet = useRef<BottomSheetHandle>(null);
   const [movementVisible, setMovementVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [movementItem, setMovementItem] = useState<EstoqueItem | null>(null);
@@ -158,14 +160,14 @@ export default function EstoqueScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() => router.back()}
           style={styles.iconButton}
         >
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Estoque</Text>
-        <TouchableOpacity onPress={deactivate} style={styles.iconButton}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={deactivate} style={styles.iconButton}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -175,12 +177,12 @@ export default function EstoqueScreen() {
       </View>
 
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar item"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -191,7 +193,7 @@ export default function EstoqueScreen() {
       >
         {filteredItems.length === 0 && (
           <View style={styles.empty}>
-            <Ionicons name="cube-outline" size={48} color={Colors.textMuted} />
+            <Ionicons name="cube-outline" size={48} color={Colors.decorativeMuted} />
             <Text style={styles.emptyText}>
               {query
                 ? "Nenhum item encontrado."
@@ -212,7 +214,7 @@ export default function EstoqueScreen() {
               onDelete={() => deleteItem(item.id)}
             >
             <View style={[styles.card, isLow && styles.cardLow]}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cardHeader}
                 onPress={() => openEdit(item)}
               >
@@ -222,7 +224,7 @@ export default function EstoqueScreen() {
                   <Ionicons
                     name="cube-outline"
                     size={19}
-                    color={isLow ? Colors.danger : Colors.accent}
+                    color={isLow ? Colors.dangerIcon : Colors.accentIcon}
                   />
                 </View>
                 <View style={styles.cardMain}>
@@ -239,25 +241,25 @@ export default function EstoqueScreen() {
                     <Ionicons
                       name="alert-circle"
                       size={14}
-                      color={Colors.danger}
+                      color={Colors.dangerIcon}
                     />
                     <Text style={styles.alertText}>Baixo</Text>
                   </View>
                 )}
               </TouchableOpacity>
               <View style={styles.actionRow}>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.movementButton}
                   onPress={() => openMovement(item, "entrada")}
                 >
-                  <Ionicons name="add" size={16} color={Colors.accent} />
+                  <Ionicons name="add" size={16} color={Colors.accentIcon} />
                   <Text style={styles.entryText}>Entrada</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.movementButton}
                   onPress={() => openMovement(item, "saida")}
                 >
-                  <Ionicons name="remove" size={16} color={Colors.danger} />
+                  <Ionicons name="remove" size={16} color={Colors.dangerIcon} />
                   <Text style={styles.exitText}>Saída</Text>
                 </TouchableOpacity>
               </View>
@@ -278,10 +280,10 @@ export default function EstoqueScreen() {
         })}
       </ScrollView>
 
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
 
       <BottomSheet
-        visible={formVisible}
+        ref={formVisibleSheet} draft={form} visible={formVisible}
         onClose={() => setFormVisible(false)}
         height={620}
       >
@@ -301,7 +303,7 @@ export default function EstoqueScreen() {
             <TextInput
               style={styles.input}
               placeholder="Quantidade atual"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.quantity}
               onChangeText={(quantity) =>
                 setForm((current) => ({ ...current, quantity }))
@@ -312,7 +314,7 @@ export default function EstoqueScreen() {
             <TextInput
               style={styles.input}
               placeholder="Quantidade mínima para alerta"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.minAlert}
               onChangeText={(minAlert) =>
                 setForm((current) => ({ ...current, minAlert }))
@@ -320,13 +322,13 @@ export default function EstoqueScreen() {
               keyboardType="decimal-pad"
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setFormVisible(false)}
+                onPress={() => formVisibleSheet.current?.requestClose()}
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={saveItem}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem}>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -335,7 +337,7 @@ export default function EstoqueScreen() {
       </BottomSheet>
 
       <BottomSheet
-        visible={movementVisible}
+        ref={movementVisibleSheet} draft={{ movement, movementType }} visible={movementVisible}
         onClose={() => setMovementVisible(false)}
         height={420}
       >
@@ -350,7 +352,7 @@ export default function EstoqueScreen() {
             <TextInput
               style={styles.amountInput}
               placeholder="Quantidade"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={movement.amount}
               onChangeText={(amount) =>
                 setMovement((current) => ({ ...current, amount }))
@@ -361,20 +363,20 @@ export default function EstoqueScreen() {
             <TextInput
               style={styles.input}
               placeholder="Motivo (opcional)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={movement.reason}
               onChangeText={(reason) =>
                 setMovement((current) => ({ ...current, reason }))
               }
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setMovementVisible(false)}
+                onPress={() => movementVisibleSheet.current?.requestClose()}
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={[
                   styles.modalConfirm,
                   movementType === "saida" && styles.exitConfirm,
@@ -400,7 +402,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconButton: { padding: Spacing.xs },
+  iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -452,7 +454,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   cardPrice: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontSize: FontSize.sm,
     fontFamily: "PlusJakartaSans_600SemiBold",
     marginTop: 2,
@@ -467,7 +469,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   alertText: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
   },
@@ -487,12 +489,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   entryText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
   },
   exitText: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
   },
@@ -521,7 +523,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -560,10 +562,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm
   },
-  catalogChoiceActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  catalogChoiceActive: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
   catalogChoiceName: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
   catalogChoiceUnit: { color: Colors.textSecondary, fontSize: FontSize.xs },
-  catalogChoiceTextActive: { color: "#FFFFFF" },
+  catalogChoiceTextActive: { color: Colors.onAction },
   catalogHint: { color: Colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20 },
   toggleRow: {
     flexDirection: "row",
@@ -607,12 +609,12 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
   },
-  exitConfirm: { backgroundColor: Colors.danger },
+  exitConfirm: { backgroundColor: Colors.dangerActionBackground },
   modalConfirmText: {
-    color: "#FFFFFF",
+    color: Colors.onAction,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   ...pluginFormStyles,

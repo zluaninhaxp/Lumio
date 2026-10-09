@@ -144,7 +144,7 @@ export function CollapsingHeader({
           <Text
             style={[
               styles.saldo,
-              { color: summary.saldo >= 0 ? Colors.accent : Colors.danger },
+              { color: summary.saldo >= 0 ? Colors.accentText : Colors.dangerText },
             ]}
           >
             {fmt(summary.saldo)}
@@ -188,7 +188,7 @@ export function CollapsingHeader({
           <Text
             style={[
               styles.collapsedSaldo,
-              { color: summary.saldo >= 0 ? Colors.accent : Colors.danger },
+              { color: summary.saldo >= 0 ? Colors.accentText : Colors.dangerText },
             ]}
           >
             {fmt(summary.saldo)}
@@ -243,13 +243,13 @@ const styles = StyleSheet.create({
   entradas: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.lg,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   saidasCol: { alignItems: 'flex-end' },
   saidas: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.lg,
-    color: Colors.danger,
+    color: Colors.dangerText,
   },
   divider: {
     height: 1,
@@ -289,7 +289,7 @@ const styles = StyleSheet.create({
   },
   barFill: {
     height: 4,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: 2,
   },
 

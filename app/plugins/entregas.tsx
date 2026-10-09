@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
@@ -19,7 +19,7 @@ import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { TaskOrderSelector } from "../components/Tasks/TaskOrderSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 import { DeliveryStatus, Entrega, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { AppAlert } from "@/src/services/appAlert";
@@ -53,6 +53,7 @@ export default function EntregasScreen() {
     setPluginActivation,
     activatedPlugins,
   } = useAppStore();
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(!!orderId);
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -185,11 +186,11 @@ export default function EntregasScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.title}>Entregas</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert("Desativar Entregas", "Os dados continuam guardados.", [
               { text: "Cancelar", style: "cancel" },
@@ -213,12 +214,12 @@ export default function EntregasScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar entrega ou pedido"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -231,7 +232,7 @@ export default function EntregasScreen() {
             <Ionicons
               name="bicycle-outline"
               size={46}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>{query ? "Nenhuma entrega encontrada." : "Nenhuma entrega cadastrada."}</Text>
             <Text style={styles.hint}>
@@ -251,7 +252,7 @@ export default function EntregasScreen() {
                 <Ionicons
                   name="bicycle-outline"
                   size={20}
-                  color={Colors.accent}
+                  color={Colors.accentIcon}
                 />
               </View>
               <View style={styles.cardMain}>
@@ -284,7 +285,7 @@ export default function EntregasScreen() {
             </Text>
             <View style={styles.actions}>
               {delivery.status === "a caminho" && (
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   onPress={() =>
                     updateEntrega(delivery.id, { status: "entregue" })
                   }
@@ -293,7 +294,7 @@ export default function EntregasScreen() {
                 </TouchableOpacity>
               )}
               {delivery.status === "a caminho" && (
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   onPress={() =>
                     updateEntrega(delivery.id, { status: "cancelada" })
                   }
@@ -306,9 +307,9 @@ export default function EntregasScreen() {
           </SwipeableActions>
         ))}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={{ selectedOrderId, employeeId, address, estimatedDate, freightValue, createExpense }} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -329,7 +330,7 @@ export default function EntregasScreen() {
                 value={address}
                 onChangeText={setAddress}
                 placeholder="Rua, número, complemento"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder}
               />
               <RequiredLabel>Prazo estimado (AAAA-MM-DD)</RequiredLabel>
               <TextInput
@@ -337,7 +338,7 @@ export default function EntregasScreen() {
                 value={estimatedDate}
                 onChangeText={setEstimatedDate}
                 placeholder="2026-08-12"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder}
               />
               <View style={styles.peopleSpacing}>
                 <TaskPeopleSelector
@@ -355,17 +356,17 @@ export default function EntregasScreen() {
                 onChangeText={setFreightValue}
                 keyboardType="decimal-pad"
                 placeholder="Valor"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder}
               />
               {!editingId && Number(freightValue.replace(",", ".")) > 0 && (
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.expenseOption}
                   onPress={() => setCreateExpense((value) => !value)}
                 >
                   <Ionicons
                     name={createExpense ? "checkbox" : "square-outline"}
                     size={21}
-                    color={Colors.accent}
+                    color={Colors.accentIcon}
                   />
                   <Text style={styles.expenseText}>
                     Lançar como despesa no Financeiro
@@ -374,10 +375,10 @@ export default function EntregasScreen() {
               )}
             </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()}>
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save}>
                 <Text style={styles.saveText}>Salvar entrega</Text>
               </TouchableOpacity>
             </View>
@@ -397,7 +398,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   title: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: Colors.primary,
@@ -460,7 +461,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     marginTop: Spacing.md,
   },
-  conclude: { color: Colors.accent, fontFamily: "PlusJakartaSans_600SemiBold" },
+  conclude: { color: Colors.accentText, fontFamily: "PlusJakartaSans_600SemiBold" },
   action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
   fab: {
       ...SurfaceStyles.floating,
@@ -470,7 +471,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -527,7 +528,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { color: Colors.textSecondary, fontSize: FontSize.sm },
-  chipTextActive: { color: "#FFF" },
+  chipTextActive: { color: Colors.onAction },
   expenseOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -555,12 +556,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   saveButton: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  saveText: { color: Colors.onAction, fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
-  cancel: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
+  cancel: { color: Colors.dangerText, fontFamily: "PlusJakartaSans_600SemiBold" },
 });

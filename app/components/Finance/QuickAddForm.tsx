@@ -1,3 +1,4 @@
+import { useSheetDraft } from '../../../src/components/sheet-draft';
 import React, { useState } from 'react';
 import {
   View,
@@ -9,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import type { Transaction } from '../../../src/store';
 import { useAppStore } from '../../../src/store';
 import { suggestedDueDate } from '../../../src/utils/supplier';
@@ -124,6 +125,8 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
   const [stockQuantity, setStockQuantity] = useState(editData?.stockQuantity ? String(editData.stockQuantity) : draft?.stockQuantity ?? '');
   const [stockReceived, setStockReceived] = useState(editData?.stockReceived ?? draft?.stockReceived ?? false);
 
+  const requestClose = useSheetDraft({ amount, type, description, category, transactionDate, clientId, supplierId, employeeId, supplierDueDate, supplierPaid, stockItemId, stockQuantity, stockReceived }, onCancel);
+
   const handleSave = () => {
     const num = parseCurrency(amount);
     if (!amount.trim() || isNaN(num) || num <= 0) return;
@@ -234,7 +237,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
       <Text style={styles.title}>{isEditing ? 'Editar transação' : 'Nova transação'}</Text>
 
       <View style={styles.typeRow}>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.typeBtn, type === 'saida' && styles.typeBtnOut]}
           onPress={() => setType('saida')}
         >
@@ -242,7 +245,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
             Saída
           </Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.typeBtn, type === 'entrada' && styles.typeBtnIn]}
           onPress={() => setType('entrada')}
         >
@@ -258,13 +261,13 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         value={amount}
              onChangeText={(value) => setAmount(formatCurrencyInput(value))}
         placeholder="R$ 0,00"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
         keyboardType="decimal-pad"
       />
 
       <View style={styles.presetRow}>
         {presetAmounts.map((v) => (
-          <TouchableOpacity
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed}
             key={v}
             style={styles.presetBtn}
              onPress={() => setAmount(formatCurrencyValue(Number(v)))}
@@ -280,7 +283,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         value={transactionDate}
         onChangeText={(value) => setTransactionDate(formatTransactionDateInput(value))}
         placeholder="DD/MM"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
         keyboardType="number-pad"
         maxLength={5}
       />
@@ -291,12 +294,12 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         value={description}
         onChangeText={setDescription}
         placeholder="Ex: Gasolina posto BR"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
       />
 
       {renderCategorySelector()}
 
-      <TouchableOpacity
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
         style={styles.expandBtn}
         onPress={() => setExpanded(!expanded)}
       >
@@ -329,25 +332,25 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
             }}
           />
           {!!supplierId && <>
-            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.textMuted} /></View>
-            <TouchableOpacity style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
+            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.placeholder} /></View>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
           </>}
           {type === 'saida' && activatedPlugins.includes('estoque') && !!supplierId && <>
             <Text style={styles.label}>Receber no estoque</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
-              <TouchableOpacity style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
-              {estoqueItems.map((item) => <TouchableOpacity key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
+              {estoqueItems.map((item) => <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
             </ScrollView>
-            {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.textMuted} keyboardType="decimal-pad" /><TouchableOpacity style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
+            {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.placeholder} keyboardType="decimal-pad" /><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
           </>}
         </>
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={discardDraft}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose}>
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
           onPress={handleSave}
           disabled={!canSave}
@@ -377,14 +380,14 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
     alignItems: 'center'
   },
-  typeBtnOut: { backgroundColor: Colors.danger, borderColor: Colors.danger },
-  typeBtnIn: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  typeBtnOut: { backgroundColor: Colors.dangerActionBackground, borderColor: Colors.dangerIcon },
+  typeBtnIn: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
   typeBtnText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  typeBtnTextActive: { color: '#FFF' },
+  typeBtnTextActive: { color: Colors.onAction },
   amountInput: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.display,
@@ -428,7 +431,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  categoryChipTextActive: { color: '#FFF' },
+  categoryChipTextActive: { color: Colors.onAction },
   expandBtn: {
     paddingVertical: Spacing.sm,
     alignItems: 'center',
@@ -436,14 +439,14 @@ const styles = StyleSheet.create({
   expandBtnText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   supplierMetaRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   supplierMetaLabel: { flex: 1, fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.sm, color: Colors.textSecondary },
   dueDateInput: { ...taskFormStyles.input, width: 130 },
   paidRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
   checkBox: { width: 20, height: 20, borderRadius: 5, borderWidth: 1.5, borderColor: SurfaceStyles.filter.borderColor, alignItems: 'center', justifyContent: 'center' },
-  checkBoxActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  checkMark: { color: '#FFFFFF', fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs },
+  checkBoxActive: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
+  checkMark: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs },
   paidText: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.sm, color: Colors.textSecondary },
 });

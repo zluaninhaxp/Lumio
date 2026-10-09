@@ -3,7 +3,7 @@ import { ActivityIndicator, findNodeHandle, Image, Keyboard, KeyboardAvoidingVie
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Radius, Spacing, SurfaceStyles } from '@/src/constants/theme';
+import { ControlOpacity, Colors, Radius, Spacing, SurfaceStyles } from '@/src/constants/theme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ReportBackdrop } from '@/app/components/onboarding/report-processing';
 // Replace this source to change the mascot without changing the layout.
@@ -34,11 +34,11 @@ export default function AuthScreen({ mode }: { mode: Mode }) {
     {/* Explicit avoidance also supports Expo Go hosts that do not apply app.json resize. */}
     <KeyboardAvoidingView style={s.flex} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView ref={scrollRef} onLayout={() => { if (Keyboard.isVisible()) revealInput(); }} style={s.flex} contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'none'} showsVerticalScrollIndicator={false}>
-        <TouchableOpacity style={s.back} onPress={goBack} activeOpacity={.7} accessibilityRole="button" accessibilityLabel="Voltar à Welcome"><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>
+        <TouchableOpacity style={s.back} onPress={goBack} activeOpacity={ControlOpacity.pressed} accessibilityRole="button" accessibilityLabel="Voltar à Welcome"><Ionicons name="chevron-back" size={26} color="#087E68" /></TouchableOpacity>
         <Image source={AUTH_IMAGE} resizeMode="contain" style={[s.hero, { width: heroSize, height: heroSize }]} accessible={false} />
         <View style={s.copy}><Text style={s.title}>{mode === 'login' ? 'Bem-vindo de volta' : 'Vamos começar?'}</Text><Text style={s.subtitle}>{mode === 'login' ? 'Que bom te ver por aqui!' : 'Leva menos de um minuto.'}</Text></View>
         <FocusedFieldContext.Provider value={(input) => { focusedInput.current = input; revealInput(); }}>{mode === 'login' ? <Login done={(complete) => router.replace(complete ? '/(tabs)/chat' : '/onboarding')} /> : <Register done={() => router.replace('/onboarding')} />}</FocusedFieldContext.Provider>
-        <TouchableOpacity style={s.switchMode} onPress={switchMode} accessibilityRole="link" activeOpacity={.7}><Text style={s.switchText}>{mode === 'login' ? 'Ainda não tem uma conta?  ' : 'Já tem uma conta?  '}<Text style={s.switchLink}>{mode === 'login' ? 'Criar conta' : 'Entrar'}</Text></Text></TouchableOpacity>
+        <TouchableOpacity style={s.switchMode} onPress={switchMode} accessibilityRole="link" activeOpacity={ControlOpacity.pressed}><Text style={s.switchText}>{mode === 'login' ? 'Ainda não tem uma conta?  ' : 'Já tem uma conta?  '}<Text style={s.switchLink}>{mode === 'login' ? 'Criar conta' : 'Entrar'}</Text></Text></TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   </SafeAreaView>;
@@ -60,12 +60,12 @@ function Field({ label, icon, secureTextEntry, ...props }: FieldProps) {
   const [focus, setFocus] = useState(false);
   const [visible, setVisible] = useState(false);
   return <View style={s.field}><View style={[s.inputWrap, focus && s.inputFocus]}>
-    <Ionicons name={icon} size={20} color={focus ? Colors.accent : Colors.textMuted} />
-    <TextInput ref={inputRef} {...props} style={s.input} placeholderTextColor={Colors.textMuted} accessibilityLabel={label} secureTextEntry={secureTextEntry && !visible} autoCorrect={secureTextEntry ? false : props.autoCorrect} onFocus={(event) => { setFocus(true); onFieldFocus(inputRef.current); props.onFocus?.(event); }} onBlur={(event) => { setFocus(false); props.onBlur?.(event); }} />
-    {secureTextEntry && <TouchableOpacity style={s.eye} onPress={() => setVisible(!visible)} accessibilityRole="button" accessibilityLabel={(visible ? 'Ocultar ' : 'Mostrar ') + label.toLowerCase()} accessibilityState={{ selected: visible }}><Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={21} color={Colors.textSecondary} /></TouchableOpacity>}
+    <Ionicons name={icon} size={20} color={focus ? Colors.accentIcon : Colors.iconMuted} />
+    <TextInput ref={inputRef} {...props} style={s.input} placeholderTextColor={Colors.placeholder} accessibilityLabel={label} secureTextEntry={secureTextEntry && !visible} autoCorrect={secureTextEntry ? false : props.autoCorrect} onFocus={(event) => { setFocus(true); onFieldFocus(inputRef.current); props.onFocus?.(event); }} onBlur={(event) => { setFocus(false); props.onBlur?.(event); }} />
+    {secureTextEntry && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={s.eye} onPress={() => setVisible(!visible)} accessibilityRole="button" accessibilityLabel={(visible ? 'Ocultar ' : 'Mostrar ') + label.toLowerCase()} accessibilityState={{ selected: visible }}><Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={21} color={Colors.textSecondary} /></TouchableOpacity>}
   </View></View>;
 }
-function Submit({ label, busy, onPress }: { label: string; busy: boolean; onPress: () => void }) { return <TouchableOpacity style={[s.cta, busy && s.disabled]} onPress={onPress} disabled={busy} activeOpacity={.85} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: busy, busy }}>{busy ? <ActivityIndicator color="#FFFFFF" /> : <><Text style={s.ctaText}>{label}</Text><Ionicons name="arrow-forward" size={19} color="#FFFFFF" /></>}</TouchableOpacity>; }
+function Submit({ label, busy, onPress }: { label: string; busy: boolean; onPress: () => void }) { return <TouchableOpacity style={[s.cta, busy && s.disabled]} onPress={onPress} disabled={busy} activeOpacity={ControlOpacity.pressed} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: busy, busy }}>{busy ? <ActivityIndicator color={Colors.onAction} /> : <><Text style={s.ctaText}>{label}</Text><Ionicons name="arrow-forward" size={19} color={Colors.onAction} /></>}</TouchableOpacity>; }
 
 const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, opacity: .52 },
@@ -75,13 +75,13 @@ const s = StyleSheet.create({
   eye: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -Spacing.sm },
   switchMode: { minHeight: 48, marginTop: Spacing.lg, paddingVertical: Spacing.sm, alignItems: 'center', justifyContent: 'center' },
   switchText: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 13, lineHeight: 22, color: Colors.textSecondary, textAlign: 'center' },
-  switchLink: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.accent },
+  switchLink: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.accentText },
   safe: { flex: 1, backgroundColor: Colors.bg, overflow: 'hidden' }, flex: { flex: 1 },
-  hero: { alignSelf: 'center', marginTop: Spacing.sm }, back: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)' }, scroll: { flexGrow: 1, width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl }, error: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, color: Colors.danger, backgroundColor: Colors.dangerLight },
+  hero: { alignSelf: 'center', marginTop: Spacing.sm }, back: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)' }, scroll: { flexGrow: 1, width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl }, error: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, color: Colors.dangerText, backgroundColor: Colors.dangerLight },
   field: { marginTop: Spacing.md }, inputWrap: {
       ...SurfaceStyles.control,
     minHeight: INPUT_MIN_HEIGHT, paddingHorizontal: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderRadius: Radius.lg }, inputFocus: {
         ...SurfaceStyles.controlFocus
     }, input: { flex: 1, minWidth: 0, minHeight: 54, paddingVertical: Spacing.md, fontFamily: 'PlusJakartaSans_400Regular', fontSize: 15, color: Colors.primary },
-  cta: { minHeight: 56, paddingVertical: Spacing.md, marginTop: Spacing.xxl, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderRadius: 18, backgroundColor: Colors.accent }, ctaText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: '#FFFFFF' }, disabled: { opacity: .7 },
+  cta: { minHeight: 56, paddingVertical: Spacing.md, marginTop: Spacing.xxl, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, borderRadius: 18, backgroundColor: Colors.actionBackground }, ctaText: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: 15, color: Colors.onAction }, disabled: { opacity: .7 },
 });

@@ -2,7 +2,7 @@ import { ModalKeyboardViewport } from '../../src/components/modal-keyboard-viewp
 import { useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
 import type { CatalogItem } from '../../src/store';
 
 type Props = {
@@ -31,34 +31,34 @@ export function CatalogItemSelector({ selectedId, items, onChange, onBeforeNavig
 
   return (
     <View>
-      <TouchableOpacity style={styles.summary} onPress={() => setVisible(true)}>
-        <View style={styles.summaryIcon}><Ionicons name="cube-outline" size={17} color={Colors.accent} /></View>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.summary} onPress={() => setVisible(true)}>
+        <View style={styles.summaryIcon}><Ionicons name="cube-outline" size={17} color={Colors.accentIcon} /></View>
         <View style={styles.summaryText}>
           <Text style={styles.label}>Produto</Text>
           <Text style={[styles.value, !selected && styles.emptyValue]} numberOfLines={1}>{selected?.name ?? 'Não selecionado'}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={17} color={Colors.textMuted} />
+        <Ionicons name="chevron-forward" size={17} color={Colors.iconMuted} />
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
         <ModalKeyboardViewport onHeightChange={setModalViewportHeight}>
           <View style={styles.overlay}>
-            <TouchableOpacity style={styles.backdrop} onPress={close} />
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.backdrop} onPress={close} />
             <View style={[styles.sheet, modalViewportHeight !== null && { height: modalViewportHeight * .78 }]}>
               <View style={styles.handle} />
               <View style={styles.header}>
                 <View><Text style={styles.eyebrow}>Selecionar produto</Text><Text style={styles.title}>Qual produto controlar?</Text></View>
-                <TouchableOpacity onPress={close} style={styles.close}><Ionicons name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={close} style={styles.close}><Ionicons name="close" size={20} color={Colors.textSecondary} /></TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.createButton} onPress={() => { close(); onBeforeNavigate?.(); }}>
-                <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accent} /></View>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.createButton} onPress={() => { close(); onBeforeNavigate?.(); }}>
+                <View style={styles.createIcon}><Ionicons name="add" size={18} color={Colors.accentIcon} /></View>
                 <View style={styles.createText}><Text style={styles.createTitle}>Criar novo produto</Text><Text style={styles.createHint}>Cadastrar no Catálogo e voltar para este formulário</Text></View>
-                <Ionicons name="arrow-forward" size={17} color={Colors.accent} />
+                <Ionicons name="arrow-forward" size={17} color={Colors.accentIcon} />
               </TouchableOpacity>
-              <View style={styles.searchBox}><Ionicons name="search-outline" size={18} color={Colors.textMuted} /><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Buscar produto" placeholderTextColor={Colors.textMuted} style={styles.searchInput} /></View>
+              <View style={styles.searchBox}><Ionicons name="search-outline" size={18} color={Colors.iconMuted} /><TextInput autoFocus value={query} onChangeText={setQuery} placeholder="Buscar produto" placeholderTextColor={Colors.placeholder} style={styles.searchInput} /></View>
               <View style={styles.resultHeader}><Text style={styles.resultTitle}>{query ? 'Resultados' : 'Produtos cadastrados'}</Text><Text style={styles.resultCount}>{results.length} produto{results.length === 1 ? '' : 's'}</Text></View>
-              <View style={styles.list}>{results.map((item) => <TouchableOpacity key={item.id} style={styles.option} onPress={() => { onChange(item.id); close(); }}><View style={styles.avatar}><Ionicons name="cube-outline" size={17} color="#FFFFFF" /></View><View style={styles.optionText}><Text style={styles.optionName} numberOfLines={1}>{item.name}</Text><Text style={styles.optionMeta}>{item.unit}{item.controlStock ? ' · estoque controlado' : ''}</Text></View>{item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}</TouchableOpacity>)}</View>
-              {results.length === 0 && <View style={styles.emptyState}><Ionicons name="search-outline" size={28} color={Colors.textMuted} /><Text style={styles.emptyTitle}>Nenhum produto encontrado</Text><Text style={styles.emptyHint}>Use “Criar novo produto” acima para cadastrar.</Text></View>}
+              <View style={styles.list}>{results.map((item) => <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={item.id} style={styles.option} onPress={() => { onChange(item.id); close(); }}><View style={styles.avatar}><Ionicons name="cube-outline" size={17} color={Colors.onAction} /></View><View style={styles.optionText}><Text style={styles.optionName} numberOfLines={1}>{item.name}</Text><Text style={styles.optionMeta}>{item.unit}{item.controlStock ? ' · estoque controlado' : ''}</Text></View>{item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accentIcon} />}</TouchableOpacity>)}</View>
+              {results.length === 0 && <View style={styles.emptyState}><Ionicons name="search-outline" size={28} color={Colors.iconMuted} /><Text style={styles.emptyTitle}>Nenhum produto encontrado</Text><Text style={styles.emptyHint}>Use “Criar novo produto” acima para cadastrar.</Text></View>}
             </View>
           </View>
         </ModalKeyboardViewport>
@@ -77,9 +77,9 @@ const styles = StyleSheet.create({
       ...SurfaceStyles.backdrop,
     ...StyleSheet.absoluteFillObject }, sheet: {
         ...SurfaceStyles.overlay,
-        height: '78%', paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl }, handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginVertical: Spacing.md }, header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Spacing.md }, eyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accent, textTransform: 'uppercase' }, title: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xl, color: Colors.primary }, close: {
+        height: '78%', paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl }, handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border, alignSelf: 'center', marginVertical: Spacing.md }, header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: Spacing.md }, eyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accentText, textTransform: 'uppercase' }, title: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xl, color: Colors.primary }, close: {
             ...SurfaceStyles.filter,
-            width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' }, createButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.accentLight, borderWidth: 1, borderColor: '#BFEBDD' }, createIcon: { width: 28, height: 28, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgCard }, createText: { flex: 1, gap: 2 }, createTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent }, createHint: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary }, searchBox: {
+            width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' }, createButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, backgroundColor: Colors.accentLight, borderWidth: 1, borderColor: '#BFEBDD' }, createIcon: { width: 28, height: 28, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgCard }, createText: { flex: 1, gap: 2 }, createTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accentText }, createHint: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary }, searchBox: {
             ...SurfaceStyles.control,
             flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, minHeight: 42, borderRadius: Radius.md }, searchInput: { flex: 1, paddingVertical: Spacing.sm, color: Colors.primary }, resultHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.md, marginBottom: Spacing.xs }, resultTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.primary }, resultCount: { fontSize: FontSize.xs, color: Colors.textMuted }, list: { flex: 1 }, option: { minHeight: 56, paddingVertical: Spacing.sm, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border }, avatar: { width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary }, optionText: { flex: 1, gap: 2 }, optionName: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.primary }, optionMeta: { fontSize: FontSize.xs, color: Colors.textMuted }, emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xxxl, gap: Spacing.xs }, emptyTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.xs }, emptyHint: { maxWidth: 260, fontSize: FontSize.xs, color: Colors.textMuted, textAlign: 'center' },
 });

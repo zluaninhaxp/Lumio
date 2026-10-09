@@ -1,3 +1,4 @@
+import { useSheetDraft } from '../../../src/components/sheet-draft';
 import React, { useState } from 'react';
 import {
   View,
@@ -7,7 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { useAppStore } from '../../../src/store';
 import { TagSelector } from '../TagSelector';
 import { TaskDateSelector } from './TaskDateSelector';
@@ -34,10 +35,10 @@ interface TaskFormProps {
   onBeforeNavigate?: (relation: Relation, data: TaskFormData) => void;
 }
 
-const PRIORITY_OPTIONS: { key: TaskPriority; label: string; color: string; icon: any }[] = [
-  { key: 'baixa', label: 'Baixa', color: Colors.accent, icon: 'arrow-down' },
-  { key: 'media', label: 'Média', color: Colors.warning, icon: 'flash' },
-  { key: 'alta', label: 'Alta', color: Colors.danger, icon: 'flag' },
+const PRIORITY_OPTIONS: { key: TaskPriority; label: string; color: string; activeBackground: string; icon: any }[] = [
+  { key: 'baixa', label: 'Baixa', color: Colors.accentText, activeBackground: Colors.actionBackground, icon: 'arrow-down' },
+  { key: 'media', label: 'Média', color: Colors.warningText, activeBackground: Colors.warningActionBackground, icon: 'flash' },
+  { key: 'alta', label: 'Alta', color: Colors.dangerText, activeBackground: Colors.dangerActionBackground, icon: 'flag' },
 ];
 
 export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: TaskFormProps) {
@@ -53,6 +54,8 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
     employeeId: initialData?.employeeId,
   });
   const [detailsVisible, setDetailsVisible] = useState(Boolean(initialData?.clientId || initialData?.supplierId || initialData?.employeeId));
+
+  const requestClose = useSheetDraft({ description, priority, dueDate, dueDateLabel, selectedTags, people }, onCancel);
 
   const availableTags = Array.from(new Set([
     ...taskTags.map((tag) => tag.label),
@@ -87,7 +90,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
         value={description}
         onChangeText={setDescription}
         placeholder="O que você precisa fazer?"
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
         onSubmitEditing={handleSave}
         returnKeyType="done"
       />
@@ -97,13 +100,13 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
         {PRIORITY_OPTIONS.map((opt) => {
           const active = priority === opt.key;
           return (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               key={opt.key}
-              style={[styles.priorityChip, active && { backgroundColor: opt.color, borderColor: opt.color }]}
+              style={[styles.priorityChip, active && { backgroundColor: opt.activeBackground, borderColor: opt.activeBackground }]}
               onPress={() => setPriority(opt.key)}
             >
-              <Ionicons name={opt.icon} size={13} color={active ? '#FFFFFF' : opt.color} />
-              <Text style={[styles.priorityChipText, active && { color: '#FFFFFF' }]}>
+              <Ionicons name={opt.icon} size={13} color={active ? Colors.onAction : opt.color} />
+              <Text style={[styles.priorityChipText, active && { color: Colors.onAction }]}>
                 {opt.label}
               </Text>
             </TouchableOpacity>
@@ -130,9 +133,9 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
         onAdd={addCustomTaskTag}
       />
 
-      <TouchableOpacity style={styles.detailsToggle} onPress={() => setDetailsVisible((visible) => !visible)}>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.detailsToggle} onPress={() => setDetailsVisible((visible) => !visible)}>
         <Text style={styles.detailsToggleText}>{detailsVisible ? 'Menos detalhes' : 'Mais detalhes'}</Text>
-        <Ionicons name={detailsVisible ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.accent} />
+        <Ionicons name={detailsVisible ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.accentIcon} />
       </TouchableOpacity>
 
       {detailsVisible && (
@@ -151,10 +154,10 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.cancelBtn} onPress={onCancel}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose}>
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !description.trim() && styles.saveBtnDisabled]}
           onPress={handleSave}
           disabled={!description.trim()}
@@ -193,7 +196,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  dateChipTextActive: { color: '#FFF' },
+  dateChipTextActive: { color: Colors.onAction },
   detailsToggle: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -204,13 +207,13 @@ const styles = StyleSheet.create({
   detailsToggleText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   tagsRow: {
     gap: 6,
     paddingVertical: 2,
   },
-  tagChip: {
+  tagChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
@@ -228,7 +231,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  tagChipTextActive: { color: '#FFFFFF' },
+  tagChipTextActive: { color: Colors.onAction },
   assigneeChip: {
       ...SurfaceStyles.filter,
     flexDirection: 'row',

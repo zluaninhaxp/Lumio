@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface SearchBarProps {
   value: string;
@@ -18,22 +18,22 @@ export function SearchBar({
 }: SearchBarProps) {
   return (
     <View style={[styles.container, !visible && styles.hidden]}>
-      <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+      <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
       <TextInput
         style={styles.input}
         value={value}
         onChangeText={onChangeText}
         placeholder="Buscar por descrição, categoria ou valor..."
-        placeholderTextColor={Colors.textMuted}
+        placeholderTextColor={Colors.placeholder}
         autoFocus={visible}
       />
       {value.length > 0 && (
-        <TouchableOpacity onPress={() => onChangeText('')} hitSlop={8}>
-          <Ionicons name="close-circle" size={18} color={Colors.textMuted} />
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => onChangeText('')} hitSlop={8}>
+          <Ionicons name="close-circle" size={18} color={Colors.iconMuted} />
         </TouchableOpacity>
       )}
-      <TouchableOpacity onPress={onClose} hitSlop={8}>
-        <Ionicons name="chevron-up" size={20} color={Colors.textMuted} />
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onClose} hitSlop={8}>
+        <Ionicons name="chevron-up" size={20} color={Colors.iconMuted} />
       </TouchableOpacity>
     </View>
   );

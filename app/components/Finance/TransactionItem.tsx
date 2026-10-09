@@ -2,9 +2,9 @@ import React, { useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { ChatIndicator } from '../ChatIndicator';
-import { getCategoryIcon, getCategoryIconColor } from '../../../src/hooks/useFinanceState';
+import { getCategoryIcon, getCategoryIconColor, getCategoryIconBackground } from '../../../src/hooks/useFinanceState';
 import type { Transaction } from '../../../src/store';
 
 interface TransactionItemProps {
@@ -41,7 +41,7 @@ export function TransactionItem({
   const renderRightActions = useCallback(
     () => {
       return (
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={styles.deleteAction}
           accessibilityRole="button"
           accessibilityLabel="Excluir transação"
@@ -50,7 +50,7 @@ export function TransactionItem({
             onDelete(item.id);
           }}
         >
-          <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="trash-outline" size={20} color={Colors.onAction} />
           <Text style={styles.actionText}>Excluir</Text>
         </TouchableOpacity>
       );
@@ -61,7 +61,7 @@ export function TransactionItem({
   const renderLeftActions = useCallback(
     () => {
       return (
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={styles.editAction}
           accessibilityRole="button"
           accessibilityLabel="Editar transação"
@@ -70,7 +70,7 @@ export function TransactionItem({
             onEdit(item);
           }}
         >
-          <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+          <Ionicons name="create-outline" size={20} color={Colors.onAction} />
           <Text style={styles.actionText}>Editar</Text>
         </TouchableOpacity>
       );
@@ -100,16 +100,16 @@ export function TransactionItem({
         ]}
         onPress={() => selectionMode ? onPress(item.id) : null}
         onLongPress={() => !selectionMode && onLongPress(item.id)}
-        activeOpacity={selectionMode ? 0.7 : 1}
+        activeOpacity={ControlOpacity.pressed}
         delayLongPress={400}
       >
         {selectionMode && (
           <View style={[styles.selectCircle, isSelected && styles.selectCircleActive]}>
-            {isSelected && <Ionicons name="checkmark" size={14} color="#FFF" />}
+            {isSelected && <Ionicons name="checkmark" size={14} color={Colors.onAction} />}
           </View>
         )}
 
-        <View style={[styles.iconCircle, { backgroundColor: `${iconColor}18` }]}>
+        <View style={[styles.iconCircle, { backgroundColor: getCategoryIconBackground(item.category) }]}>
           <Ionicons name={iconName as any} size={14} color={iconColor} />
         </View>
 
@@ -121,7 +121,7 @@ export function TransactionItem({
           <Text style={styles.category} numberOfLines={1}>
            {item.category || 'Sem categoria'}{item.confirmed === false ? ' · Prevista' : ''}
           </Text>
-          {item.confirmed === false && onMarkReceived && <TouchableOpacity onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>Marcar recebida</Text></TouchableOpacity>}
+          {item.confirmed === false && onMarkReceived && <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>Marcar recebida</Text></TouchableOpacity>}
         </View>
 
         <Text
@@ -151,7 +151,7 @@ const styles = StyleSheet.create({
   cardSelected: {
     backgroundColor: Colors.accentLight,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
   },
   selectCircle: {
     width: 22,
@@ -163,8 +163,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   selectCircleActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   iconCircle: {
     width: 28,
@@ -186,18 +186,18 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     marginTop: 1,
   },
-  receiveText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, marginTop: 2 },
+  receiveText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, marginTop: 2 },
   amount: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.sm,
     textAlign: 'right',
     minWidth: 72,
   },
-  amountIn: { color: Colors.accent },
+  amountIn: { color: Colors.accentText },
   amountOut: { color: Colors.primary },
 
   deleteAction: {
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   editAction: {
-    backgroundColor: Colors.warning,
+    backgroundColor: Colors.warningActionBackground,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -219,6 +219,6 @@ const styles = StyleSheet.create({
   actionText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 11,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 });

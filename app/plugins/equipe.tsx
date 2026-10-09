@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 
@@ -45,6 +45,7 @@ export default function EquipeScreen() {
   const [query, setQuery] = useState("");
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -151,11 +152,11 @@ export default function EquipeScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.icon}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.icon}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.title}>Equipe</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert("Desativar Equipe", "Os dados continuarão guardados.", [
               { text: "Cancelar", style: "cancel" },
@@ -179,13 +180,13 @@ export default function EquipeScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.search}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar funcionário"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
         />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
@@ -194,7 +195,7 @@ export default function EquipeScreen() {
             <Ionicons
               name="people-outline"
               size={48}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.muted}>
               {query
@@ -209,7 +210,7 @@ export default function EquipeScreen() {
             onEdit={() => openEdit(employee)}
             onDelete={() => remove(employee.id)}
           >
-            <TouchableOpacity style={styles.card} onPress={() => openEdit(employee)}>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.card} onPress={() => openEdit(employee)}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {employee.name.slice(0, 1).toUpperCase()}
@@ -227,15 +228,15 @@ export default function EquipeScreen() {
               <Ionicons
                 name="chevron-forward"
                 size={18}
-                color={Colors.textMuted}
+                color={Colors.iconMuted}
               />
             </TouchableOpacity>
           </SwipeableActions>
         ))}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -250,7 +251,7 @@ export default function EquipeScreen() {
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
               placeholder="Nome"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               autoFocus
             />
             <RequiredLabel>Função</RequiredLabel>
@@ -259,7 +260,7 @@ export default function EquipeScreen() {
               value={form.role}
               onChangeText={(v) => setForm((f) => ({ ...f, role: v }))}
               placeholder="Função"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
             />
             <FormLabel>Contato (opcional)</FormLabel>
             <TextInput
@@ -267,7 +268,7 @@ export default function EquipeScreen() {
               value={form.contact}
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
               placeholder="Contato"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
             />
             <FormLabel>Comissão (opcional)</FormLabel>
             <TextInput
@@ -277,17 +278,17 @@ export default function EquipeScreen() {
                 setForm((f) => ({ ...f, commissionRate: v }))
               }
               placeholder="Comissão (%)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               keyboardType="decimal-pad"
             />
             <View style={styles.actions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()}
               >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.confirm} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save}>
                 <Text style={styles.confirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -306,7 +307,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: Spacing.lg,
   },
-  icon: { padding: Spacing.xs },
+  icon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   title: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -346,7 +347,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: Colors.accent, fontFamily: "PlusJakartaSans_700Bold" },
+  avatarText: { color: Colors.accentText, fontFamily: "PlusJakartaSans_700Bold" },
   main: { flex: 1 },
   name: {
     color: Colors.primary,
@@ -362,7 +363,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -405,9 +406,9 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
   },
-  confirmText: { color: "#FFFFFF", fontFamily: "PlusJakartaSans_600SemiBold" },
+  confirmText: { color: Colors.onAction, fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
 });

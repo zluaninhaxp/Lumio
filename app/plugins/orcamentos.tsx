@@ -1,5 +1,5 @@
 import { ModalScrollView } from '../../src/components/modal-scroll-view';
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -13,14 +13,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 import {
@@ -68,6 +68,7 @@ export default function OrcamentosScreen() {
     catalogItems,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | undefined>();
@@ -205,11 +206,11 @@ export default function OrcamentosScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Orçamentos</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
               "Desativar Orçamentos",
@@ -237,12 +238,12 @@ export default function OrcamentosScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar orçamento"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -252,7 +253,7 @@ export default function OrcamentosScreen() {
             <Ionicons
               name="document-text-outline"
               size={46}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>
               {query
@@ -273,7 +274,7 @@ export default function OrcamentosScreen() {
                 <Ionicons
                   name="document-text-outline"
                   size={18}
-                  color={Colors.accent}
+                  color={Colors.accentIcon}
                 />
               </View>
               <View style={styles.cardMain}>
@@ -308,12 +309,12 @@ export default function OrcamentosScreen() {
               <Text style={styles.total}>{money(quote.total)}</Text>
               <View style={styles.actions}>
                 {quote.status === "pendente" && (
-                  <TouchableOpacity onPress={() => approve(quote.id)}>
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => approve(quote.id)}>
                     <Text style={styles.approveText}>Aprovar</Text>
                   </TouchableOpacity>
                 )}
                 {quote.status === "pendente" && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={() =>
                       updateOrcamento(quote.id, { status: "recusado" })
                     }
@@ -332,9 +333,9 @@ export default function OrcamentosScreen() {
           </SwipeableActions>
         ))}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={{ clientId, validUntil, items }} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         minHeight={0}
         maxHeight={FORM_SHEET_MAX_HEIGHT}
@@ -363,7 +364,7 @@ export default function OrcamentosScreen() {
                 value={validUntil}
                 onChangeText={setValidUntil}
                 placeholder="AAAA-MM-DD"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder}
               />
                 <Text style={styles.label}>Itens propostos</Text>
                 {items.map((item, index) => (
@@ -380,7 +381,7 @@ export default function OrcamentosScreen() {
                           updateItem(item.id, { quantity: Number(value) || 0 })
                         }
                         placeholder="Qtd."
-                        placeholderTextColor={Colors.textMuted}
+                        placeholderTextColor={Colors.placeholder}
                         keyboardType="decimal-pad"
                       />
                     </View>
@@ -395,14 +396,14 @@ export default function OrcamentosScreen() {
                           })
                         }
                         placeholder="Valor"
-                        placeholderTextColor={Colors.textMuted}
+                        placeholderTextColor={Colors.placeholder}
                         keyboardType="decimal-pad"
                       />
                     </View>
                   </View>
                 </View>
               ))}
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.addItem}
                 onPress={() => setItems((current) => [...current, emptyItem()])}
               >
@@ -415,13 +416,13 @@ export default function OrcamentosScreen() {
             >
               <Text style={styles.totalPreview}>Total: {money(total)}</Text>
               <View style={styles.modalActions}>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.modalCancel}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => modalVisibleSheet.current?.requestClose()}
                 >
                   <Text style={styles.cancelLabel}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalConfirm} onPress={save}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save}>
                   <Text style={styles.confirmLabel}>Salvar</Text>
                 </TouchableOpacity>
               </View>
@@ -442,7 +443,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     color: Colors.primary,
@@ -512,21 +513,21 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   total: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.md,
   },
   actions: { flexDirection: "row", gap: Spacing.md },
   approveText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   rejectText: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   actionText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   linked: {
@@ -542,7 +543,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -584,7 +585,7 @@ const styles = StyleSheet.create({
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
-  chipTextActive: { color: "#FFFFFF" },
+  chipTextActive: { color: Colors.onAction },
   input: {
       ...SurfaceStyles.control,
     borderRadius: Radius.md,
@@ -640,13 +641,13 @@ const styles = StyleSheet.create({
   },
   modalConfirm: {
     flex: 1,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.md,
     padding: Spacing.lg,
     alignItems: "center",
   },
   confirmLabel: {
-    color: "#FFFFFF",
+    color: Colors.onAction,
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
   },

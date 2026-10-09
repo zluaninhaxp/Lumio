@@ -1,5 +1,5 @@
 import { ModalScrollView } from '../../src/components/modal-scroll-view';
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -12,12 +12,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   getPluginDefinition,
@@ -44,6 +44,7 @@ export default function GenericPluginScreen() {
     setPluginActivation,
   } = useAppStore();
 
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
 
@@ -104,11 +105,11 @@ export default function GenericPluginScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{def.label}</Text>
-        <TouchableOpacity onPress={handleDeactivate} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -126,7 +127,7 @@ export default function GenericPluginScreen() {
             <Ionicons
               name={def.icon as any}
               size={48}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>Nenhum {def.itemLabel} ainda.</Text>
           </View>
@@ -136,7 +137,7 @@ export default function GenericPluginScreen() {
             key={item.id}
             onDelete={() => handleDelete(item.id)}
           >
-            <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.card} activeOpacity={ControlOpacity.pressed}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>
                   {(primaryField && item.values[primaryField.key]) ||
@@ -156,10 +157,10 @@ export default function GenericPluginScreen() {
         ))}
       </ScrollView>
 
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
 
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
         contentOwnsScroll
@@ -183,7 +184,7 @@ export default function GenericPluginScreen() {
                       {(field.options ?? []).map((opt) => {
                         const selected = form[field.key] === opt;
                         return (
-                          <TouchableOpacity
+                          <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                             key={opt}
                             style={[
                               styles.selectChip,
@@ -209,7 +210,7 @@ export default function GenericPluginScreen() {
                     <TextInput
                       style={styles.input}
                       placeholder={field.placeholder}
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={Colors.placeholder}
                       value={form[field.key] ?? ""}
                       onChangeText={(v) =>
                         setForm((f) => ({ ...f, [field.key]: v }))
@@ -223,13 +224,13 @@ export default function GenericPluginScreen() {
               ))}
             </ModalScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()}
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
                 onPress={handleSave}
               >
@@ -252,7 +253,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -294,7 +295,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -339,15 +340,15 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
   },
   selectChipActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   selectChipText: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
   },
-  selectChipTextActive: { color: "#FFFFFF" },
+  selectChipTextActive: { color: Colors.onAction },
   modalActions: {
     flexDirection: "row",
     gap: Spacing.md,
@@ -369,13 +370,13 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
   },
   modalConfirmText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.md,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
   ...pluginFormStyles,
 });

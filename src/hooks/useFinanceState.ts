@@ -1,3 +1,4 @@
+import { CategoryColors } from '../constants/theme';
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useAppStore, Transaction } from '../store';
 
@@ -18,20 +19,30 @@ export const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export const CATEGORY_ICON_COLORS: Record<string, string> = {
-  'Combustível': '#F59E0B',
-  'Materiais': '#3B82F6',
-  'Fornecedores': '#8B5CF6',
-  'Alimentação': '#EC4899',
-  'Receita': '#00A878',
-  'Outros': '#AAAAAA',
+  'Combustível': CategoryColors.amber.icon,
+  'Materiais': CategoryColors.blue.icon,
+  'Fornecedores': CategoryColors.purple.icon,
+  'Alimentação': CategoryColors.pink.icon,
+  'Receita': CategoryColors.green.icon,
+  'Outros': CategoryColors.neutral.icon,
 };
+
+const CATEGORY_ICON_BACKGROUNDS: Record<string, string> = {
+ 'Combustível': CategoryColors.amber.tint, 'Materiais': CategoryColors.blue.tint,
+ 'Fornecedores': CategoryColors.purple.tint, 'Alimentação': CategoryColors.pink.tint,
+ 'Receita': CategoryColors.green.tint, 'Outros': CategoryColors.neutral.tint,
+};
+
+export function getCategoryIconBackground(category: string): string {
+ return CATEGORY_ICON_BACKGROUNDS[category] ?? CategoryColors.neutral.tint;
+}
 
 export function getCategoryIcon(category: string): string {
   return CATEGORY_ICONS[category] ?? 'ellipsis-horizontal-outline';
 }
 
 export function getCategoryIconColor(category: string): string {
-  return CATEGORY_ICON_COLORS[category] ?? '#AAAAAA';
+  return CATEGORY_ICON_COLORS[category] ?? CategoryColors.neutral.icon;
 }
 
 const fmtCurrency = (v: number) =>

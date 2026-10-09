@@ -22,6 +22,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   required: {
-    color: Colors.danger,
+    color: Colors.dangerText,
   },
 });

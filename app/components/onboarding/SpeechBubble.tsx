@@ -94,6 +94,6 @@ const styles = StyleSheet.create({
   },
   bold: {
     fontFamily: 'PlusJakartaSans_700Bold',
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

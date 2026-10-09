@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 interface FilterChipsProps {
   selected: 'all' | 'event' | 'task';
@@ -28,7 +28,7 @@ export function FilterChips({ selected, onSelect, counts }: FilterChipsProps) {
             key={f.key}
             style={[styles.chip, active && styles.chipActive]}
             onPress={() => onSelect(f.key)}
-            activeOpacity={0.7}
+            activeOpacity={ControlOpacity.pressed}
           >
             <Text style={[styles.chipText, active && styles.chipTextActive]}>
               {f.label}
@@ -52,7 +52,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
     gap: Spacing.sm,
   },
-  chip: {
+  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  chipTextActive: { color: '#FFF' },
+  chipTextActive: { color: Colors.onAction },
   badge: {
     minWidth: 18,
     height: 18,
@@ -83,5 +83,5 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textMuted,
   },
-  badgeTextActive: { color: '#FFF' },
+  badgeTextActive: { color: Colors.onAction },
 });

@@ -1,7 +1,7 @@
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../../src/constants/theme';
 import { ReportBackdrop } from './report-processing';
 
 const ERROR_IMAGE = require('../../../assets/mascote-relatorio/Mascote Ansioso com Laptop e Alertas.png');
@@ -31,21 +31,21 @@ export default function ReportError({ onRetry, onContinue, onSimulation, finishi
           <Text style={styles.subtitle}>Não foi possível concluir sua personalização agora. Mas você pode tentar novamente em instantes.</Text>
         </View>
         <View style={styles.helpCard}>
-          <View style={styles.helpIcon}><Ionicons name="bulb-outline" size={29} color={Colors.accent} /></View>
+          <View style={styles.helpIcon}><Ionicons name="bulb-outline" size={29} color={Colors.accentIcon} /></View>
           <View style={styles.helpCopy}>
             <Text style={styles.helpTitle}>Enquanto isso, você pode:</Text>
             {TIPS.map((tip) => <View key={tip} style={styles.tipRow}><View style={styles.dot} /><Text style={styles.tipText}>{tip}</Text></View>)}
           </View>
         </View>
-        <TouchableOpacity style={styles.retryButton} onPress={onRetry} disabled={finishing} activeOpacity={0.85} accessibilityRole="button">
+        <TouchableOpacity style={styles.retryButton} onPress={onRetry} disabled={finishing} activeOpacity={ControlOpacity.pressed} accessibilityRole="button">
           <Ionicons name="refresh" size={21} color={Colors.bgCard} />
           <Text style={styles.retryText}>Tentar novamente</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.reviewButton} onPress={onContinue} disabled={finishing} accessibilityRole="button">
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.reviewButton} onPress={onContinue} disabled={finishing} accessibilityRole="button">
           <Text style={styles.reviewText}>{finishing ? 'Concluindo...' : 'Continuar sem personalização'}</Text>
         </TouchableOpacity>
         {!!finishError && <Text style={styles.finishError} accessibilityRole="alert">{finishError}</Text>}
-        {onSimulation && <TouchableOpacity style={styles.simulationButton} onPress={onSimulation} disabled={finishing} accessibilityRole="button"><Text style={styles.simulationText}>Continuar com simulação</Text></TouchableOpacity>}
+        {onSimulation && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.simulationButton} onPress={onSimulation} disabled={finishing} accessibilityRole="button"><Text style={styles.simulationText}>Continuar com simulação</Text></TouchableOpacity>}
       </ScrollView>
     </SafeAreaView>
   );
@@ -68,15 +68,15 @@ const styles = StyleSheet.create({
   helpCopy: { flex: 1, gap: Spacing.sm },
   helpTitle: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: Colors.primary },
   tipRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accent, marginTop: 7 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.accentIcon, marginTop: 7 },
   tipText: { flex: 1, fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 19, color: Colors.textSecondary },
   retryButton: {
       ...SurfaceStyles.floating,
-    width: '100%', maxWidth: 390, minHeight: 54, borderRadius: Radius.full, backgroundColor: Colors.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+    width: '100%', maxWidth: 390, minHeight: 54, borderRadius: Radius.full, backgroundColor: Colors.actionBackground, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
   retryText: { fontFamily: Typography.bold, fontSize: FontSize.md, color: Colors.bgCard },
   reviewButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl },
   reviewText: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: '#087E68', textDecorationLine: 'underline' },
-  finishError: { maxWidth: 390, fontFamily: Typography.medium, fontSize: FontSize.sm, lineHeight: 19, color: Colors.danger, textAlign: 'center' },
+  finishError: { maxWidth: 390, fontFamily: Typography.medium, fontSize: FontSize.sm, lineHeight: 19, color: Colors.dangerText, textAlign: 'center' },
   simulationButton: { minHeight: 36, alignItems: 'center', justifyContent: 'center', paddingHorizontal: Spacing.xl },
   simulationText: { fontFamily: Typography.medium, fontSize: FontSize.sm, color: Colors.textSecondary, textDecorationLine: 'underline' },
 });

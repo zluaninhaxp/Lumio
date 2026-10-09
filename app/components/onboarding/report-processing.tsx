@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
       ...SurfaceStyles.card,
     width: '100%', maxWidth: 390, minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xl, marginTop: Spacing.sm, borderRadius: Radius.xl },
   ringTrack: { width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
-  ringActive: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: 'transparent', borderTopColor: Colors.accent, borderRightColor: Colors.accent },
+  ringActive: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: 'transparent', borderTopColor: Colors.accentIcon, borderRightColor: Colors.accentIcon },
   cardCopy: { flex: 1, gap: Spacing.xs },
   cardTitle: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: Colors.primary },
   cardSubtitle: { fontFamily: Typography.regular, fontSize: FontSize.sm, color: Colors.textSecondary },

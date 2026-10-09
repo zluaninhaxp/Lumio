@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ModalKeyboardViewport } from '../../../src/components/modal-keyboard-viewport';
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../../src/constants/theme';
 
 type OrderOption = { id: string; label: string };
 
@@ -92,13 +92,13 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.summary} onPress={() => setVisible(true)}>
-        <View style={styles.summaryIcon}><Ionicons name="receipt-outline" size={17} color={Colors.accent} /></View>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.summary} onPress={() => setVisible(true)}>
+        <View style={styles.summaryIcon}><Ionicons name="receipt-outline" size={17} color={Colors.accentIcon} /></View>
         <View style={styles.summaryText}>
           <Text style={styles.label}>Pedido</Text>
           <Text style={[styles.value, !selected && styles.emptyValue]} numberOfLines={1}>{selected?.label ?? 'Não atribuído'}</Text>
         </View>
-        <Ionicons name="chevron-forward" size={17} color={Colors.textMuted} />
+        <Ionicons name="chevron-forward" size={17} color={Colors.iconMuted} />
       </TouchableOpacity>
 
       <Modal visible={visible} transparent animationType="none" onRequestClose={close}>
@@ -114,23 +114,23 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
                   <Text style={styles.modalEyebrow}>Selecionar pedido</Text>
                   <Text style={styles.modalTitle}>Qual pedido será entregue?</Text>
                 </View>
-                <TouchableOpacity style={styles.closeButton} onPress={close} accessibilityLabel="Fechar seleção">
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.closeButton} hitSlop={7} onPress={close} accessibilityLabel="Fechar seleção">
                   <Ionicons name="close" size={20} color={Colors.textSecondary} />
                 </TouchableOpacity>
               </View>
               <View style={styles.searchBox}>
-                <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+                <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
                 <TextInput
                   autoFocus
                   value={query}
                   onChangeText={setQuery}
                   placeholder="Buscar pedido"
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={Colors.placeholder}
                   style={styles.searchInput}
                   autoCorrect={false}
                   clearButtonMode="while-editing"
                 />
-                {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accent} />}
+                {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accentIcon} />}
               </View>
               <View style={styles.resultHeader}>
                 <Text style={styles.resultTitle}>{debouncedQuery ? 'Resultados' : 'Pedidos disponíveis'}</Text>
@@ -144,15 +144,15 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
                 getItemLayout={(_, index) => ({ length: OPTION_HEIGHT, offset: OPTION_HEIGHT * index, index })}
                 contentContainerStyle={styles.resultContent}
                 renderItem={({ item }) => (
-                  <TouchableOpacity style={styles.option} onPress={() => select(item.id)}>
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.option} onPress={() => select(item.id)}>
                     <View style={styles.avatar}><Text style={styles.avatarText}>{item.label.replace('Pedido ', '').slice(-2)}</Text></View>
                     <Text style={styles.optionName} numberOfLines={1}>{item.label}</Text>
-                    {item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accent} />}
+                    {item.id === selectedId && <Ionicons name="checkmark-circle" size={21} color={Colors.accentIcon} />}
                   </TouchableOpacity>
                 )}
-                ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="receipt-outline" size={28} color={Colors.textMuted} /><Text style={styles.emptyTitle}>Nenhum pedido encontrado</Text></View>}
+                ListEmptyComponent={<View style={styles.emptyState}><Ionicons name="receipt-outline" size={28} color={Colors.iconMuted} /><Text style={styles.emptyTitle}>Nenhum pedido encontrado</Text></View>}
               />
-              <TouchableOpacity style={styles.unassignButton} onPress={() => select(undefined)}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.unassignButton} onPress={() => select(undefined)}>
                 <Ionicons name="close-circle-outline" size={18} color={Colors.textSecondary} />
                 <Text style={styles.unassignText}>Não atribuir</Text>
               </TouchableOpacity>
@@ -184,9 +184,9 @@ const styles = StyleSheet.create({
     maxHeight: '78%', minHeight: 390, paddingHorizontal: Spacing.xl, paddingBottom: Spacing.xl, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl },
   handleHitArea: { height: 30, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: Colors.border },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  modalHeader: { minHeight: 48, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
   modalHeading: { flex: 1 },
-  modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accent, textTransform: 'uppercase' },
+  modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accentText, textTransform: 'uppercase' },
   modalTitle: { marginTop: 4, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg, color: Colors.primary },
   closeButton: {
       ...SurfaceStyles.filter,
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
   resultContent: { gap: Spacing.xs },
   option: { minHeight: OPTION_HEIGHT, paddingHorizontal: Spacing.sm, borderRadius: Radius.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs },
+  avatarText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xs },
   optionName: { flex: 1, color: Colors.primary, fontFamily: 'PlusJakartaSans_600SemiBold' },
   emptyState: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.xs },
   emptyTitle: { color: Colors.textSecondary },

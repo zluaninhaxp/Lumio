@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
-import { Colors, FontSize } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize } from '../../../src/constants/theme';
 
 interface CalendarDayCellProps {
   day: number;
@@ -25,7 +25,7 @@ function CalendarDayCellComponent({
     <TouchableOpacity
       style={styles.cell}
       onPress={() => onPress(day)}
-      activeOpacity={0.7}
+      activeOpacity={ControlOpacity.pressed}
     >
       <View
         style={[
@@ -62,7 +62,7 @@ function CalendarDayCellComponent({
 export const CalendarDayCell = React.memo(CalendarDayCellComponent);
 
 const styles = StyleSheet.create({
-  cell: { width: '14.28%', alignItems: 'center', paddingVertical: 4 },
+  cell: { minHeight: 48, justifyContent: 'center', width: '14.28%', alignItems: 'center', paddingVertical: 4 },
   dayCircle: {
     width: 34,
     height: 34,
@@ -71,13 +71,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   dayCircleSelected: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: 17,
     overflow: 'hidden',
   },
   dayCircleToday: {
     borderWidth: 1.5,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     borderRadius: 17,
     overflow: 'hidden',
   },
@@ -86,8 +86,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.primary,
   },
-  dayTextSelected: { color: '#FFF', fontFamily: 'PlusJakartaSans_700Bold' },
-  dayTextToday: { color: Colors.accent, fontFamily: 'PlusJakartaSans_700Bold' },
+  dayTextSelected: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_700Bold' },
+  dayTextToday: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_700Bold' },
   dotsRow: {
     position: 'absolute',
     bottom: 2,

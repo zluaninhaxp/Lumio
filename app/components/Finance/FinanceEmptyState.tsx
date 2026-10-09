@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
 
 interface FinanceEmptyStateProps {
   hasFilters: boolean;
@@ -22,7 +22,7 @@ export function FinanceEmptyState({
         <Ionicons
           name={isFiltered ? 'search-outline' : 'wallet-outline'}
           size={28}
-          color={Colors.accent}
+          color={Colors.accentIcon}
         />
       </View>
       <Text style={styles.title}>
@@ -40,7 +40,7 @@ export function FinanceEmptyState({
           : 'Toque no botão + para adicionar sua primeira transação.'}
       </Text>
       {isFiltered && (
-        <TouchableOpacity style={styles.clearBtn} onPress={onClearFilters}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.clearBtn} onPress={onClearFilters}>
           <Text style={styles.clearBtnText}>Limpar filtros</Text>
         </TouchableOpacity>
       )}
@@ -81,11 +81,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
   },
   clearBtnText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: '#FFF',
+    color: Colors.onAction,
   },
 });

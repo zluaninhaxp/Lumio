@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
 
 interface TagSelectorProps {
   title: string;
@@ -13,7 +13,7 @@ interface TagSelectorProps {
   accent?: string;
 }
 
-export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, accent = Colors.accent }: TagSelectorProps) {
+export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, accent = Colors.actionBackground }: TagSelectorProps) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
 
@@ -39,19 +39,19 @@ export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, acce
         {tags.map((tag) => {
           const active = Array.isArray(selected) ? selected.includes(tag) : selected === tag;
           return (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               key={tag}
               style={[styles.chip, active && { backgroundColor: accent, borderColor: accent }]}
               onPress={() => onSelect(tag)}
               accessibilityRole="button"
               accessibilityState={{ selected: active }}
             >
-              {active && <Ionicons name="checkmark" size={14} color="#FFF" />}
+              {active && <Ionicons name="checkmark" size={14} color={Colors.onAction} />}
               <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{tag}</Text>
             </TouchableOpacity>
           );
         })}
-        <TouchableOpacity style={styles.addChip} onPress={() => setAdding((value) => !value)}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.addChip} onPress={() => setAdding((value) => !value)}>
           <Ionicons name={adding ? 'close-outline' : 'add'} size={16} color={accent} />
           <Text style={[styles.addText, { color: accent }]}>{adding ? 'Fechar' : 'Nova tag'}</Text>
         </TouchableOpacity>
@@ -63,13 +63,13 @@ export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, acce
             value={draft}
             onChangeText={setDraft}
             placeholder="Ex.: Serviços recorrentes"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={Colors.placeholder}
             autoFocus
             onSubmitEditing={submit}
             returnKeyType="done"
           />
-          <TouchableOpacity style={[styles.confirm, { backgroundColor: accent }]} onPress={submit} disabled={!draft.trim()}>
-            <Ionicons name="checkmark" size={18} color="#FFF" />
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.confirm, { backgroundColor: accent }]} onPress={submit} disabled={!draft.trim()}>
+            <Ionicons name="checkmark" size={18} color={Colors.onAction} />
           </TouchableOpacity>
         </View>
       )}
@@ -84,12 +84,12 @@ const styles = StyleSheet.create({
   hint: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
   count: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textMuted },
   row: { gap: 6, paddingVertical: 2 },
-  chip: {
+  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 210, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full },
   chipText: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary },
-  chipTextActive: { color: '#FFF' },
-  addChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.accent, backgroundColor: Colors.accentLight },
+  chipTextActive: { color: Colors.onAction },
+  addChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.accentIcon, backgroundColor: Colors.accentLight },
   addText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
   addRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
   input: {

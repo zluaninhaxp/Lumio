@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSize } from '../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, FontSize } from '../../src/constants/theme';
 import { useAppStore, type CalendarEvent, type Atendimento } from '../../src/store';
 import { useCalendarState } from '../../src/hooks/useCalendarState';
 import { CollapsibleCalendar } from '../components/Calendar/CollapsibleCalendar';
@@ -230,7 +230,7 @@ export default function CalendarioScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendário</Text>
         <View style={styles.headerActions}>
-          {activatedPlugins.includes('agenda') && <TouchableOpacity style={styles.newAppointment} onPress={() => setAppointmentSheetVisible(true)}><Ionicons name="time-outline" size={18} color={Colors.accent} /><Text style={styles.newAppointmentText}>Atendimento</Text></TouchableOpacity>}
+          {activatedPlugins.includes('agenda') && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.newAppointment} onPress={() => setAppointmentSheetVisible(true)}><Ionicons name="time-outline" size={18} color={Colors.accentIcon} /><Text style={styles.newAppointmentText}>Atendimento</Text></TouchableOpacity>}
           <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
       </View>
@@ -335,7 +335,7 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   newAppointment: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.accentLight, borderRadius: 999, paddingHorizontal: Spacing.sm, paddingVertical: 7 },
-  newAppointmentText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
+  newAppointmentText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
     fontSize: FontSize.xxl,
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 13,
-    color: '#FFF',
+    color: Colors.onAction,
   },
   eventsSection: {
     paddingTop: Spacing.xl,

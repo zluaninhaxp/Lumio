@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore, ClienteItem } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 
@@ -45,6 +45,7 @@ export default function ClientesScreen() {
     setPluginActivation,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -162,11 +163,11 @@ export default function ClientesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Clientes</Text>
-        <TouchableOpacity onPress={handleDeactivate} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -175,12 +176,12 @@ export default function ClientesScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar cliente"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -193,7 +194,7 @@ export default function ClientesScreen() {
             <Ionicons
               name="people-outline"
               size={48}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>
               {query
@@ -234,7 +235,7 @@ export default function ClientesScreen() {
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => setExpandedId(expanded ? null : client.id)}
-                activeOpacity={0.7}
+                activeOpacity={ControlOpacity.pressed}
               >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -250,7 +251,7 @@ export default function ClientesScreen() {
                 <Ionicons
                   name={expanded ? "chevron-up" : "chevron-down"}
                   size={18}
-                  color={Colors.textMuted}
+                  color={Colors.iconMuted}
                 />
               </TouchableOpacity>
               <View style={styles.summaryRow}>
@@ -298,9 +299,9 @@ export default function ClientesScreen() {
           );
         })}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -313,7 +314,7 @@ export default function ClientesScreen() {
             <TextInput
               style={styles.input}
               placeholder="Nome"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
               autoFocus
@@ -322,7 +323,7 @@ export default function ClientesScreen() {
             <TextInput
               style={styles.input}
               placeholder="Contato (telefone ou e-mail)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.contact}
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
             />
@@ -330,19 +331,19 @@ export default function ClientesScreen() {
             <TextInput
               style={[styles.input, styles.notesInput]}
               placeholder="Observações"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.notes}
               onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
               multiline
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()}
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
                 onPress={handleSave}
               >
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -409,7 +410,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accent },
+  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accentText },
   cardMain: { flex: 1 },
   cardTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -435,12 +436,12 @@ const styles = StyleSheet.create({
   total: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   pendingText: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: FontSize.xs,
-    color: Colors.warning,
+    color: Colors.warningText,
     marginTop: Spacing.xs,
   },
   details: {
@@ -468,7 +469,7 @@ const styles = StyleSheet.create({
   },
   historyAmount: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.accent,
+    color: Colors.accentText,
     fontSize: FontSize.sm,
   },
   muted: { color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
@@ -478,11 +479,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   actionText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   deleteText: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   fab: {
@@ -493,7 +494,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -545,13 +546,13 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
   },
   modalConfirmText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.md,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
   ...pluginFormStyles,
 });

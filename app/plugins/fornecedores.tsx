@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -11,12 +11,12 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
+import { BottomSheet, type BottomSheetHandle } from "../components/Calendar/BottomSheet";
 import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { FornecedorItem, useAppStore } from "../../src/store";
 import { suggestedDueDate } from "../../src/utils/supplier";
 import { AppAlert } from "@/src/services/appAlert";
@@ -49,6 +49,7 @@ export default function FornecedoresScreen() {
   } = useAppStore();
   const [query, setQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -170,11 +171,11 @@ export default function FornecedoresScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Fornecedores</Text>
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
               "Desativar Fornecedores",
@@ -202,12 +203,12 @@ export default function FornecedoresScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar fornecedor"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder}
           style={styles.searchInput}
         />
       </View>
@@ -220,7 +221,7 @@ export default function FornecedoresScreen() {
             <Ionicons
               name="briefcase-outline"
               size={46}
-              color={Colors.textMuted}
+              color={Colors.decorativeMuted}
             />
             <Text style={styles.emptyText}>
               {query
@@ -248,7 +249,7 @@ export default function FornecedoresScreen() {
               onDelete={() => deleteSupplier(supplier.id)}
             >
             <View style={styles.card}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cardHeader}
                 onPress={() => setExpandedId(expanded ? null : supplier.id)}
               >
@@ -267,7 +268,7 @@ export default function FornecedoresScreen() {
                 <Ionicons
                   name={expanded ? "chevron-up" : "chevron-down"}
                   size={18}
-                  color={Colors.textMuted}
+                  color={Colors.iconMuted}
                 />
               </TouchableOpacity>
               <View style={styles.summaryRow}>
@@ -321,7 +322,7 @@ export default function FornecedoresScreen() {
               Associe as despesas antigas da categoria Fornecedores.
             </Text>
             {unlinkedExpenses.map((transaction) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={transaction.id}
                 style={styles.migrationRow}
                 onPress={() => setUnlinkedTransactionId(transaction.id)}
@@ -333,15 +334,15 @@ export default function FornecedoresScreen() {
                   <Text style={styles.muted}>{transaction.date}</Text>
                 </View>
                 <Text style={styles.debtText}>{money(transaction.amount)}</Text>
-                <Ionicons name="link-outline" size={18} color={Colors.accent} />
+                <Ionicons name="link-outline" size={18} color={Colors.accentIcon} />
               </TouchableOpacity>
             ))}
           </View>
         )}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -354,7 +355,7 @@ export default function FornecedoresScreen() {
             <TextInput
               style={styles.input}
               placeholder="Nome"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
               autoFocus
@@ -363,7 +364,7 @@ export default function FornecedoresScreen() {
             <TextInput
               style={styles.input}
               placeholder="Contato (opcional)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.contact}
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
             />
@@ -371,7 +372,7 @@ export default function FornecedoresScreen() {
             <TextInput
               style={styles.input}
               placeholder="Prazo padrão (ex.: 30 dias)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.paymentTerm}
               onChangeText={(v) => setForm((f) => ({ ...f, paymentTerm: v }))}
             />
@@ -379,19 +380,19 @@ export default function FornecedoresScreen() {
             <TextInput
               style={[styles.input, styles.notesInput]}
               placeholder="Observações"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.notes}
               onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
               multiline
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()}
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save}>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -410,7 +411,7 @@ export default function FornecedoresScreen() {
               Escolha o cadastro para esta despesa.
             </Text>
             {fornecedorItems.map((supplier) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={supplier.id}
                 style={styles.linkOption}
                 onPress={() => linkOldExpense(supplier)}
@@ -421,7 +422,7 @@ export default function FornecedoresScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.modalCancel}
               onPress={() => setUnlinkedTransactionId(null)}
             >
@@ -443,7 +444,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -481,7 +482,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: "#D97706", fontFamily: "PlusJakartaSans_700Bold" },
+  avatarText: { color: Colors.warningText, fontFamily: "PlusJakartaSans_700Bold" },
   cardMain: { flex: 1 },
   cardTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -500,11 +501,11 @@ const styles = StyleSheet.create({
   },
   summaryLabel: { color: Colors.textMuted, fontSize: FontSize.xs },
   total: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.sm,
   },
-  paidTotal: { color: Colors.accent },
+  paidTotal: { color: Colors.accentText },
   details: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
@@ -524,19 +525,19 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   muted: { color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
-  debtText: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
-  paidText: { color: Colors.accent, fontFamily: "PlusJakartaSans_600SemiBold" },
+  debtText: { color: Colors.dangerText, fontFamily: "PlusJakartaSans_600SemiBold" },
+  paidText: { color: Colors.accentText, fontFamily: "PlusJakartaSans_600SemiBold" },
   cardActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: Spacing.md,
   },
   actionText: {
-    color: Colors.accent,
+    color: Colors.accentText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   deleteText: {
-    color: Colors.danger,
+    color: Colors.dangerText,
     fontFamily: "PlusJakartaSans_600SemiBold",
   },
   migration: {
@@ -566,7 +567,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
     justifyContent: "center"
   },
@@ -622,12 +623,12 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: Spacing.lg,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
   },
   modalConfirmText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
   linkOption: {
     padding: Spacing.md,

@@ -11,13 +11,26 @@ export const Colors = {
   bgCard: '#FFFFFF',
   primary: '#111111',
   accent: '#00A878',
+  // Identity/decoration keep accent; readable foregrounds and filled actions
+  // have separate roles. Do not use identity colors as small-text defaults.
+  accentText: '#006B4C',
+  accentIcon: '#00815D',
+  actionBackground: '#007354',
+  onAction: '#FFFFFF',
   accentLight: '#E6F7F1',
   accentSoft: '#F0FAF6',
   accentGlow: '#DDF4EC',
   danger: '#E05555',
+  dangerText: '#B23B3B',
+  dangerIcon: '#C74848',
+  dangerActionBackground: '#B23B3B',
   dangerLight: '#FFF0F0',
   textSecondary: '#6B6B6B',
-  textMuted: '#AAAAAA',
+  textMuted: '#5F6D66',
+  placeholder: '#5F6D66',
+  iconMuted: '#7D8983',
+  decorativeMuted: '#AAAAAA',
+  textDisabled: '#AAAAAA',
   border: '#DDEBE4',
 
   // Bolhas de chat
@@ -28,12 +41,32 @@ export const Colors = {
   bottomSurface: '#E6F7F1',
   ink: '#202B38',
   composerDivider: '#DCECE6',
-  composerPlaceholder: '#818C9C',
+  composerPlaceholder: '#647286',
   accentDisabled: '#A9D9CA',
 
   // Status
   success: '#00A878',
+  successText: '#006B4C',
+  successIcon: '#00815D',
   warning: '#F59E0B',
+  warningText: '#9A5100',
+  warningIcon: '#B56708',
+  warningActionBackground: '#995200',
+} as const;
+
+// TouchableOpacity fades foregrounds together with backgrounds. Keep pressed
+// feedback subtle so enabled text stays readable; disabled styles stay local.
+export const ControlOpacity = { pressed: 0.98 } as const;
+
+// Category fills are preserved; foregrounds carry the readable meaning.
+export const CategoryColors = {
+  blue: { bg: '#EBF5FF', text: '#2563EB', icon: '#2563EB', tint: '#3B82F618' },
+  amber: { bg: '#FEF3C7', text: Colors.warningText, icon: Colors.warningIcon, tint: '#F59E0B18' },
+  pink: { bg: '#FCE7F3', text: '#B51D62', icon: '#DB2777', tint: '#EC489918' },
+  green: { bg: '#D1FAE5', text: Colors.accentText, icon: Colors.accentIcon, tint: '#00A87818' },
+  purple: { bg: '#EDE9FE', text: '#7133D4', icon: '#7C3AED', tint: '#8B5CF618' },
+  orange: { bg: '#FFEDD5', text: '#AD3D08', icon: '#AD3D08', tint: '#EA580C18' },
+  neutral: { icon: Colors.iconMuted, tint: '#AAAAAA18' },
 } as const;
 
 // Neutral content elevation. boxShadow runs on both platforms with the
@@ -47,8 +80,8 @@ export const SurfaceColors = {
   disabled: '#ECEFF1',
   subtleBorder: '#E1E5E8',
   controlBorder: '#C9D0D4',
-  focusBorder: Colors.accent,
-  errorBorder: Colors.danger,
+  focusBorder: Colors.accentIcon,
+  errorBorder: Colors.dangerIcon,
   backdrop: 'rgba(32,43,56,0.40)',
 } as const;
 

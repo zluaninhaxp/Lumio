@@ -9,7 +9,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 
@@ -104,11 +104,11 @@ export default function ComissoesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Comissões</Text>
-        <TouchableOpacity onPress={handleDeactivate} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -133,7 +133,7 @@ export default function ComissoesScreen() {
         <Text style={styles.sectionLabel}>PENDENTES POR FUNCIONÁRIO</Text>
         {pendingByEmployee.length === 0 && (
           <View style={styles.empty}>
-            <Ionicons name="cash-outline" size={48} color={Colors.textMuted} />
+            <Ionicons name="cash-outline" size={48} color={Colors.decorativeMuted} />
             <Text style={styles.emptyText}>Nenhuma comissão pendente.</Text>
           </View>
         )}
@@ -152,7 +152,7 @@ export default function ComissoesScreen() {
             </View>
             <View style={styles.cardRight}>
               <Text style={styles.amount}>{money(entry.amount)}</Text>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.payBtn}
                 onPress={() =>
                   handlePay(
@@ -206,7 +206,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -222,12 +222,12 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   summaryAmount: {
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: FontSize.xxl,
-    color: Colors.accent,
+    color: Colors.accentText,
     marginTop: 4,
   },
   summaryHint: {
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accent },
+  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accentText },
   cardMain: { flex: 1 },
   cardTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -283,10 +283,10 @@ const styles = StyleSheet.create({
   amount: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.md,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   payBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 6,
@@ -294,7 +294,7 @@ const styles = StyleSheet.create({
   payBtnText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
   historyRow: {
     flexDirection: "row",
@@ -318,6 +318,6 @@ const styles = StyleSheet.create({
   historyAmount: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

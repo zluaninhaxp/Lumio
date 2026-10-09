@@ -8,7 +8,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import VoiceRecorder from './VoiceRecorder';
 
 interface AnswerInputProps {
@@ -61,7 +61,7 @@ export default function AnswerInput({
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={Colors.placeholder}
             onSubmitEditing={handleSend}
             returnKeyType="send"
             multiline
@@ -74,9 +74,9 @@ export default function AnswerInput({
           <TouchableOpacity
             style={styles.sendButton}
             onPress={handleSend}
-            activeOpacity={0.8}
+            activeOpacity={ControlOpacity.pressed}
           >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
+            <Ionicons name="arrow-up" size={20} color={Colors.onAction} />
           </TouchableOpacity>
         )}
 
@@ -84,7 +84,7 @@ export default function AnswerInput({
           <TouchableOpacity
             style={styles.skipButton}
             onPress={onSkip}
-            activeOpacity={0.7}
+            activeOpacity={ControlOpacity.pressed}
           >
             <Text style={styles.skipText}>Pular</Text>
           </TouchableOpacity>
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },

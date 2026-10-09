@@ -14,7 +14,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 export interface UndoSnackbarRef {
   show: (ids: string[]) => void;
@@ -85,14 +85,14 @@ export const UndoSnackbar = forwardRef<UndoSnackbarRef, UndoSnackbarProps>(
       >
         <View style={styles.bar}>
           <View style={styles.left}>
-            <Ionicons name="checkmark-circle" size={18} color={Colors.accent} />
+            <Ionicons name="checkmark-circle" size={18} color={Colors.accentIcon} />
             <Text style={styles.text}>
               {count === 1
                 ? 'Transação excluída'
                 : `${count} transações excluídas`}
             </Text>
           </View>
-          <TouchableOpacity onPress={onUndo} style={styles.undoBtn}>
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onUndo} style={styles.undoBtn}>
             <Text style={styles.undoText}>Desfazer</Text>
           </TouchableOpacity>
         </View>
@@ -128,7 +128,7 @@ const styles = StyleSheet.create({
   text: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
-    color: '#FFF',
+    color: Colors.onAction,
   },
   undoBtn: {
     paddingHorizontal: Spacing.lg,
@@ -137,6 +137,6 @@ const styles = StyleSheet.create({
   undoText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

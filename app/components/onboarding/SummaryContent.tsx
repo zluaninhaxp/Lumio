@@ -15,7 +15,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import {
   OPEN_QUESTIONS,
   OpenOnboardingAnswers,
@@ -77,9 +77,9 @@ export default function SummaryContent({ answers, onEdit, onConfirm }: SummaryCo
               <TouchableOpacity
                 style={styles.editButton}
                 onPress={() => onEdit(block.id)}
-                activeOpacity={0.7}
+                activeOpacity={ControlOpacity.pressed}
               >
-                <Ionicons name="create-outline" size={14} color={Colors.accent} />
+                <Ionicons name="create-outline" size={14} color={Colors.accentIcon} />
                 <Text style={styles.editLabel}>Editar</Text>
               </TouchableOpacity>
             </View>
@@ -91,10 +91,10 @@ export default function SummaryContent({ answers, onEdit, onConfirm }: SummaryCo
         <TouchableOpacity
           style={styles.confirmButton}
           onPress={onConfirm}
-          activeOpacity={0.85}
+          activeOpacity={ControlOpacity.pressed}
         >
           <Text style={styles.confirmText}>Confirmar e continuar</Text>
-          <Ionicons name="arrow-forward" size={18} color="#FFFFFF" />
+          <Ionicons name="arrow-forward" size={18} color={Colors.onAction} />
         </TouchableOpacity>
       </Animated.View>
     </ScrollView>
@@ -139,12 +139,12 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
   },
   editLabel: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.xs,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   confirmWrapper: {
     paddingHorizontal: Spacing.xl,
@@ -162,6 +162,6 @@ const styles = StyleSheet.create({
   confirmText: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.md,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 });

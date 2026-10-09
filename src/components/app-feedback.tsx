@@ -19,7 +19,7 @@ export function AppFeedbackHost() {
   if (!feedback) return null;
   return <View pointerEvents="box-none" style={[styles.position, { bottom: insets.bottom + Spacing.xl }]}>
     <Pressable onPress={() => setFeedback(null)} style={styles.bar} accessibilityRole="button" accessibilityLabel={`${feedback.title}. ${feedback.message ?? ''}. Fechar aviso`} accessibilityLiveRegion="polite">
-      <Ionicons name="checkmark-circle" size={18} color={Colors.accent} />
+      <Ionicons name="checkmark-circle" size={18} color={Colors.accentIcon} />
       <View style={styles.content}><Text style={styles.title}>{feedback.title}</Text>{!!feedback.message && <Text style={styles.message}>{feedback.message}</Text>}</View>
     </Pressable>
   </View>;

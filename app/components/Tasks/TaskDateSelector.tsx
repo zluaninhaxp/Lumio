@@ -9,7 +9,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 export const PERIOD_LABELS = ['Esta semana', 'Próxima semana'];
 
@@ -143,11 +143,11 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
         contentContainerStyle={styles.chipRow}
         keyboardShouldPersistTaps="handled"
       >
-        <TouchableOpacity
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.chip, customDateSelected && styles.chipActive]}
           onPress={openCalendar}
         >
-          <Ionicons name="calendar-outline" size={13} color={customDateSelected ? '#FFFFFF' : Colors.textSecondary} />
+          <Ionicons name="calendar-outline" size={13} color={customDateSelected ? Colors.onAction : Colors.textSecondary} />
           <Text style={[styles.chipText, customDateSelected && styles.chipTextActive]}>
             {customDateSelected && value
               ? new Date(`${value}T00:00:00`).toLocaleDateString('pt-BR', {
@@ -165,12 +165,12 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
             value === opt.value &&
             normalizedLabel === (PERIOD_LABELS.includes(opt.label) ? opt.label : null);
           return (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               key={opt.label}
               style={[styles.chip, active && styles.chipActive]}
               onPress={() => selectOption(opt)}
             >
-              <Ionicons name={opt.icon} size={13} color={active ? '#FFFFFF' : Colors.textSecondary} />
+              <Ionicons name={opt.icon} size={13} color={active ? Colors.onAction : Colors.textSecondary} />
               <Text style={[styles.chipText, active && styles.chipTextActive]}>{opt.label}</Text>
             </TouchableOpacity>
           );
@@ -187,18 +187,18 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
           <Pressable style={styles.calendarCard}>
             <View style={styles.calendarHeader}>
               <Text style={styles.calendarTitle}>Escolher data</Text>
-              <TouchableOpacity onPress={() => setCalendarVisible(false)} hitSlop={10}>
-                <Ionicons name="close" size={21} color={Colors.textMuted} />
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => setCalendarVisible(false)} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
+                <Ionicons name="close" size={21} color={Colors.iconMuted} />
               </TouchableOpacity>
             </View>
             <View style={styles.calendarNavigation}>
-              <TouchableOpacity onPress={goPrevMonth} hitSlop={10}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={goPrevMonth} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="chevron-back" size={20} color={Colors.primary} />
               </TouchableOpacity>
               <Text style={styles.calendarMonthLabel}>
                 {MONTH_NAMES[calendarMonth]} {calendarYear}
               </Text>
-              <TouchableOpacity onPress={goNextMonth} hitSlop={10}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={goNextMonth} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
                 <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
               </TouchableOpacity>
             </View>
@@ -215,7 +215,7 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
                   day === null ? (
                     <View key={`empty-${dayIndex}`} style={styles.calendarDayCell} />
                   ) : (
-                    <TouchableOpacity
+                    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                       key={`day-${dayIndex}`}
                       style={styles.calendarDayCell}
                       onPress={() => selectCalendarDate(day)}
@@ -255,7 +255,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 2,
   },
-  chip: {
+  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
@@ -265,15 +265,15 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full
   },
   chipActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   chipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  chipTextActive: { color: '#FFFFFF' },
+  chipTextActive: { color: Colors.onAction },
   calendarOverlay: {
       ...SurfaceStyles.backdrop,
     flex: 1,
@@ -287,7 +287,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: Radius.lg
   },
-  calendarHeader: {
+  calendarHeader: { minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.primary,
   },
-  calendarNavigation: {
+  calendarNavigation: { minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   calendarWeek: { flexDirection: 'row', marginTop: Spacing.sm },
-  calendarDayCell: {
+  calendarDayCell: { minHeight: 48, minWidth: 48, justifyContent: "center",
     flex: 1,
     alignItems: 'center',
     paddingVertical: 2,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   calendarDayCircleToday: { backgroundColor: Colors.accentLight },
-  calendarDayCircleSelected: { backgroundColor: Colors.accent },
+  calendarDayCircleSelected: { backgroundColor: Colors.actionBackground },
   calendarDayText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
@@ -340,10 +340,10 @@ const styles = StyleSheet.create({
   },
   calendarDayTextToday: {
     fontFamily: 'PlusJakartaSans_700Bold',
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   calendarDayTextSelected: {
     fontFamily: 'PlusJakartaSans_700Bold',
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 });

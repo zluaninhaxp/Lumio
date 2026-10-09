@@ -40,6 +40,9 @@ export const pluginFormStyles: Record<string, any> = {
   actions: taskFormStyles.actions,
   modalCancel: taskFormStyles.cancelBtn,
   cancel: taskFormStyles.cancelBtn,
+  cancelButton: taskFormStyles.cancelBtn,
+  cancelButtonText: taskFormStyles.cancelBtnText,
+  saveBtnDisabled: taskFormStyles.saveBtnDisabled,
   modalCancelText: taskFormStyles.cancelBtnText,
   cancelText: taskFormStyles.cancelBtnText,
   modalConfirm: taskFormStyles.saveBtn,
@@ -48,7 +51,7 @@ export const pluginFormStyles: Record<string, any> = {
   saveText: taskFormStyles.saveBtnText,
   confirm: taskFormStyles.saveBtn,
   confirmText: taskFormStyles.saveBtnText,
-  chip: {
+  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: "row" as const,
     alignItems: "center" as const,
@@ -57,14 +60,14 @@ export const pluginFormStyles: Record<string, any> = {
     paddingVertical: 6,
     borderRadius: Radius.full
   },
-  chipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  chipActive: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
   chipText: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
   chipTextActive: { color: "#FFFFFF" },
-  selectChip: {
+  selectChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
       ...SurfaceStyles.filter,
     flexDirection: "row" as const,
     alignItems: "center" as const,
@@ -73,7 +76,7 @@ export const pluginFormStyles: Record<string, any> = {
     paddingVertical: 6,
     borderRadius: Radius.full
   },
-  selectChipActive: { backgroundColor: Colors.accent, borderColor: Colors.accent },
+  selectChipActive: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
   selectChipText: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: FontSize.xs,

@@ -12,5 +12,5 @@ export function BackButton({ onPress, accessibilityLabel = 'Voltar' }: {
 }
 
 const styles = StyleSheet.create({
-  button: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)', shadowColor: '#3D8C75', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
+  button: { width: 48, height: 48, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)', shadowColor: '#3D8C75', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 3 }, elevation: 2 },
 });

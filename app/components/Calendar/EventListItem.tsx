@@ -7,7 +7,7 @@ import {
   Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import type { CalendarEvent } from '../../../src/store';
 import { ChatIndicator } from '../ChatIndicator';
 
@@ -84,13 +84,13 @@ export function EventListItem({
           <TouchableOpacity
             style={[styles.checkbox, item.done && styles.checkboxDone, isDeadline && styles.checkboxDeadline]}
             onPress={handleToggle}
-            activeOpacity={0.7}
+            activeOpacity={ControlOpacity.pressed}
           >
-            {item.done && <Ionicons name="checkmark" size={14} color="#FFF" />}
-            {!item.done && isDeadline && <Ionicons name="time-outline" size={12} color={Colors.warning} />}
+            {item.done && <Ionicons name="checkmark" size={14} color={Colors.onAction} />}
+            {!item.done && isDeadline && <Ionicons name="time-outline" size={12} color={Colors.warningIcon} />}
           </TouchableOpacity>
         ) : (
-          <View style={[styles.eventBar, { backgroundColor: Colors.accent }]} />
+          <View style={[styles.eventBar, { backgroundColor: Colors.actionBackground }]} />
         )}
 
         <View style={styles.info}>
@@ -127,9 +127,9 @@ export function EventListItem({
           </View>
         </View>
 
-        {item.id.startsWith('appointment:') && onCancel && <TouchableOpacity onPress={() => onCancel(item.id)} style={styles.deleteBtn}><Ionicons name="close-circle-outline" size={16} color={Colors.warning} /></TouchableOpacity>}
-        <TouchableOpacity onPress={handleDelete} style={styles.deleteBtn}>
-          <Ionicons name="trash-outline" size={16} color={Colors.textMuted} />
+        {item.id.startsWith('appointment:') && onCancel && <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => onCancel(item.id)} style={styles.deleteBtn}><Ionicons name="close-circle-outline" size={16} color={Colors.warningIcon} /></TouchableOpacity>}
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDelete} style={styles.deleteBtn}>
+          <Ionicons name="trash-outline" size={16} color={Colors.iconMuted} />
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -158,12 +158,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkboxDone: { backgroundColor: Colors.accent, borderColor: Colors.accent },
-  checkboxDeadline: { borderColor: Colors.warning },
+  checkboxDone: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
+  checkboxDeadline: { borderColor: Colors.warningIcon },
   deadlineBadge: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.xs,
-    color: Colors.warning,
+    color: Colors.warningText,
   },
   eventBar: {
     width: 4,
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   time: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   typeBadge: {
     fontFamily: 'PlusJakartaSans_400Regular',

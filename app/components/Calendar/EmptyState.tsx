@@ -21,7 +21,7 @@ export function EmptyState({ filter }: EmptyStateProps) {
         <Ionicons
           name={filter ? 'calendar-outline' : 'sunny-outline'}
           size={32}
-          color={Colors.accent}
+          color={Colors.accentIcon}
         />
       </View>
       <Text style={styles.text}>{message}</Text>

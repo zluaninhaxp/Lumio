@@ -24,7 +24,7 @@ export default function TabLayout() {
         headerShown: false,
         sceneStyle: { backgroundColor: Colors.bottomSurface },
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: Colors.accent,
+        tabBarActiveTintColor: Colors.accentText,
         tabBarInactiveTintColor: Colors.textSecondary,
         tabBarShowLabel: true,
         tabBarBackground: () => <BottomSurface pointerEvents="none" organicEdge={route.name !== 'chat'} style={StyleSheet.absoluteFillObject} />,
