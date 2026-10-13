@@ -44,7 +44,7 @@ test('every native modal with a text field uses a keyboard viewport', () => {
       const tag = node => ts.isJsxElement(node) ? node.openingElement.tagName.getText(source) : ts.isJsxSelfClosingElement(node) ? node.tagName.getText(source) : '';
       const contains = (node, name) => tag(node) === name || !!ts.forEachChild(node, child => contains(child, name) || undefined);
       function visit(node) {
-        if (tag(node) === 'Modal' && contains(node, 'TextInput')) {
+        if (tag(node) === 'Modal' && (contains(node, 'TextInput') || contains(node, 'FormTextInput') || contains(node, 'ApiKeyInput'))) {
           audited++;
           assert.ok(contains(node, 'ModalKeyboardViewport'), `${file}: text fields must remain reachable with the keyboard open`);
         }

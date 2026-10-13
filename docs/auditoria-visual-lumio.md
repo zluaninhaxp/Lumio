@@ -397,3 +397,86 @@ O resumo longo do relatório permite expansão e rolagem (55/56); o editor geral
 - Alertas e relatórios contam com reuso existente. Arquivos antigos de onboarding detectados não foram assumidos como interface ativa sem referência de uso.
 
 **Conclusão:** auditoria exclusivamente diagnóstica consolidada, com os 18 achados originais preservados e VIS-019 acrescentado. Nenhuma correção de produto ou mudança permanente de conta/dados foi implementada; as configurações temporárias do Android foram restauradas. As lacunas restantes estão discriminadas na seção B, sem apresentar inspeção estática ou tentativa inválida como teste visual concluído.
+
+---
+
+## Histórico de correções — Etapa 2, 13/10/2026
+
+Após a auditoria diagnóstica, o usuário autorizou correções somente de **VIS-019, VIS-010, VIS-006 e VIS-004** e, nesta retomada, pediu avaliação no navegador em formato de celular por indisponibilidade do aparelho. Os **19 achados e prioridades históricas permanecem preservados**. Esta seção não amplia a cobertura Android nem registra novos achados.
+
+Implementados proteção de rascunho/confirmar descarte no BottomSheet compartilhado, posicionamento de FAB por insets reais e área segura inferior da Loja, alvos de interação de 48 dp nos controles revisados e ações de formulário compartilhadas de altura mínima 50 com estados primário/secundário/disabled. A retomada completou chips, close button compartilhado, grade de calendário sem alvos sobrepostos e proteção de tag ainda não enviada. A falha anterior do teste de rascunho interno foi identificada no target de transpile do fixture e resolvida; o comportamento também foi confirmado na web.
+
+**Cobertura web efetiva:** Tarefas, Calendário, seletor de data, Financeiro, Perfil, Loja e cadastros de Equipe, Clientes, Fornecedores, Catálogo, Estoque, Vendas, Orçamentos, Contratos e Entregas. Foram verificados manter/descartar, salvar em Equipe/Tarefas/Calendário/Financeiro/Perfil, disabled/loading, FABs dentro do viewport web, scroll e medidas de alvos. Viewports: 390×844, 360×780 e 320×740 CSS px; autenticação e dados sintéticos em cópia isolada, sem Supabase.
+
+**Limitações:** navegador não reproduz IME, Voltar, barra nativa, insets reais ou gestos do Android. Cadastro não significa cobertura completa de edição, vínculos e regras de cada módulo. Atendimento, movimentação de estoque, editor de relatório e senha/exclusão de conta não foram exercitados visualmente nesta retomada. Portanto, não marcar os quatro achados como homologados no Android.
+
+Evidências adicionais: `etapa2-web/01-financeiro-formulario.png`, `02-perfil-loading.png`, `03-equipe-formulario.png`, `04-vendas-formulario.png`, `05-calendario-320.png`, `06-loja-360.png` e `07-seletor-calendario-390.png`, dentro da pasta de evidências desta auditoria. Estado técnico, resultados e próximos passos em [etapa2-continuidade.md](etapa2-continuidade.md). Typecheck e 24 testes relevantes de BottomSheet, alertas e foco passaram.
+## Histórico de correções — Etapa 3, 13/10/2026
+
+Escopo autorizado: **VIS-007 e VIS-013**, com análise de código e verificações automatizadas, sem validação visual Android nesta etapa. Os 19 achados históricos, evidências e prioridades permanecem preservados; implementação não significa homologação no aparelho.
+
+- **VIS-007:** buscas de Tarefas/módulos/seletores e variantes financeiras usam alturas mínimas; contadores e tags podem crescer/refluir. O calendário compartilha dimensionamento por `fontScale`, preservando círculos e grade normais e aumentando espaço para números ampliados. O seletor de data admite scroll vertical quando excede a janela. O Financeiro mede faixa de filtros e saldo recolhido; valores/categorias podem refluir, e resumo maior que o viewport disponível ganha scroll interno. Nenhuma escala de fonte foi desabilitada.
+- **VIS-013:** BotMessageCard mantém título/contexto compactos em 3/2 linhas e apresenta Ver mais somente após medir overflow, incluindo pessoa/contraparte e tags. Expansão revela os textos integrais e permite recolher; metadados, cores, tipos e valores são preservados. Medição sem limite de linhas é invisível e excluída da acessibilidade; largura/fonte/conteúdo invalidam métricas antigas. No Chat, expandir/recolher mantém a posição de leitura em vez de acionar o autoscroll; novas mensagens continuam seguindo o fluxo anterior.
+- **Verificação:** typecheck; 11 testes novos; 24 testes relevantes de BottomSheet/foco/alertas; 273 testes da suíte geral no mesmo processo; 226 verificações de contraste — aprovados. O runner padrão da suíte geral foi bloqueado por `spawn EPERM`; utilizou-se `--experimental-test-isolation=none`, sem alterar a configuração padrão. Medições tipográficas e eventos de layout usados pelos testes são simulados.
+- **Android pendente:** 12 testes desta etapa, além das pendências anteriores recuperadas, estão em [testes-android-pendentes.md](auditoria-visual/testes-android-pendentes.md). Cada teste informa componente, condições, passos, esperado e achado. Todos os manuais permanecem PENDENTES; não houve screenshots ou testes visuais novos no Android.
+
+## Histórico de correções — Etapa 4 (13/10/2026)
+
+Escopo exclusivo: VIS-003, VIS-005 e VIS-008. Achados, evidências e prioridades anteriores preservados; não há novos achados nem aprovação visual Android nesta implementação.
+
+- **VIS-003:** buscas e metadados de Estoque, Catálogo, Fornecedores, Equipe, Vendas, Contratos, Clientes, Orçamentos e Entregas usam família compartilhada Plus Jakarta Sans. ModuleTextStyles centraliza família de busca/metadata; pesos existentes dos módulos usam Typography. Tamanhos, cores e hierarquia preservados. Comissões utiliza seu fluxo existente, sem header ou estilo novo indiscriminado.
+- **VIS-005:** FormTextInput compartilha SurfaceStyles.controlFocus e mantém o TextInput nativo, ref, callbacks, teclado e props. Aplicado a Tarefas, eventos/atendimentos, QuickAdd financeiro, formulários de módulos (incluindo movimentação e módulo genérico), EditorField de senha/Perfil e chave de IA. Disabled e bordas de erro têm precedência. Valores grandes sem borda usam feedback textual com Colors.accentText, sem acrescentar uma superfície ou borda.
+- **VIS-008:** IA passa a usar AccountHeader refined, como Recursos. Callback de retorno e limpeza do rascunho mantidos; headers de módulos e abas não foram substituídos.
+- **Verificações:** TypeScript e testes locais da Etapa 4 (7), foco (7), Etapa 3 (11), BottomSheet (11), onboarding/máscara (23), IA (11) e contraste (226) aprovados. Testes de componentes usam eventos simulados; validação Android pendente.
+- **Pendências:** oito casos AND-E4-001 a AND-E4-008 acrescentados em testes-android-pendentes.md, com passos, condições e resultados esperados. Registros anteriores preservados, todos sem aprovação manual inventada.
+
+
+## Histórico de correções — Etapa 5 (13/10/2026)
+
+Escopo: VIS-015, VIS-016 e VIS-017. Achados anteriores, severidades e evidências preservados. Implementação verificada automaticamente; avaliação visual Android permanece pendente.
+
+- **VIS-015:** BottomSheet reutiliza useReducedMotion para preferência inicial e acompanha AccessibilityInfo (consulta atual, eventos e cleanup) por useSystemReducedMotion. Com redução ativa, abertura/fechamento/retorno após gesto/confirmar rascunho não usam spring ou fade; arraste continua acompanhando o dedo. Preferência desativada conserva os parâmetros existentes. Mudança em andamento cancela a animação e conclui o estado correto sem duplicar callbacks; reabertura, teclado e confirmação preservados. Sem migração de biblioteca de gestos/animação nesta etapa.
+- **VIS-016:** TextStyles no theme existente acrescenta 14 papéis semânticos com família/peso, tamanho, line-height e cor. Migração gradual de taskFormStyles, ações compartilhadas, InformationEditor, headers de conta, textos de autenticação e cards/aviso do Catálogo. nativeTextStyle omite somente lineHeight nos controles que antes dependiam da métrica nativa: os tokens ficam completos sem modificar a composição aprovada. ModuleTextStyles passa a obter famílias dos mesmos papéis. Não houve troca de cores nem alteração global de telas.
+- **VIS-017:** removidas 129 definições já sobrescritas (125 nas dez telas de módulos e quatro aliases redundantes no estilo compartilhado). Mantido o spread responsável pelas propriedades renderizadas e as particularidades declaradas depois dele. Chips e selectChips compartilham uma única definição; aliases de nomes necessários aos consumidores preservados. pluginFormStyles usa StyleSheet.create para manter as chaves explícitas no TypeScript, sem Record<string, any> que ocultava sua origem.
+- **Verificação:** snapshot anterior à limpeza compara 817 definições efetivas em dez módulos e sete componentes relacionados; nenhuma diferença de propriedades. TypeScript, 364 testes locais e 226 verificações de contraste aprovados. Suíte geral usa o workaround de isolamento já documentado, sem mudar o comando padrão.
+- **Android:** oito testes AND-E5-001 a AND-E5-008 registrados no documento cumulativo, cobrindo movimento ativo/inativo/dinâmico, gestos e rascunho, hierarquia e todos os formulários/estados. Nenhum caso manual marcado como aprovado; sem novas screenshots nesta etapa.
+
+
+## Histórico de correções — Etapa 6 (13/10/2026)
+
+Escopo exclusivo: VIS-011, VIS-012, VIS-014 e VIS-018. Nenhum novo achado ou redesign geral. Dados, navegação e regras de negócio preservados.
+
+- **VIS-011:** vazio do Calendário usa escala compacta, margem de leitura à direita equivalente ao FAB mais respiro e reserva inferior no conteúdo rolável. FAB_LAYOUT centraliza as medidas já existentes; aparência/posição/ação do FAB e composição da grade não mudaram.
+- **VIS-012:** HorizontalOptions mede viewport/conteúdo e apresenta orientação textual somente quando existe overflow, distinguindo avanço/retorno. Mantém ScrollView horizontal e seu indicador. Adotado em tags, toolbar de Tarefas, atalhos de data, categorias de compra do Financeiro e vínculos de atendimento. Grupos que cabem e a grade mensal não recebem dica; callbacks/teclado/seleção preservados.
+- **VIS-014:** headers de módulos usam ModuleTextStyles.headerTitle com papel de título de tela, fonte 17 e shrink para texto longo. Catálogo/Contratos/Entregas/Equipe deixam de usar o título de formulário de 20 herdado pelo spread; outros headers usam a mesma família. Conta mantém AccountHeader/refined e decoração existente; módulos mantêm headers funcionais, cards brancos, fundo off-white e densidade. Não há justificativa para espalhar o fundo orgânico às listas.
+- **VIS-018:** FeedbackEmptyState define variantes compacta e ampla, proporção de símbolo 2:1 e hierarquia comum. Compacta sob calendário/resumo, resultados filtrados e módulos; ampla em Tarefas inicial. Migrados Tarefas, Calendário, Financeiro e onze telas de módulos, preservando textos, condições, ícones do domínio e ações existentes. Sem novo card decorativo. Removidas somente definições locais que essas substituições tornaram obsoletas.
+- **Verificação:** TypeScript, 372 testes e 226 verificações de contraste aprovados. Os 817 registros do snapshot anterior à Etapa 5 continuam protegendo estilos: exceções explícitas apenas para chaves de vazio/header substituídas na Etapa 6; demais propriedades preservadas. Não houve nova captura nem avaliação visual Android.
+- **Pendências:** nove casos AND-E6-001 a AND-E6-009 no documento cumulativo; etapas anteriores preservadas.
+
+## Conferência estática final dos 19 achados — 13/10/2026
+
+Esta tabela descreve o **código presente no worktree**, não uma aprovação visual. Os achados originais e suas severidades permanecem no histórico. Há intervenções registradas nos 19 IDs; VIS-005 e VIS-006 têm resíduos estáticos identificados e são **parciais**. VIS-016 é uma migração gradual conforme o escopo aprovado. Todos os 19 ainda dependem de validação visual pós-correção. A revisão não executou nem repetiu a auditoria Android; contagem diagnóstica permanece 19.
+
+| ID | Etapa / conferência de implementação | Evidência atual de código | Validação ainda necessária |
+| --- | --- | --- | --- |
+| VIS-001 | 1 — tokens de texto/placeholder corrigidos | Colors.textMuted/placeholder e pares do teste de contraste | Textos pequenos/placeholder nas superfícies reais; AND-E1-001 |
+| VIS-002 | 1 — marca separada de texto/ação/ícone | accent preservado; accentText/actionBackground/accentIcon semânticos | Normal/ativo/pressed/focus e identidade; AND-E1-002 |
+| VIS-003 | 4 — buscas/metadados com família compartilhada | ModuleTextStyles, Typography e estilos dos módulos | Carregamento de fonte, listas e buscas; AND-E4-001/002 |
+| VIS-004 | 2 — ações de formulário compartilhadas | FormActionStyles, taskFormStyles e pluginFormStyles | Normal/loading/disabled e variantes; AND-E2-005 |
+| VIS-005 | 4 — **parcial**: campos principais migrados; criação inline de tags não usa foco compartilhado | FormTextInput/EditorField; TagSelector conserva TextInput próprio | AND-E4-003 a 007 e campo inline de tags; correção residual fora do escopo da Etapa 6 |
+| VIS-006 | 2 — **parcial**: vários headers/fechar/chips/calendário ampliados; controles secundários remanescentes | AccountHeader, SheetCloseButton, mínimos dos calendários; autenticação 44, chips de atendimento e limpar filtros financeiro sem mínimo 48 | AND-E2-004; medir alvos reais e hitSlop, inclusive exemplos remanescentes; correção residual fora desta etapa |
+| VIS-007 | 3 — controles flexíveis e calendário sensível à fonte | Buscas minHeight, calendarTypography, resumo financeiro medido | Fonte 1,0/1,3/2,0, tela pequena e conteúdo extenso; AND-E3-001 a 007 |
+| VIS-008 | 4 — IA usa variante da família de conta | AccountHeader refined em ai-settings e resources; callback mantido | Aparência e navegação header/nativa; AND-E4-008 |
+| VIS-009 | 1 — avisos/status com cores semânticas legíveis | dangerText/warningText, icon/action/background distintos | Avisos e status em contexto real; AND-E1-003 |
+| VIS-010 | 2 — proteção da Loja e FAB por insets | Loja edges top/bottom; dez módulos com FAB respectBottomInset | Scroll/fim de lista, gestos/três botões e área de toque; AND-E2-003 |
+| VIS-011 | 6 — vazio fora da faixa de leitura do FAB e espaço de rolagem | Calendar/EmptyState, FAB_LAYOUT, padding do calendário | Mês expandido/recolhido, tela pequena e fontes; AND-E6-001/002 |
+| VIS-012 | 6 — continuidade horizontal por overflow medido | HorizontalOptions nas tags/toolbar/datas/categorias/vínculos | Início/meio/fim, grupos curtos, keyboard e resize; AND-E6-005/006/007/009 |
+| VIS-013 | 3 — acesso completo aos cards longos por expansão medida | BotMessageCard, preservação de leitura no Chat | Todos os kinds, metadados longos e TalkBack; AND-E3-008 a 012 |
+| VIS-014 | 6 — regra de família e hierarquia dos headers explicitadas | ModuleTextStyles.headerTitle; módulos sem AccountHeader/ReportBackdrop | Comparação estética com conta e listas preenchidas; AND-E6-004/008 |
+| VIS-015 | 5 — preferência inicial/dinâmica de movimento respeitada | useSystemReducedMotion e ramos imediatos do BottomSheet | Preferência on/off, mudança em andamento e release; AND-E5-001 a 004 |
+| VIS-016 | 5 — evolução semântica e adoção gradual | 14 TextStyles completos e nativeTextStyle preservando métricas antigas | Tipografia real nas famílias migradas; AND-E5-005/006; não se declara toda tela migrada |
+| VIS-017 | 5 — sobrescritas antigas removidas; 6 remove locais substituídos | pluginFormStyles tipado, choiceStyles compartilhado e baseline com exceções explícitas | Formulários/estados e particularidades; AND-E5-007/008, AND-E6-004/008 |
+| VIS-018 | 6 — variantes compacta/ampla adotadas | FeedbackEmptyState, Calendar/FinanceEmptyState, Tarefas e onze módulos | Proporções e ritmo reais, filtros, fontes e TalkBack; AND-E6-002/003/004/009 |
+| VIS-019 | 2 — prioridade do teclado e proteção de rascunho | BottomSheet modalRef/requestClose, SheetDraftContext e drafts dos formulários | Voltar com teclado, continuar/descartar, salvar e fluxos vinculados; AND-E2-001/002/006 |
+
+**Resultado:** implementações/refinos de escopo presentes em 17 IDs e intervenções parciais em dois (VIS-005/VIS-006), sem qualquer achado marcado como aprovado. Testes automatizados cobrem contratos de código; oportunidades estéticas VIS-011/012/014/018 só podem ser encerradas após comparação visual. As limitações de autenticação real, onboarding, relatórios integrados e operações entre módulos do diagnóstico continuam válidas até testes específicos, mesmo que o componente compartilhado tenha sido corrigido.

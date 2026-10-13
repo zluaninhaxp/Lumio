@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
-    height: 44,
+    minHeight: 44,
     gap: Spacing.sm
   },
   hidden: { display: 'none' },

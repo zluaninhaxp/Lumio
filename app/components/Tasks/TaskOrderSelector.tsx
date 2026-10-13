@@ -1,3 +1,4 @@
+import { SheetCloseButton } from '../../../src/components/sheet-close-button';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -114,9 +115,7 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
                   <Text style={styles.modalEyebrow}>Selecionar pedido</Text>
                   <Text style={styles.modalTitle}>Qual pedido será entregue?</Text>
                 </View>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.closeButton} hitSlop={7} onPress={close} accessibilityLabel="Fechar seleção">
-                  <Ionicons name="close" size={20} color={Colors.textSecondary} />
-                </TouchableOpacity>
+                <SheetCloseButton onPress={close} />
               </View>
               <View style={styles.searchBox}>
                 <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
@@ -188,9 +187,7 @@ const styles = StyleSheet.create({
   modalHeading: { flex: 1 },
   modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accentText, textTransform: 'uppercase' },
   modalTitle: { marginTop: 4, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg, color: Colors.primary },
-  closeButton: {
-      ...SurfaceStyles.filter,
-    width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+
   searchBox: {
       ...SurfaceStyles.control,
     minHeight: 46, borderRadius: Radius.md, paddingHorizontal: Spacing.md, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

@@ -6,10 +6,12 @@ import {
   TouchableOpacity,
   PanResponder,
   useWindowDimensions,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 import { CalendarDayCell } from './CalendarDayCell';
+import { getCalendarTypography } from '../../../src/utils/calendarTypography';
 import type { CalendarEvent } from '../../../src/store';
 
 interface CollapsibleCalendarProps {
@@ -63,13 +65,19 @@ export function CollapsibleCalendar({
   onNextMonth,
   onToggleExpand,
 }: CollapsibleCalendarProps) {
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, fontScale } = useWindowDimensions();
+  const typography = getCalendarTypography(fontScale);
+  // Seven distinct 48 dp targets; narrow phones scroll the grid, never overlap it.
+  const cardContentWidth = screenWidth - Spacing.xl * 2 - SurfaceStyles.card.borderWidth * 2;
+  const gridPadding = Math.max(0, Math.min(Spacing.lg, (cardContentWidth - typography.gridWidth) / 2));
+  const availableGridWidth = cardContentWidth - gridPadding * 2;
+  const gridWidth = Math.max(typography.gridWidth, availableGridWidth);
 
   const panResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gestureState) =>
-          Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 10,
+          gridWidth <= availableGridWidth && Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dy) < 10,
         onPanResponderRelease: (_, gestureState) => {
           if (gestureState.dx > 40) {
             onPrevMonth();
@@ -78,7 +86,7 @@ export function CollapsibleCalendar({
           }
         },
       }),
-    [onPrevMonth, onNextMonth]
+    [onPrevMonth, onNextMonth, gridWidth, availableGridWidth]
   );
 
   const eventDotsCache = useMemo(() => {
@@ -112,12 +120,12 @@ export function CollapsibleCalendar({
   );
 
   return (
-    <View style={styles.container} {...panResponder.panHandlers}>
+    <View style={[styles.container, { paddingHorizontal: gridPadding }]} {...panResponder.panHandlers}>
       <View style={styles.monthNav}>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onPrevMonth} style={styles.navBtn}>
           <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={onToggleExpand} activeOpacity={ControlOpacity.pressed}>
+        <TouchableOpacity onPress={onToggleExpand} activeOpacity={ControlOpacity.pressed} style={{ minHeight: 48, justifyContent: 'center', flexShrink: 1 }}>
           <View style={styles.monthLabelRow}>
             <Text style={styles.monthLabel}>{monthLabel}</Text>
             <Ionicons
@@ -132,6 +140,8 @@ export function CollapsibleCalendar({
         </TouchableOpacity>
       </View>
 
+      <ScrollView horizontal style={{ flexGrow: 0 }} showsHorizontalScrollIndicator={gridWidth > availableGridWidth}>
+      <View style={{ width: gridWidth }}>
       {calendarExpanded ? (
         <>
           <View style={styles.dayHeaders}>
@@ -168,6 +178,7 @@ export function CollapsibleCalendar({
                     styles.weekDayCircle,
                     isSel && styles.dayCircleSelected,
                     isTdy && !isSel && styles.dayCircleToday,
+                    { width: typography.compactDiameter, height: typography.compactDiameter, borderRadius: typography.compactDiameter / 2 },
                   ]}
                 >
                   <Text
@@ -195,6 +206,8 @@ export function CollapsibleCalendar({
           })}
         </View>
       )}
+      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -214,11 +227,13 @@ const styles = StyleSheet.create({
   },
   navBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   monthLabelRow: {
+    flexShrink: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
   },
   monthLabel: {
+    flexShrink: 1,
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.md,
     color: Colors.primary,
@@ -232,7 +247,7 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  cell: { minHeight: 48, justifyContent: 'center', width: '14.28%', alignItems: 'center', paddingVertical: 4 },
+  cell: { minHeight: 48, justifyContent: 'center', width: '14.285714285714286%', alignItems: 'center', paddingVertical: 4 },
   dayCircleSelected: {
     backgroundColor: Colors.actionBackground,
     borderRadius: 15,

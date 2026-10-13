@@ -1,10 +1,10 @@
+import { FormTextInput } from '../../../src/components/form-text-input';
 import { useSheetDraft } from '../../../src/components/sheet-draft';
 import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -85,7 +85,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
       <Text style={styles.title}>{initialData ? 'Editar tarefa' : 'Nova tarefa'}</Text>
 
       <Text style={styles.label}>Descrição</Text>
-      <TextInput
+      <FormTextInput
         style={styles.input}
         value={description}
         onChangeText={setDescription}
@@ -154,13 +154,13 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose} accessibilityRole="button">
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !description.trim() && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={!description.trim()}
+          disabled={!description.trim()} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
            <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>
         </TouchableOpacity>
@@ -172,8 +172,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
 const styles = StyleSheet.create({
   ...taskFormStyles,
   priorityRow: { flexDirection: 'row', gap: 6 },
-  priorityChip: {
-      ...SurfaceStyles.filter,
+  priorityChip: { ...SurfaceStyles.filter,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
@@ -197,8 +196,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   dateChipTextActive: { color: Colors.onAction },
-  detailsToggle: {
-    flexDirection: 'row',
+  detailsToggle: { flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -213,8 +211,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 2,
   },
-  tagChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-      ...SurfaceStyles.filter,
+  tagChip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -232,8 +229,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   tagChipTextActive: { color: Colors.onAction },
-  assigneeChip: {
-      ...SurfaceStyles.filter,
+  assigneeChip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,

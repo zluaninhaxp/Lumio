@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ControlOpacity, Colors, FontSize, Spacing, SurfaceStyles, Typography } from '../../src/constants/theme';
+import { ControlOpacity, Colors, FontSize, Spacing, SurfaceStyles, Typography, TextStyles, nativeTextStyle } from '../../src/constants/theme';
 import { BackButton } from '../../src/components/back-button';
 import { ReportBackdrop } from '../components/onboarding/report-processing';
 
@@ -17,7 +17,7 @@ export const sharedStyles = StyleSheet.create({ scroll: { padding: Spacing.xl, p
     ...SurfaceStyles.card,
     borderRadius: 16, padding: Spacing.lg }, label: { color: Colors.textSecondary, fontSize: FontSize.sm, marginBottom: Spacing.xs, marginTop: Spacing.md }, input: {
         ...SurfaceStyles.control,
-        minHeight: 48, borderRadius: 12, paddingHorizontal: Spacing.md, color: Colors.primary, fontSize: FontSize.md }, readOnly: {
+        fontFamily: Typography.regular, minHeight: 48, borderRadius: 12, paddingHorizontal: Spacing.md, color: Colors.primary, fontSize: FontSize.md }, readOnly: {
             ...SurfaceStyles.controlDisabled,
             color: Colors.textSecondary }, primary: { minHeight: 52, backgroundColor: Colors.actionBackground, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.xl }, primaryText: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_700Bold' }, error: { color: Colors.dangerText, marginTop: Spacing.md }, muted: { color: Colors.textSecondary, fontSize: FontSize.sm } });
-const styles = StyleSheet.create({ refinedHeader: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm }, refinedTitle: { fontFamily: Typography.bold, color: Colors.ink, fontSize: FontSize.lg, lineHeight: 24 }, safe: { flex: 1, backgroundColor: Colors.appBackground }, header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }, back: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, title: { flex: 1, textAlign: 'center', color: Colors.primary, fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.lg }, spacer: { width: 44 } });
+const styles = StyleSheet.create({ refinedHeader: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm }, refinedTitle: TextStyles.accountTitle, safe: { flex: 1, backgroundColor: Colors.appBackground }, header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm }, back: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' }, title: { ...nativeTextStyle(TextStyles.screenTitle), flex: 1, textAlign: 'center', }, spacer: { width: 48 } });

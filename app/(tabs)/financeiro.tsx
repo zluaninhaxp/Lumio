@@ -47,6 +47,7 @@ export default function FinanceiroScreen() {
   }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState<number>();
   const handledReturnRef = useRef<string | null>(null);
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
@@ -280,7 +281,7 @@ export default function FinanceiroScreen() {
         onNext={goToNextMonth}
       />
 
-      <View style={styles.body}>
+      <View style={styles.body} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>
         {searchVisible && (
           <Pressable style={styles.searchBackdrop} onPress={() => setSearchVisible(false)} />
         )}
@@ -288,6 +289,7 @@ export default function FinanceiroScreen() {
           summary={summary}
           scrollY={scrollY}
           headerMinHeight={HEADER_MIN_HEIGHT}
+          viewportHeight={bodyHeight}
           fmt={fmtCurrency}
           filterOptions={filterOptions}
           selectedFilter={filter}

@@ -9,6 +9,8 @@ interface FABProps {
   respectBottomInset?: boolean;
 }
 
+export const FAB_LAYOUT = { size: 56, bottom: Spacing.xl, clearance: 56 + Spacing.xl + Spacing.lg } as const;
+
 export function FAB({ onPress, respectBottomInset = false }: FABProps) {
   const insets = useSafeAreaInsets();
   return (
@@ -27,10 +29,10 @@ const styles = StyleSheet.create({
   fab: {
       ...SurfaceStyles.floating,
     position: "absolute",
-    bottom: Spacing.xl,
+    bottom: FAB_LAYOUT.bottom,
     right: Spacing.xl,
-    width: 56,
-    height: 56,
+    width: FAB_LAYOUT.size,
+    height: FAB_LAYOUT.size,
     borderRadius: 28,
     backgroundColor: Colors.actionBackground,
     alignItems: "center",

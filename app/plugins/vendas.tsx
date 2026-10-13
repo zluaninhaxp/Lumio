@@ -1,3 +1,6 @@
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
 import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -19,7 +22,7 @@ import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { OrderItem, OrderStatus, Pedido, useAppStore } from "../../src/store";
 import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
@@ -235,7 +238,7 @@ export default function VendasScreen() {
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Vendas</Text>
+        <Text style={ModuleTextStyles.headerTitle}>Vendas</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
@@ -278,18 +281,9 @@ export default function VendasScreen() {
         showsVerticalScrollIndicator={false}
       >
         {visibleOrders.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="receipt-outline"
-              size={46}
-              color={Colors.decorativeMuted}
-            />
-            <Text style={styles.emptyText}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="receipt-outline" title={query
                 ? "Nenhuma venda encontrada."
-                : "Nenhuma venda cadastrada ainda."}
-            </Text>
-          </View>
+                : "Nenhuma venda cadastrada ainda."} />
         )}
         {visibleOrders.map((order) => (
           <SwipeableActions
@@ -404,7 +398,7 @@ export default function VendasScreen() {
                   <View style={styles.numberRow}>
                     <View style={{ flex: 1 }}>
                       <RequiredLabel>Quantidade</RequiredLabel>
-                      <TextInput
+                      <FormTextInput
                         style={styles.numberInput}
                         value={String(item.quantity)}
                         onFocus={() => setFocusedItemId(item.id)}
@@ -420,7 +414,7 @@ export default function VendasScreen() {
                     </View>
                     <View style={{ flex: 1 }}>
                       <RequiredLabel>Preço unitário</RequiredLabel>
-                      <TextInput
+                      <FormTextInput
                         style={styles.numberInput}
                         value={String(item.unitPrice)}
                         onFocus={() => setFocusedItemId(item.id)}
@@ -454,11 +448,11 @@ export default function VendasScreen() {
               <View style={styles.modalActions}>
                 <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.modalCancel}
-                  onPress={() => modalVisibleSheet.current?.requestClose()}
+                  onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button">
                   <Text style={styles.modalConfirmText}>Salvar</Text>
                 </TouchableOpacity>
               </View>
@@ -480,11 +474,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
   searchBox: {
       ...SurfaceStyles.control,
     flexDirection: "row",
@@ -495,13 +484,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.textSecondary,
-  },
   card: {
       ...SurfaceStyles.card,
     borderRadius: Radius.lg,
@@ -519,11 +503,11 @@ const styles = StyleSheet.create({
   },
   cardMain: { flex: 1 },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -539,9 +523,9 @@ const styles = StyleSheet.create({
   statusText: {
     color: Colors.primary,
     fontSize: FontSize.xs,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
-  itemSummary: {
+  itemSummary: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: Spacing.md,
@@ -554,23 +538,17 @@ const styles = StyleSheet.create({
   },
   total: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     fontSize: FontSize.md,
   },
-  actions: { flexDirection: "row", gap: Spacing.md },
   concludeText: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
   },
   actionText: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.sm,
-  },
-  cancelText: {
-    color: Colors.dangerText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
   },
   fab: {
@@ -585,50 +563,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  modalOverlay: {
-      ...SurfaceStyles.backdrop,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-      ...SurfaceStyles.overlay,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
-    maxHeight: "90%",
-  },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: Colors.primary,
-    fontSize: FontSize.xl,
-    marginBottom: Spacing.md,
-  },
   formScroll: { flexShrink: 1 },
   formScrollBounded: { flex: 1, minHeight: 0 },
   formSheetOverlay: { flex: 1, flexShrink: 1, minHeight: 0 },
   formSheetCard: { flex: 1, flexShrink: 1, minHeight: 0 },
-  label: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.textSecondary,
-    fontSize: FontSize.sm,
-    marginTop: Spacing.sm,
-  },
   chipRow: {
     flexDirection: "row",
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
   },
-  chip: {
-      ...SurfaceStyles.filter,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
-  chipTextActive: { color: Colors.onAction },
   itemForm: {
       ...SurfaceStyles.control,
     position: "relative",
@@ -639,7 +582,7 @@ const styles = StyleSheet.create({
   },
   itemFormFocused: {},
   itemSearchWrap: {},
-  itemNameInput: {
+  itemNameInput: { ...ModuleTextStyles.search,
       ...SurfaceStyles.control,
     borderRadius: Radius.sm,
     padding: Spacing.md,
@@ -652,7 +595,7 @@ const styles = StyleSheet.create({
     borderBottomRightRadius: 0,
   },
   numberRow: { flexDirection: "row", gap: Spacing.sm },
-  numberInput: {
+  numberInput: { ...ModuleTextStyles.search,
       ...SurfaceStyles.control,
     flex: 1,
     borderRadius: Radius.sm,
@@ -680,12 +623,12 @@ const styles = StyleSheet.create({
   stockSuggestionName: {
     flex: 1,
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
   },
   stockSuggestionPrice: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.xs,
   },
   stockCheckboxRow: {
@@ -710,7 +653,7 @@ const styles = StyleSheet.create({
   },
   stockCheckboxLabel: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
   },
   addItemButton: {
@@ -722,7 +665,7 @@ const styles = StyleSheet.create({
   totalPreview: {
     textAlign: "right",
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     fontSize: FontSize.lg,
     marginBottom: Spacing.sm,
   },
@@ -731,33 +674,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  modalCancel: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.actionBackground,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    color: Colors.onAction,
-    fontFamily: "PlusJakartaSans_600SemiBold",
   },
   ...pluginFormStyles,
 });

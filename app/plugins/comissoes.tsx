@@ -1,3 +1,5 @@
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { useMemo } from "react";
 import {
   View,
@@ -107,7 +109,7 @@ export default function ComissoesScreen() {
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Comissões</Text>
+        <Text style={ModuleTextStyles.headerTitle}>Comissões</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
@@ -132,10 +134,7 @@ export default function ComissoesScreen() {
 
         <Text style={styles.sectionLabel}>PENDENTES POR FUNCIONÁRIO</Text>
         {pendingByEmployee.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="cash-outline" size={48} color={Colors.decorativeMuted} />
-            <Text style={styles.emptyText}>Nenhuma comissão pendente.</Text>
-          </View>
+          <FeedbackEmptyState variant="compact" icon="cash-outline" title="Nenhuma comissão pendente." />
         )}
         {pendingByEmployee.map((entry) => (
           <View key={entry.employeeId} style={styles.card}>
@@ -207,11 +206,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
   summaryCard: {
     backgroundColor: Colors.accentLight,
@@ -242,12 +236,6 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
     letterSpacing: 1,
     marginBottom: Spacing.sm,
-  },
-  empty: { alignItems: "center", paddingTop: 40, gap: Spacing.md },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
   },
   card: {
       ...SurfaceStyles.card,

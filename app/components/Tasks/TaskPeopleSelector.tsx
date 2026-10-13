@@ -1,3 +1,4 @@
+import { SheetCloseButton } from '../../../src/components/sheet-close-button';
 import { ModalKeyboardViewport } from '../../../src/components/modal-keyboard-viewport';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -243,9 +244,7 @@ export function TaskPeopleSelector({
                       <Text style={styles.modalEyebrow}>Selecionar {relationLabels[activeRelation].toLowerCase()}</Text>
                       <Text style={styles.modalTitle}>Quem você quer vincular?</Text>
                     </View>
-                    <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.closeButton} hitSlop={7} onPress={closePicker} accessibilityLabel="Fechar seleção">
-                      <Ionicons name="close" size={20} color={Colors.textSecondary} />
-                    </TouchableOpacity>
+                    <SheetCloseButton onPress={closePicker} />
                   </View>
 
                   <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.createButton} onPress={() => openRelationPlugin(activeRelation)}>
@@ -373,9 +372,7 @@ const styles = StyleSheet.create({
   modalHeading: { flex: 1, gap: 2 },
   modalEyebrow: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs, color: Colors.accentText, textTransform: 'uppercase' },
   modalTitle: { fontFamily: 'PlusJakartaSans_700Bold', fontSize: FontSize.xl, color: Colors.primary },
-  closeButton: {
-      ...SurfaceStyles.filter,
-    width: 34, height: 34, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center' },
+
   createButton: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.md, backgroundColor: Colors.accentLight, borderWidth: 1, borderColor: '#BFEBDD' },
   createIcon: { width: 28, height: 28, borderRadius: Radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.bgCard },
   createText: { flex: 1, gap: 2 },

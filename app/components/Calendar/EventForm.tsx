@@ -1,10 +1,10 @@
+import { FormTextInput } from '../../../src/components/form-text-input';
 import { useSheetDraft } from '../../../src/components/sheet-draft';
 import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
@@ -92,7 +92,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
       <Text style={styles.title}>Novo compromisso</Text>
 
       <Text style={styles.label}>Título</Text>
-      <TextInput
+      <FormTextInput
         style={styles.input}
         value={description}
         onChangeText={setDescription}
@@ -150,7 +150,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
       />
 
       <Text style={styles.label}>Horário</Text>
-      <TextInput
+      <FormTextInput
         style={styles.input}
         value={time}
         onChangeText={(value) => setTime(formatTimeInput(value))}
@@ -181,13 +181,13 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose} accessibilityRole="button">
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !description.trim() && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={!description.trim()}
+          disabled={!description.trim()} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
             <Text style={styles.saveBtnText}>Adicionar</Text>
         </TouchableOpacity>
@@ -199,8 +199,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
 const styles = StyleSheet.create({
   ...taskFormStyles,
   typeRow: { flexDirection: 'row', gap: 6 },
-  typeBtn: {
-      ...SurfaceStyles.filter,
+  typeBtn: { ...SurfaceStyles.filter,
     flex: 1,
     paddingVertical: 6,
     borderRadius: Radius.full,
@@ -213,8 +212,7 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   typeBtnTextActive: { color: Colors.onAction },
-  detailsToggle: {
-    flexDirection: 'row',
+  detailsToggle: { flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -229,8 +227,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.xs,
   },
-  eventTypeChip: {
-      ...SurfaceStyles.filter,
+  eventTypeChip: { ...SurfaceStyles.filter,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.full

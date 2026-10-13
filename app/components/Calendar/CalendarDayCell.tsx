@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, View, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, View, Text, StyleSheet, useWindowDimensions } from 'react-native';
+import { getCalendarTypography } from '../../../src/utils/calendarTypography';
 import { ControlOpacity, Colors, FontSize } from '../../../src/constants/theme';
 
 interface CalendarDayCellProps {
@@ -21,6 +22,8 @@ function CalendarDayCellComponent({
   onPress,
   dayTextStyle,
 }: CalendarDayCellProps) {
+  const { fontScale } = useWindowDimensions();
+  const { monthDiameter } = getCalendarTypography(fontScale);
   return (
     <TouchableOpacity
       style={styles.cell}
@@ -32,6 +35,7 @@ function CalendarDayCellComponent({
           styles.dayCircle,
           isSelected && styles.dayCircleSelected,
           isToday && !isSelected && styles.dayCircleToday,
+          { width: monthDiameter, height: monthDiameter, borderRadius: monthDiameter / 2 },
         ]}
       >
         <Text
@@ -62,7 +66,7 @@ function CalendarDayCellComponent({
 export const CalendarDayCell = React.memo(CalendarDayCellComponent);
 
 const styles = StyleSheet.create({
-  cell: { minHeight: 48, justifyContent: 'center', width: '14.28%', alignItems: 'center', paddingVertical: 4 },
+  cell: { minHeight: 48, justifyContent: 'center', width: '14.285714285714286%', alignItems: 'center', paddingVertical: 4 },
   dayCircle: {
     width: 34,
     height: 34,

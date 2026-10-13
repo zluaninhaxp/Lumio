@@ -134,7 +134,7 @@ export default function PluginStoreScreen() {
               </View>
               {isActive ? (
                 <TouchableOpacity
-                  style={styles.activeTag}
+                  accessibilityRole="button" accessibilityLabel={`Abrir ${def.label}`} style={styles.activeTag}
                   onPress={() => router.push(def.route as any)}
                   activeOpacity={ControlOpacity.pressed}
                 >
@@ -147,6 +147,7 @@ export default function PluginStoreScreen() {
                     styles.activateBtn,
                     blocked && styles.activateBtnDisabled,
                   ]}
+                  accessibilityRole="button" accessibilityLabel={`Ativar ${def.label}`}
                   onPress={() => tryActivate(def.id)}
                   activeOpacity={ControlOpacity.pressed}
                 >
@@ -222,7 +223,7 @@ const styles = StyleSheet.create({
     color: Colors.warningText,
     marginTop: 4,
   },
-  activateBtn: {
+  activateBtn: { alignItems: "center", justifyContent: "center",
     backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
@@ -234,8 +235,7 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.onAction,
   },
-  activeTag: {
-    flexDirection: "row",
+  activeTag: { flexDirection: "row",
     alignItems: "center",
     gap: 4,
     backgroundColor: Colors.accentLight,

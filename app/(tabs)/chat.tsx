@@ -88,6 +88,7 @@ export default function ChatScreen() {
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const followContentResize = useRef(true);
 const { currentUser } = useAuth();
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
@@ -630,8 +631,15 @@ return date.toISOString().split('T')[0];
   }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice, persistIntentMarker, taskHookFromText]);
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    followContentResize.current = true;
+    setTimeout(() => {
+      if (followContentResize.current) flatListRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   }, []);
+  const preserveCardReading = useCallback(() => { followContentResize.current = false; }, []);
+  const handleContentResize = useCallback(() => {
+    if (followContentResize.current) scrollToBottom();
+  }, [scrollToBottom]);
 
   /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
   const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: ChatAmbiguity; fallbackSourceText?: string }) => {
@@ -1126,7 +1134,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {hasCards ? (
             <View style={styles.cardsContainer}>
               {item.cards!.map((card, idx) => (
-                <BotMessageCard key={idx} card={card} />
+                <BotMessageCard key={idx} card={card} onExpansionChange={preserveCardReading} />
               ))}
             </View>
           ) : (
@@ -1191,8 +1199,8 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
-          onLayout={scrollToBottom}
-          onContentSizeChange={scrollToBottom}
+          onLayout={handleContentResize}
+          onContentSizeChange={handleContentResize}
         />
 
         {showCommandPanel && (

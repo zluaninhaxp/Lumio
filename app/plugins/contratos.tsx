@@ -1,3 +1,6 @@
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
@@ -18,7 +21,7 @@ import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { AppAlert } from "@/src/services/appAlert";
@@ -181,7 +184,7 @@ export default function ContratosScreen() {
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Contratos / Assinaturas</Text>
+        <Text style={ModuleTextStyles.headerTitle}>Contratos / Assinaturas</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
@@ -224,14 +227,7 @@ export default function ContratosScreen() {
         showsVerticalScrollIndicator={false}
       >
         {filteredContracts.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="document-lock-outline"
-              size={48}
-              color={Colors.decorativeMuted}
-            />
-            <Text style={styles.emptyText}>{query ? "Nenhum contrato encontrado." : "Nenhum contrato cadastrado."}</Text>
-          </View>
+          <FeedbackEmptyState variant="compact" icon="document-lock-outline" title={query ? "Nenhum contrato encontrado." : "Nenhum contrato cadastrado."} />
         )}
         {filteredContracts.map((contract) => {
           const isActive = contract.status === "ativo";
@@ -352,7 +348,7 @@ export default function ContratosScreen() {
                 onBeforeNavigate={navigateToRelationPlugin}
               />
               <RequiredLabel>Valor por ciclo</RequiredLabel>
-              <TextInput
+              <FormTextInput
                 style={styles.input}
                 value={value}
                 onChangeText={setValue}
@@ -380,7 +376,7 @@ export default function ContratosScreen() {
                 ))}
               </View>
               <RequiredLabel>Data de início (AAAA-MM-DD)</RequiredLabel>
-              <TextInput
+              <FormTextInput
                 style={styles.input}
                 value={startDate}
                 onChangeText={setStartDate}
@@ -389,10 +385,10 @@ export default function ContratosScreen() {
               />
             </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button">
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button">
                 <Text style={styles.saveText}>Salvar contrato</Text>
               </TouchableOpacity>
             </View>
@@ -413,19 +409,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    flex: 1,
-    textAlign: "center",
-  },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 90, gap: Spacing.md },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   card: {
       ...SurfaceStyles.card,
     borderRadius: Radius.lg,
@@ -444,10 +428,10 @@ const styles = StyleSheet.create({
   cardMain: { flex: 1 },
   cardTitle: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -462,16 +446,16 @@ const styles = StyleSheet.create({
   badgeText: {
     color: Colors.primary,
     fontSize: FontSize.xs,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
-  meta: {
+  meta: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: Spacing.md,
   },
   overdue: {
     color: Colors.warningText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
     marginTop: Spacing.xs,
   },
@@ -483,7 +467,7 @@ const styles = StyleSheet.create({
   },
   receivablesTitle: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
     marginBottom: Spacing.xs,
   },
@@ -494,24 +478,18 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     gap: Spacing.sm,
   },
-  receivableText: {
+  receivableText: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.xs,
     flex: 1,
   },
   receiveText: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.xs,
   },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
-  delete: { color: Colors.dangerText, fontFamily: "PlusJakartaSans_600SemiBold" },
+  action: { color: Colors.primary, fontFamily: Typography.semibold },
+  delete: { color: Colors.dangerText, fontFamily: Typography.semibold },
   fab: {
       ...SurfaceStyles.floating,
     position: "absolute",
@@ -524,38 +502,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  overlay: {
-      ...SurfaceStyles.backdrop,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modal: {
-      ...SurfaceStyles.overlay,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xl,
-    maxHeight: "88%",
-  },
-  modalTitle: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.sm,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-      ...SurfaceStyles.control,
-    height: 46,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    color: Colors.primary,
-  },
   searchBox: {
       ...SurfaceStyles.control,
     flexDirection: "row",
@@ -566,44 +512,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   chips: { gap: Spacing.sm },
   periodRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  chip: {
-      ...SurfaceStyles.filter,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: FontSize.sm },
-  chipTextActive: { color: Colors.onAction },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: Spacing.lg,
-    marginTop: Spacing.lg,
-  },
-  saveButton: {
-    backgroundColor: Colors.actionBackground,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  cancelButton: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  saveText: { color: Colors.onAction, fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
-  cancel: { color: Colors.warningText, fontFamily: "PlusJakartaSans_600SemiBold" },
+  cancel: { color: Colors.warningText, fontFamily: Typography.semibold },
 });

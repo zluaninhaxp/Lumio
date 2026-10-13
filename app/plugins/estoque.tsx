@@ -1,3 +1,6 @@
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
@@ -16,7 +19,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { EstoqueItem, useAppStore } from "../../src/store";
 import { CatalogItemSelector } from "../components/CatalogItemSelector";
 import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../src/utils/relationDraft";
@@ -166,7 +169,7 @@ export default function EstoqueScreen() {
         >
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Estoque</Text>
+        <Text style={ModuleTextStyles.headerTitle}>Estoque</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={deactivate} style={styles.iconButton}>
           <Ionicons
             name="ellipsis-horizontal"
@@ -192,14 +195,9 @@ export default function EstoqueScreen() {
         showsVerticalScrollIndicator={false}
       >
         {filteredItems.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="cube-outline" size={48} color={Colors.decorativeMuted} />
-            <Text style={styles.emptyText}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="cube-outline" title={query
                 ? "Nenhum item encontrado."
-                : "Nenhum item no estoque ainda."}
-            </Text>
-          </View>
+                : "Nenhum item no estoque ainda."} />
         )}
         {filteredItems.map((item) => {
           const controlsStock = item.controlStock !== false;
@@ -300,7 +298,7 @@ export default function EstoqueScreen() {
               onBeforeNavigate={openCatalog}
             />
             <FormLabel>Quantidade atual (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Quantidade atual"
               placeholderTextColor={Colors.placeholder}
@@ -311,7 +309,7 @@ export default function EstoqueScreen() {
               keyboardType="decimal-pad"
             />
             <FormLabel>Quantidade mínima para alerta (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Quantidade mínima para alerta"
               placeholderTextColor={Colors.placeholder}
@@ -324,11 +322,11 @@ export default function EstoqueScreen() {
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => formVisibleSheet.current?.requestClose()}
+                onPress={() => formVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button">
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -349,7 +347,7 @@ export default function EstoqueScreen() {
                 : "Saída de estoque"}
             </Text>
             <Text style={styles.modalSubtitle}>{movementItem?.name}</Text>
-            <TextInput
+            <FormTextInput
               style={styles.amountInput}
               placeholder="Quantidade"
               placeholderTextColor={Colors.placeholder}
@@ -358,9 +356,9 @@ export default function EstoqueScreen() {
                 setMovement((current) => ({ ...current, amount }))
               }
               keyboardType="decimal-pad"
-              autoFocus
+              autoFocus focusStyle={{ color: Colors.accentText }}
             />
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Motivo (opcional)"
               placeholderTextColor={Colors.placeholder}
@@ -372,7 +370,7 @@ export default function EstoqueScreen() {
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => movementVisibleSheet.current?.requestClose()}
+                onPress={() => movementVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
@@ -381,7 +379,7 @@ export default function EstoqueScreen() {
                   styles.modalConfirm,
                   movementType === "saida" && styles.exitConfirm,
                 ]}
-                onPress={saveMovement}
+                onPress={saveMovement} accessibilityRole="button"
               >
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
               </TouchableOpacity>
@@ -403,11 +401,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   iconButton: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
   searchBox: {
       ...SurfaceStyles.control,
     flexDirection: "row",
@@ -418,13 +411,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   card: {
       ...SurfaceStyles.card,
     borderRadius: Radius.lg,
@@ -444,11 +432,11 @@ const styles = StyleSheet.create({
   iconCircleLow: { backgroundColor: Colors.dangerLight },
   cardMain: { flex: 1 },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -456,7 +444,7 @@ const styles = StyleSheet.create({
   cardPrice: {
     color: Colors.accentText,
     fontSize: FontSize.sm,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     marginTop: 2,
   },
   alertBadge: {
@@ -470,7 +458,7 @@ const styles = StyleSheet.create({
   },
   alertText: {
     color: Colors.dangerText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.xs,
   },
   actionRow: {
@@ -490,12 +478,12 @@ const styles = StyleSheet.create({
   },
   entryText: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.xs,
   },
   exitText: {
     color: Colors.dangerText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.xs,
   },
   deleteButton: { marginLeft: "auto", padding: Spacing.sm },
@@ -505,12 +493,12 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingTop: Spacing.sm,
   },
-  historyTitle: {
+  historyTitle: { ...ModuleTextStyles.metadata,
     color: Colors.textMuted,
     fontSize: FontSize.xs,
     marginBottom: Spacing.xs,
   },
-  historyText: {
+  historyText: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.xs,
     paddingVertical: 2,
@@ -527,31 +515,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  modalOverlay: {
-      ...SurfaceStyles.backdrop,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-      ...SurfaceStyles.overlay,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  modalSubtitle: { color: Colors.textSecondary },
-  input: {
-      ...SurfaceStyles.control,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    color: Colors.primary,
-  },
+  modalSubtitle: { ...ModuleTextStyles.metadata, color: Colors.textSecondary },
   catalogChoices: { gap: Spacing.sm, maxHeight: 112 },
   catalogChoice: {
       ...SurfaceStyles.filter,
@@ -563,7 +527,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm
   },
   catalogChoiceActive: { backgroundColor: Colors.actionBackground, borderColor: Colors.accentIcon },
-  catalogChoiceName: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
+  catalogChoiceName: { color: Colors.primary, fontFamily: Typography.semibold },
   catalogChoiceUnit: { color: Colors.textSecondary, fontSize: FontSize.xs },
   catalogChoiceTextActive: { color: Colors.onAction },
   catalogHint: { color: Colors.textSecondary, fontSize: FontSize.sm, lineHeight: 20 },
@@ -576,46 +540,19 @@ const styles = StyleSheet.create({
   toggleCopy: { flex: 1, gap: 2 },
   toggleTitle: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
   toggleDescription: {
     color: Colors.textSecondary,
     fontSize: FontSize.xs,
   },
   amountInput: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     fontSize: FontSize.display,
     textAlign: "center",
     color: Colors.primary,
     paddingVertical: Spacing.sm,
   },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  modalCancel: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.actionBackground,
-    alignItems: "center",
-  },
   exitConfirm: { backgroundColor: Colors.dangerActionBackground },
-  modalConfirmText: {
-    color: Colors.onAction,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   ...pluginFormStyles,
 });

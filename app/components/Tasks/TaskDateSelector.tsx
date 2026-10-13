@@ -1,3 +1,4 @@
+import { HorizontalOptions } from '../../../src/components/horizontal-options';
 import React, { useState } from 'react';
 import {
   View,
@@ -7,8 +8,10 @@ import {
   ScrollView,
   Modal,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { getCalendarTypography } from '../../../src/utils/calendarTypography';
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
 
 export const PERIOD_LABELS = ['Esta semana', 'Próxima semana'];
@@ -85,6 +88,8 @@ interface TaskDateSelectorProps {
 }
 
 export function TaskDateSelector({ value, label, onChange, mode = 'task' }: TaskDateSelectorProps) {
+  const { height: windowHeight, fontScale } = useWindowDimensions();
+  const typography = getCalendarTypography(fontScale);
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
   const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
@@ -137,9 +142,7 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
 
   return (
     <View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
+      <HorizontalOptions
         contentContainerStyle={styles.chipRow}
         keyboardShouldPersistTaps="handled"
       >
@@ -175,7 +178,7 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
             </TouchableOpacity>
           );
         })}
-      </ScrollView>
+      </HorizontalOptions>
 
       <Modal
         visible={calendarVisible}
@@ -184,7 +187,8 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
         onRequestClose={() => setCalendarVisible(false)}
       >
         <Pressable style={styles.calendarOverlay} onPress={() => setCalendarVisible(false)}>
-          <Pressable style={styles.calendarCard}>
+          <Pressable style={[styles.calendarCard, { maxWidth: typography.gridWidth + Spacing.md * 2 + SurfaceStyles.overlay.borderWidth * 2, maxHeight: windowHeight - Spacing.md * 2 }]}>
+            <ScrollView style={{ flexGrow: 0 }} contentContainerStyle={{ flexGrow: 0 }}>
             <View style={styles.calendarHeader}>
               <Text style={styles.calendarTitle}>Escolher data</Text>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => setCalendarVisible(false)} style={{ width: 48, height: 48, alignItems: "center", justifyContent: "center" }}>
@@ -202,6 +206,8 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
                 <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
               </TouchableOpacity>
             </View>
+            <ScrollView horizontal style={{ flexGrow: 0 }}>
+            <View style={{ width: typography.gridWidth }}>
             <View style={styles.calendarWeekDays}>
               {WEEK_DAYS.map((day, index) => (
                 <Text key={`${day}-${index}`} style={styles.calendarWeekDay}>
@@ -225,6 +231,7 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
                           styles.calendarDayCircle,
                           isTodayDate(calendarYear, calendarMonth, day) && styles.calendarDayCircleToday,
                           isSameDate(value, calendarYear, calendarMonth, day) && styles.calendarDayCircleSelected,
+                          { width: typography.compactDiameter, height: typography.compactDiameter, borderRadius: typography.compactDiameter / 2 },
                         ]}
                       >
                         <Text
@@ -242,6 +249,9 @@ export function TaskDateSelector({ value, label, onChange, mode = 'task' }: Task
                 )}
               </View>
             ))}
+            </View>
+            </ScrollView>
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -255,8 +265,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 2,
   },
-  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-      ...SurfaceStyles.filter,
+  chip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -278,12 +287,13 @@ const styles = StyleSheet.create({
       ...SurfaceStyles.backdrop,
     flex: 1,
     justifyContent: 'center',
-    padding: Spacing.lg
+    padding: Spacing.md
   },
   calendarCard: {
       ...SurfaceStyles.overlay,
     width: '100%',
-    maxWidth: 340,
+    maxWidth: 336 + Spacing.md * 2 + SurfaceStyles.overlay.borderWidth * 2,
+    alignSelf: 'center',
     padding: Spacing.md,
     borderRadius: Radius.lg
   },
@@ -304,6 +314,8 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   calendarMonthLabel: {
+    flexShrink: 1,
+    textAlign: 'center',
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
     color: Colors.primary,

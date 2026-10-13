@@ -1,12 +1,12 @@
+import { HorizontalOptions } from '../../../src/components/horizontal-options';
+import { FormTextInput } from '../../../src/components/form-text-input';
 import { useSheetDraft } from '../../../src/components/sheet-draft';
 import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
-  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -256,13 +256,13 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
       </View>
 
       <Text style={styles.label}>Valor *</Text>
-      <TextInput
+      <FormTextInput
         style={styles.amountInput}
         value={amount}
              onChangeText={(value) => setAmount(formatCurrencyInput(value))}
         placeholder="R$ 0,00"
         placeholderTextColor={Colors.placeholder}
-        keyboardType="decimal-pad"
+        keyboardType="decimal-pad" focusStyle={{ color: Colors.accentText }}
       />
 
       <View style={styles.presetRow}>
@@ -278,7 +278,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
       </View>
 
       <Text style={styles.label}>Data *</Text>
-      <TextInput
+      <FormTextInput
         style={styles.input}
         value={transactionDate}
         onChangeText={(value) => setTransactionDate(formatTransactionDateInput(value))}
@@ -289,7 +289,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
       />
 
       <Text style={styles.label}>Descrição *</Text>
-      <TextInput
+      <FormTextInput
         style={styles.input}
         value={description}
         onChangeText={setDescription}
@@ -332,28 +332,28 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
             }}
           />
           {!!supplierId && <>
-            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><TextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.placeholder} /></View>
+            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><FormTextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.placeholder} /></View>
             <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
           </>}
           {type === 'saida' && activatedPlugins.includes('estoque') && !!supplierId && <>
             <Text style={styles.label}>Receber no estoque</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryRow}>
+            <HorizontalOptions contentContainerStyle={styles.categoryRow}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
               {estoqueItems.map((item) => <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
-            </ScrollView>
-            {!!stockItemId && <><TextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.placeholder} keyboardType="decimal-pad" /><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
+            </HorizontalOptions>
+            {!!stockItemId && <><FormTextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.placeholder} keyboardType="decimal-pad" /><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
           </>}
         </>
       )}
 
       <View style={styles.actions}>
-        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelBtn} onPress={requestClose} accessibilityRole="button">
           <Text style={styles.cancelBtnText}>Cancelar</Text>
         </TouchableOpacity>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={!canSave}
+          disabled={!canSave} accessibilityRole="button" accessibilityState={{ disabled: !canSave }}
         >
           <Text style={styles.saveBtnText}>
             {isEditing ? 'Salvar' : 'Adicionar'}

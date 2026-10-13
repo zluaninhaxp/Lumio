@@ -52,8 +52,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
     gap: Spacing.sm,
   },
-  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-      ...SurfaceStyles.filter,
+  chip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -70,7 +69,7 @@ const styles = StyleSheet.create({
   chipTextActive: { color: Colors.onAction },
   badge: {
     minWidth: 18,
-    height: 18,
+    minHeight: 18,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: Radius.full,

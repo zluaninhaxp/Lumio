@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Animated,
   LayoutChangeEvent,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
@@ -27,6 +28,7 @@ interface CollapsingHeaderProps {
   summary: FinanceSummary;
   scrollY: Animated.Value;
   headerMinHeight: number;
+  viewportHeight?: number;
   fmt: (v: number) => string;
   filterOptions: string[];
   selectedFilter: string;
@@ -44,6 +46,7 @@ export function CollapsingHeader({
   summary,
   scrollY,
   headerMinHeight,
+  viewportHeight,
   fmt,
   filterOptions,
   selectedFilter,
@@ -55,14 +58,22 @@ export function CollapsingHeader({
   onSearchToggle,
 }: CollapsingHeaderProps) {
   const [cardHeight, setCardHeight] = useState(0);
+  const [filtersHeight, setFiltersHeight] = useState(FILTERS_STRIP_HEIGHT);
+  const [collapsedHeight, setCollapsedHeight] = useState(0);
+  const minimumHeight = Math.max(headerMinHeight, filtersHeight + collapsedHeight + Spacing.xs);
 
+  // Only oversized summaries get their own scroll viewport; normal cards stay intact.
+  const summaryViewport = viewportHeight && viewportHeight > 0
+    ? Math.max(48, viewportHeight - filtersHeight - minimumHeight) : undefined;
+  const summaryNeedsScroll = summaryViewport !== undefined && cardHeight > summaryViewport;
+  const visibleCardHeight = summaryNeedsScroll ? summaryViewport : cardHeight;
   const headerMaxHeight = cardHeight > 0
-    ? Math.max(cardHeight + FILTERS_STRIP_HEIGHT, headerMinHeight)
-    : headerMinHeight;
+    ? Math.max(visibleCardHeight + filtersHeight, minimumHeight)
+    : minimumHeight;
   // On the first native render the card has not measured yet. An
   // interpolation with inputRange [0, 0] is rejected by Android, while web
   // happens to tolerate it.
-  const diff = Math.max(headerMaxHeight - headerMinHeight, 1);
+  const diff = Math.max(headerMaxHeight - minimumHeight, 1);
 
   useEffect(() => {
     if (headerMaxHeight > 0) {
@@ -71,7 +82,7 @@ export function CollapsingHeader({
   }, [headerMaxHeight, onHeightChange]);
 
   const handleCardLayout = useCallback((e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height;
+    const h = e.nativeEvent.layout.height + Spacing.xs;
     if (h > 0) {
       setCardHeight(h);
     }
@@ -110,6 +121,56 @@ export function CollapsingHeader({
     return () => scrollY.removeListener(id);
   }, [scrollY, diff]);
 
+  const summaryContent = (
+    <View style={styles.summaryCard} onLayout={handleCardLayout}>
+      <View style={styles.summaryRow}>
+        <View style={styles.summaryColumn}>
+          <Text style={styles.summaryLabel}>Entradas</Text>
+          <Text style={styles.entradas}>{fmt(summary.entradas)}</Text>
+        </View>
+        <View style={styles.saidasCol}>
+          <Text style={styles.summaryLabel}>Saídas</Text>
+          <Text style={styles.saidas}>{fmt(summary.saidas)}</Text>
+        </View>
+      </View>
+      <View style={styles.divider} />
+      <Text style={styles.periodLabel}>Saldo do período</Text>
+      <Text
+        style={[
+          styles.saldo,
+          { color: summary.saldo >= 0 ? Colors.accentText : Colors.dangerText },
+        ]}
+      >
+        {fmt(summary.saldo)}
+      </Text>
+
+      {summary.categories.length > 0 && (
+        <View style={styles.catBars}>
+          {summary.categories.map((cat) => (
+            <View key={cat.name} style={styles.catRow}>
+              <View style={styles.catHeading}>
+                <Text style={styles.catName}>{cat.name}</Text>
+                <Text style={styles.catValue}>{fmt(cat.value)}</Text>
+              </View>
+              <View style={styles.barTrack}>
+                <View
+                  style={[
+                    styles.barFill,
+                    {
+                      width: `${Math.round(
+                        (cat.value / summary.maxVal) * 100
+                      )}%`,
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <Animated.View
       style={[
@@ -125,65 +186,21 @@ export function CollapsingHeader({
           styles.cardWrapper,
           { opacity: animatedStyles.cardOpacity },
         ]}
-        onLayout={handleCardLayout}
         pointerEvents={headerCollapsed ? 'none' : 'auto'}
       >
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryRow}>
-            <View>
-              <Text style={styles.summaryLabel}>Entradas</Text>
-              <Text style={styles.entradas}>{fmt(summary.entradas)}</Text>
-            </View>
-            <View style={styles.saidasCol}>
-              <Text style={styles.summaryLabel}>Saídas</Text>
-              <Text style={styles.saidas}>{fmt(summary.saidas)}</Text>
-            </View>
-          </View>
-          <View style={styles.divider} />
-          <Text style={styles.periodLabel}>Saldo do período</Text>
-          <Text
-            style={[
-              styles.saldo,
-              { color: summary.saldo >= 0 ? Colors.accentText : Colors.dangerText },
-            ]}
-          >
-            {fmt(summary.saldo)}
-          </Text>
-
-          {summary.categories.length > 0 && (
-            <View style={styles.catBars}>
-              {summary.categories.map((cat) => (
-                <View key={cat.name} style={styles.catRow}>
-                  <Text style={styles.catName}>{cat.name}</Text>
-                  <Text style={styles.catValue}>{fmt(cat.value)}</Text>
-                  <View style={styles.barTrack}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        {
-                          width: `${Math.round(
-                            (cat.value / summary.maxVal) * 100
-                          )}%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </View>
+        {summaryNeedsScroll ? <ScrollView style={{ maxHeight: summaryViewport! - Spacing.xs, flexGrow: 0 }} nestedScrollEnabled>{summaryContent}</ScrollView> : summaryContent}
 
       </Animated.View>
 
       <Animated.View
         style={[
           styles.collapsedRowWrapper,
+          { bottom: filtersHeight },
           { opacity: animatedStyles.collapsedOpacity },
         ]}
         pointerEvents={headerCollapsed ? 'auto' : 'none'}
       >
-        <View style={styles.collapsedRow}>
+        <View style={styles.collapsedRow} onLayout={event => setCollapsedHeight(event.nativeEvent.layout.height)}>
           <Text style={styles.collapsedLabel}>Saldo</Text>
           <Text
             style={[
@@ -196,7 +213,7 @@ export function CollapsingHeader({
         </View>
       </Animated.View>
 
-      <View style={styles.filtersWrapper}>
+      <View style={styles.filtersWrapper} onLayout={event => setFiltersHeight(event.nativeEvent.layout.height)}>
         <FinanceFilterChips
           options={filterOptions}
           selected={selectedFilter}
@@ -231,6 +248,8 @@ const styles = StyleSheet.create({
     padding: Spacing.xl
   },
   summaryRow: {
+    flexWrap: 'wrap',
+    rowGap: Spacing.sm,
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: Spacing.lg,
@@ -245,7 +264,8 @@ const styles = StyleSheet.create({
     fontSize: FontSize.lg,
     color: Colors.accentText,
   },
-  saidasCol: { alignItems: 'flex-end' },
+  summaryColumn: { maxWidth: '100%' },
+  saidasCol: { alignItems: 'flex-end', maxWidth: '100%', marginLeft: 'auto' },
   saidas: {
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.lg,
@@ -269,17 +289,19 @@ const styles = StyleSheet.create({
   },
   catBars: { gap: Spacing.md },
   catRow: { gap: 4 },
+  catHeading: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', columnGap: Spacing.sm },
   catName: {
+    maxWidth: '100%',
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm,
     color: Colors.primary,
   },
   catValue: {
+    marginLeft: 'auto',
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
-    position: 'absolute',
-    right: 0,
+    maxWidth: '100%',
   },
   barTrack: {
     height: 4,
@@ -300,6 +322,7 @@ const styles = StyleSheet.create({
     right: Spacing.xl,
   },
   collapsedRow: {
+    flexWrap: 'wrap',
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
@@ -311,6 +334,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   collapsedSaldo: {
+    maxWidth: '100%',
+    marginLeft: 'auto',
     fontFamily: 'PlusJakartaSans_700Bold',
     fontSize: FontSize.lg,
   },

@@ -1,3 +1,5 @@
+import { HorizontalOptions } from '../../src/components/horizontal-options';
+import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModalKeyboardViewport } from '../../src/components/modal-keyboard-viewport';
 import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
@@ -467,27 +469,14 @@ export default function TarefasScreen() {
 
   // ─────── Empty State ───────
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      {hasNoTasksAtAll && !searchQuery ? (
-        <>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="checkbox-outline" size={36} color={Colors.accentIcon} />
-          </View>
-          <Text style={styles.emptyTitle}>Nenhuma tarefa ainda</Text>
-          <Text style={styles.emptySubtitle}>
-            Toque no botão + para criar sua primeira tarefa.
-          </Text>
-        </>
-      ) : (
-        <>
-          <Ionicons name="search-outline" size={40} color={Colors.decorativeMuted} style={{ marginBottom: Spacing.md }} />
-          <Text style={styles.emptyTitle}>Nenhum resultado</Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery
-              ? `Nenhuma tarefa encontrada para "${searchQuery}".`
-              : 'Nenhuma tarefa corresponde ao filtro selecionado.'}
-          </Text>
-          {(searchQuery || activeFilter !== 'todas') && (
+    <FeedbackEmptyState
+      variant={hasNoTasksAtAll && !searchQuery ? 'spacious' : 'compact'}
+      icon={hasNoTasksAtAll && !searchQuery ? 'checkbox-outline' : 'search-outline'}
+      title={hasNoTasksAtAll && !searchQuery ? 'Nenhuma tarefa ainda' : 'Nenhum resultado'}
+      description={hasNoTasksAtAll && !searchQuery ? 'Toque no botão + para criar sua primeira tarefa.' :
+        searchQuery ? `Nenhuma tarefa encontrada para "${searchQuery}".` : 'Nenhuma tarefa corresponde ao filtro selecionado.'}>
+      {!(hasNoTasksAtAll && !searchQuery) && <>
+        {(searchQuery || activeFilter !== 'todas') && (
             <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.clearFilterBtn}
               onPress={() => {
@@ -498,9 +487,8 @@ export default function TarefasScreen() {
               <Text style={styles.clearFilterBtnText}>Limpar filtros</Text>
             </TouchableOpacity>
           )}
-        </>
-      )}
-    </View>
+      </>}
+    </FeedbackEmptyState>
   );
 
   // ─────── Swipe Actions ───────
@@ -632,7 +620,7 @@ export default function TarefasScreen() {
                       style={[styles.tagChip, { backgroundColor: c.bg }]}
                       onPress={() => setTagManager({ taskId: item.id, current: item.tags })}
                     >
-                      <Text style={[styles.tagChipText, { color: c.text }]} numberOfLines={1}>
+                      <Text style={[styles.tagChipText, { color: c.text }]}>
                         {tag}
                       </Text>
                     </TouchableOpacity>
@@ -893,6 +881,21 @@ export default function TarefasScreen() {
     </Modal>
   );
 
+  const hasModuleSuggestions = contractSuggestions.length > 0 || appointmentSuggestions.length > 0 || deliverySuggestions.length > 0 || supplierSuggestions.length > 0 || stockSuggestions.length > 0 || orderFollowUpSuggestions.length > 0 || quoteFollowUpSuggestions.length > 0 || showCommissionSuggestion;
+  const renderModuleSuggestions = () => hasModuleSuggestions ? (
+    <View style={styles.suggestionsFooter}>
+      <Text style={styles.suggestionsHeading}>Sugestões dos módulos</Text>
+          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={14} color={Colors.dangerIcon} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
+          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
+    </View>
+  ) : null;
+
   // ─────── Loading State ───────
   if (isLoading) {
     return (
@@ -926,14 +929,7 @@ export default function TarefasScreen() {
             <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
           </View>
 
-          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.dangerIcon} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={18} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
+
 
           <View style={styles.searchContainer}>
             <Ionicons name="search-outline" size={17} color={Colors.iconMuted} style={styles.searchIcon} />
@@ -953,10 +949,9 @@ export default function TarefasScreen() {
           </View>
 
           {!hasNoTasksAtAll && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
+            <HorizontalOptions
               contentContainerStyle={styles.filterRow}
+              hintStyle={styles.filterHint}
               keyboardShouldPersistTaps="handled"
             >
               {FILTERS.slice(0, 3).map((f) => {
@@ -1060,7 +1055,7 @@ export default function TarefasScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </HorizontalOptions>
           )}
 
         </View>
@@ -1075,11 +1070,13 @@ export default function TarefasScreen() {
               keyboardShouldPersistTaps="handled"
             >
               {renderEmptyState()}
+              {renderModuleSuggestions()}
             </ScrollView>
           ) : (
             <FlatList
               data={filteredTasks}
               renderItem={renderTaskCard}
+              ListFooterComponent={renderModuleSuggestions()}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
@@ -1193,6 +1190,14 @@ export default function TarefasScreen() {
   );
 }
 
+const suggestionSectionStyle = {
+  ...SurfaceStyles.card,
+  borderWidth: 0,
+  borderRadius: Radius.md,
+  padding: Spacing.sm,
+  marginBottom: Spacing.sm,
+};
+
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.appBackground },
 
@@ -1200,50 +1205,20 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.appBackground,
     zIndex: 1,
   },
-  supplierSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: '#FFF8E7',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F5D98A',
-  },
-  stockSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: Colors.dangerLight,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F2B8B8',
-  },
-  orderSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: '#FFF8E7',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F5D98A',
-  },
-  quoteSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: '#FFF8E7',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F5D98A',
-  },
-  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-  suggestionTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', color: Colors.primary, fontSize: FontSize.sm },
-  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
-  suggestionBody: { flex: 1 },
-  suggestionText: { fontFamily: 'PlusJakartaSans_500Medium', color: Colors.primary, fontSize: FontSize.xs },
-  suggestionMeta: { color: Colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
-  suggestionButton: { backgroundColor: Colors.actionBackground, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  suggestionButtonText: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
+  suggestionsFooter: { paddingTop: Spacing.md, paddingBottom: Spacing.sm },
+  suggestionsHeading: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  supplierSuggestion: suggestionSectionStyle,
+  stockSuggestion: suggestionSectionStyle,
+  orderSuggestion: suggestionSectionStyle,
+  quoteSuggestion: suggestionSectionStyle,
+  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
+  suggestionTitle: { fontFamily: 'PlusJakartaSans_500Medium', color: Colors.textSecondary, fontSize: FontSize.xs, flexShrink: 1 },
+  suggestionRow: { gap: Spacing.xs, paddingTop: Spacing.xs },
+  suggestionBody: { minWidth: 0 },
+  suggestionText: { fontFamily: 'PlusJakartaSans_400Regular', color: Colors.textSecondary, fontSize: FontSize.xs },
+  suggestionMeta: { fontFamily: 'PlusJakartaSans_400Regular', color: Colors.textMuted, fontSize: FontSize.xs, marginTop: 2 },
+  suggestionButton: { alignSelf: 'flex-end', backgroundColor: Colors.accentLight, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs, justifyContent: 'center' },
+  suggestionButtonText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs },
 
   // Header
   header: {
@@ -1275,7 +1250,7 @@ const styles = StyleSheet.create({
     marginHorizontal: CONTENT_H,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
-    height: 44,
+    minHeight: 44,
   },
   searchIcon: { marginRight: Spacing.sm },
   searchInput: {
@@ -1295,8 +1270,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  filterChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-      ...SurfaceStyles.filter,
+  filterHint: {
+    marginLeft: CONTENT_H,
+    marginRight: CONTENT_H,
+  },
+  filterChip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md + 2,
@@ -1322,7 +1300,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.mintBackground,
     borderRadius: Radius.full,
     minWidth: 18,
-    height: 18,
+    minHeight: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
@@ -1528,12 +1506,11 @@ const styles = StyleSheet.create({
   },
 
   // Tag chips on cards
-  tagChip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-    paddingHorizontal: Spacing.sm,
+  tagChip: { maxWidth: '100%', paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radius.sm,
   },
-  tagChipText: {
+  tagChipText: { flexShrink: 1,
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 10,
   },
@@ -1574,37 +1551,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 11,
     color: Colors.onAction,
-  },
-
-  // Empty
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: Spacing.xxxl * 2,
-    paddingHorizontal: Spacing.xxl,
-  },
-  emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  emptyTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-    marginBottom: Spacing.xs,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
   },
   clearFilterBtn: {
     marginTop: Spacing.xl,

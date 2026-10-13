@@ -1,5 +1,6 @@
+import { FormTextInput } from './form-text-input';
 import { useRef } from 'react';
-import { Platform, StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
+import { Platform, StyleSheet, Text, View, type TextInputProps } from 'react-native';
 
 const MASK = '•';
 
@@ -28,7 +29,7 @@ type Props = Omit<TextInputProps, 'value' | 'onChangeText' | 'secureTextEntry'> 
 export default function ApiKeyInput({ value, onChangeText, ...props }: Props) {
   const selection = useRef({ start: value.length, end: value.length });
   const android = Platform.OS === 'android';
-  const input = <TextInput
+  const input = <FormTextInput
     {...props}
     value={android ? MASK.repeat(value.length) : value}
     onChangeText={text => onChangeText(android ? applyMaskedEdit(value, text, selection.current) : text)}

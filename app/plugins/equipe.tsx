@@ -1,3 +1,6 @@
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
 import { useMemo, useRef, useState } from "react";
 import {
   View,
@@ -16,7 +19,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 
@@ -155,7 +158,7 @@ export default function EquipeScreen() {
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.icon}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Equipe</Text>
+        <Text style={ModuleTextStyles.headerTitle}>Equipe</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert("Desativar Equipe", "Os dados continuarão guardados.", [
@@ -191,18 +194,9 @@ export default function EquipeScreen() {
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {visible.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="people-outline"
-              size={48}
-              color={Colors.decorativeMuted}
-            />
-            <Text style={styles.muted}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="people-outline" title={query
                 ? "Nenhum funcionário encontrado."
-                : "Nenhum funcionário cadastrado ainda."}
-            </Text>
-          </View>
+                : "Nenhum funcionário cadastrado ainda."} />
         )}
         {visible.map((employee) => (
           <SwipeableActions
@@ -246,7 +240,7 @@ export default function EquipeScreen() {
               {editingId ? "Editar funcionário" : "Novo funcionário"}
             </Text>
             <RequiredLabel>Nome</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
@@ -255,7 +249,7 @@ export default function EquipeScreen() {
               autoFocus
             />
             <RequiredLabel>Função</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.role}
               onChangeText={(v) => setForm((f) => ({ ...f, role: v }))}
@@ -263,7 +257,7 @@ export default function EquipeScreen() {
               placeholderTextColor={Colors.placeholder}
             />
             <FormLabel>Contato (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.contact}
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
@@ -271,7 +265,7 @@ export default function EquipeScreen() {
               placeholderTextColor={Colors.placeholder}
             />
             <FormLabel>Comissão (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.commissionRate}
               onChangeText={(v) =>
@@ -284,11 +278,11 @@ export default function EquipeScreen() {
             <View style={styles.actions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cancel}
-                onPress={() => modalVisibleSheet.current?.requestClose()}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button">
                 <Text style={styles.confirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -308,11 +302,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
   },
   icon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  title: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
   search: {
       ...SurfaceStyles.control,
     flexDirection: "row",
@@ -323,13 +312,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  muted: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   card: {
       ...SurfaceStyles.card,
     flexDirection: "row",
@@ -347,14 +331,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: Colors.accentText, fontFamily: "PlusJakartaSans_700Bold" },
+  avatarText: { color: Colors.accentText, fontFamily: Typography.bold },
   main: { flex: 1 },
   name: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
   },
-  detail: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 3 },
+  detail: { ...ModuleTextStyles.metadata, color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 3 },
   fab: {
       ...SurfaceStyles.floating,
     position: "absolute",
@@ -367,48 +351,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  overlay: {
-      ...SurfaceStyles.backdrop,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modal: {
-      ...SurfaceStyles.overlay,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-  },
-  input: {
-      ...SurfaceStyles.control,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    color: Colors.primary,
-  },
-  actions: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm },
-  cancel: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  cancelText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
-  confirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.actionBackground,
-    alignItems: "center",
-  },
-  confirmText: { color: Colors.onAction, fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
 });

@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "test:voice": "node scripts/voice-recognition.test.cjs",
-    "test:bottom-sheet": "node scripts/bottom-sheet-layout.test.cjs",
+    "test:visual-stage3": "node scripts/visual-stage3.test.cjs",
+    "test:bottom-sheet": "node scripts/bottom-sheet-layout.test.cjs && node scripts/bottom-sheet-dismissal.test.cjs",
     "test:modal-focus": "node scripts/modal-focus.test.cjs",
     "test:system-bars": "node scripts/system-bars.test.cjs",
     "test:onboarding": "node scripts/onboarding-flow.test.cjs",
@@ -20,7 +21,10 @@
     "test": "node --experimental-strip-types --test \"src/engine/__tests__/*.test.ts\" \"src/engine/taskEngine/__tests__/*.test.ts\" \"src/engine/calendarEngine/__tests__/*.test.ts\" \"src/engine/financialEngine/__tests__/*.test.ts\" \"src/engine/taxonomy/__tests__/*.test.ts\" \"src/store/__tests__/*.test.ts\"",
     "test:security:remote": "node scripts/security-smoke.mjs",
     "test:security:local": "node --experimental-strip-types src/services/legacyMigrationCore.test.mjs && node --experimental-strip-types supabase/functions/_shared/webp.test.mjs",
-    "expand-dictionaries": "tsx scripts/expand-dictionaries.ts"
+    "expand-dictionaries": "tsx scripts/expand-dictionaries.ts",
+    "test:visual-stage4": "node scripts/visual-stage4.test.cjs",
+    "test:visual-stage5": "node scripts/visual-stage5.test.cjs",
+    "test:visual-stage6": "node scripts/visual-stage6.test.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",

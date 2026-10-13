@@ -1,3 +1,6 @@
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
 import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useRef, useState } from "react";
 import {
@@ -6,7 +9,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  TextInput,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,7 +19,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   getPluginDefinition,
@@ -108,7 +110,7 @@ export default function GenericPluginScreen() {
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{def.label}</Text>
+        <Text style={ModuleTextStyles.headerTitle}>{def.label}</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
@@ -123,14 +125,7 @@ export default function GenericPluginScreen() {
         contentContainerStyle={styles.content}
       >
         {items.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name={def.icon as any}
-              size={48}
-              color={Colors.decorativeMuted}
-            />
-            <Text style={styles.emptyText}>Nenhum {def.itemLabel} ainda.</Text>
-          </View>
+          <FeedbackEmptyState variant="compact" icon={def.icon as any} title={`Nenhum ${def.itemLabel} ainda.`} />
         )}
         {items.map((item) => (
           <SwipeableActions
@@ -207,7 +202,7 @@ export default function GenericPluginScreen() {
                       })}
                     </View>
                   ) : (
-                    <TextInput
+                    <FormTextInput
                       style={styles.input}
                       placeholder={field.placeholder}
                       placeholderTextColor={Colors.placeholder}
@@ -226,13 +221,13 @@ export default function GenericPluginScreen() {
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => modalVisibleSheet.current?.requestClose()}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
-                onPress={handleSave}
+                onPress={handleSave} accessibilityRole="button"
               >
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
@@ -254,15 +249,10 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
   empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
   emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
     color: Colors.textSecondary,
   },
@@ -277,12 +267,12 @@ const styles = StyleSheet.create({
     gap: Spacing.md
   },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
     color: Colors.primary,
   },
   cardSubtitle: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: Typography.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 2,
@@ -299,84 +289,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  modalOverlay: {
-      ...SurfaceStyles.backdrop,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-      ...SurfaceStyles.overlay,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  fieldLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    marginBottom: Spacing.xs,
-    letterSpacing: 0.5,
-  },
-  input: {
-      ...SurfaceStyles.control,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: FontSize.md,
-    color: Colors.primary,
-  },
   selectRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  selectChip: {
-      ...SurfaceStyles.filter,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-  },
-  selectChipActive: {
-    backgroundColor: Colors.actionBackground,
-    borderColor: Colors.accentIcon,
-  },
-  selectChipText: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  selectChipTextActive: { color: Colors.onAction },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  modalCancel: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.actionBackground,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.onAction,
-  },
   ...pluginFormStyles,
 });

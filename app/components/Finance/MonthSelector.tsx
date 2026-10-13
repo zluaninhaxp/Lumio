@@ -12,11 +12,11 @@ interface MonthSelectorProps {
 export function MonthSelector({ label, onPrevious, onNext }: MonthSelectorProps) {
   return (
     <View style={styles.container}>
-      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onPrevious} style={styles.arrow} hitSlop={8}>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onPrevious} style={styles.arrow}>
         <Ionicons name="chevron-back" size={20} color={Colors.primary} />
       </TouchableOpacity>
       <Text style={styles.label}>{label}</Text>
-      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onNext} style={styles.arrow} hitSlop={8}>
+      <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={onNext} style={styles.arrow}>
         <Ionicons name="chevron-forward" size={20} color={Colors.primary} />
       </TouchableOpacity>
     </View>
@@ -33,9 +33,10 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
   },
   arrow: {
-    padding: Spacing.xs,
+    width: 48, height: 48, alignItems: 'center', justifyContent: 'center',
   },
   label: {
+    flexShrink: 1,
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.md,
     color: Colors.primary,

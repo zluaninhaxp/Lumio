@@ -1,64 +1,17 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../../src/constants/theme';
+import { StyleSheet } from 'react-native';
+import { FeedbackEmptyState } from '../../../src/components/empty-state';
+import { Spacing } from '../../../src/constants/theme';
+import { FAB_LAYOUT } from './FAB';
 
-interface EmptyStateProps {
-  filter?: 'all' | 'event' | 'task';
-}
+interface EmptyStateProps { filter?: 'all' | 'event' | 'task'; }
 
 export function EmptyState({ filter }: EmptyStateProps) {
-  const message =
-    filter === 'event'
-      ? 'Nenhum evento neste dia.'
-      : filter === 'task'
-      ? 'Nenhuma tarefa neste dia.'
-      : 'Seu dia está livre!';
-
-  return (
-    <View style={styles.container}>
-      <View style={styles.iconCircle}>
-        <Ionicons
-          name={filter ? 'calendar-outline' : 'sunny-outline'}
-          size={32}
-          color={Colors.accentIcon}
-        />
-      </View>
-      <Text style={styles.text}>{message}</Text>
-      {!filter && (
-        <Text style={styles.subtext}>
-          Toque no botão + para adicionar um compromisso
-        </Text>
-      )}
-    </View>
-  );
+  const message = filter === 'event' ? 'Nenhum evento neste dia.' :
+    filter === 'task' ? 'Nenhuma tarefa neste dia.' : 'Seu dia está livre!';
+  return <FeedbackEmptyState variant="compact" icon={filter ? 'calendar-outline' : 'sunny-outline'}
+    title={message} description={!filter ? 'Toque no botão + para adicionar um compromisso' : undefined}
+    style={styles.clearance} />;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingVertical: Spacing.xxxl,
-    paddingHorizontal: Spacing.xl,
-    alignItems: 'center',
-    gap: Spacing.md,
-  },
-  iconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  text: {
-    fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-    textAlign: 'center',
-  },
-  subtext: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-  },
-});
+// Keep the reading area out of the FAB's horizontal band, even in a short expanded month.
+const styles = StyleSheet.create({ clearance: { paddingRight: Spacing.xl + FAB_LAYOUT.size + Spacing.lg } });

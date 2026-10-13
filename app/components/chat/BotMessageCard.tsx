@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions, type StyleProp, type TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, CategoryColors, Spacing, Radius, FontSize, SurfaceStyles } from '../../../src/constants/theme';
+import { Colors, CategoryColors, Spacing, Radius, FontSize, SurfaceStyles, ControlOpacity } from '../../../src/constants/theme';
 
 /**
  * Card visual para a resposta do bot no chat.
@@ -44,6 +44,7 @@ export interface BotCard {
 
 interface BotMessageCardProps {
   card: BotCard;
+  onExpansionChange?: () => void;
 }
 
 const KIND_CONFIG: Record<BotCardKind, { icon: keyof typeof Ionicons.glyphMap; label: string; color: string; bg: string }> = {
@@ -78,7 +79,55 @@ function getTagColor(tag: string) {
   return TAG_COLORS[Math.abs(hash) % TAG_COLORS.length];
 }
 
-export function BotMessageCard({ card }: BotMessageCardProps) {
+/** Measure the unclamped text at the same width; visible line events differ by platform. */
+function MeasuredCardText({ text, lines, expanded, id, measurementKey, style, onOverflow, onGeometry }: {
+  text: string; lines: number; expanded: boolean; id: string; measurementKey: string;
+  style: StyleProp<TextStyle>; onOverflow: (id: string, overflow: boolean) => void;
+  onGeometry: (id: string, kind: 'visible' | 'full', height: number) => void;
+}) {
+  return <View style={styles.textViewport} onLayout={expanded ? undefined : event => onGeometry(id, 'visible', event.nativeEvent.layout.height)}>
+    <Text style={style} numberOfLines={expanded ? undefined : lines} selectable={expanded}>{text}</Text>
+    <View key={measurementKey} style={styles.measurement} pointerEvents="none" accessible={false}
+      onLayout={event => onGeometry(id, 'full', event.nativeEvent.layout.height)}
+      accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Text style={style} onTextLayout={event => onOverflow(id, event.nativeEvent.lines.length > lines)}>{text}</Text>
+    </View>
+  </View>;
+}
+
+export function BotMessageCard({ card, onExpansionChange }: BotMessageCardProps) {
+  const { width, fontScale } = useWindowDimensions();
+  const [cardWidth, setCardWidth] = useState(0);
+  const contentKey = JSON.stringify(card);
+  const measurementKey = `${contentKey}:${width}:${cardWidth}:${fontScale}`;
+  const activeMeasurement = useRef(measurementKey);
+  activeMeasurement.current = measurementKey;
+  const geometry = useRef<{ key: string; fields: Record<string, { visible?: number; full?: number }> }>({ key: measurementKey, fields: {} });
+  const [expansion, setExpansion] = useState({ key: contentKey, expanded: false });
+  const [measurement, setMeasurement] = useState<{ key: string; fields: Record<string, boolean> }>({ key: measurementKey, fields: {} });
+  const expanded = expansion.key === contentKey && expansion.expanded;
+  const hasOverflow = measurement.key === measurementKey && Object.values(measurement.fields).some(Boolean);
+  const reportOverflow = useCallback((id: string, overflow: boolean) => {
+    if (activeMeasurement.current !== measurementKey) return;
+    setMeasurement(previous => {
+      const fields = previous.key === measurementKey ? previous.fields : {};
+      if (previous.key === measurementKey && fields[id] === overflow) return previous;
+      return { key: measurementKey, fields: { ...fields, [id]: overflow } };
+    });
+  }, [measurementKey]);
+  // Web does not emit native line metrics. Compare actual unclamped/clamped heights.
+  const reportGeometry = useCallback((id: string, kind: 'visible' | 'full', height: number) => {
+    if (activeMeasurement.current !== measurementKey) return;
+    if (geometry.current.key !== measurementKey) geometry.current = { key: measurementKey, fields: {} };
+    const field = geometry.current.fields[id] ?? {};
+    field[kind] = height;
+    geometry.current.fields[id] = field;
+    if (field.visible !== undefined && field.full !== undefined) reportOverflow(id, field.full > field.visible + 0.5);
+  }, [measurementKey, reportOverflow]);
+  const measuredText = (id: string, text: string, lines: number, style: StyleProp<TextStyle>) => (
+    <MeasuredCardText key={`${measurementKey}:${id}`} id={id} text={text} lines={lines} style={style} expanded={expanded}
+      measurementKey={measurementKey} onOverflow={reportOverflow} onGeometry={reportGeometry} />
+  );
   const cfg = KIND_CONFIG[card.kind];
   const badgeIcon = card.badgeIcon ?? cfg.icon;
   const badgeLabel = card.badgeLabel ?? cfg.label;
@@ -88,7 +137,7 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
   const financeTags = card.kind === 'finance' && card.category ? [card.category] : card.tags;
 
   return (
-    <View style={styles.card}>
+    <View style={styles.card} onLayout={event => setCardWidth(event.nativeEvent.layout.width)}>
       {/* Header: ícone + tipo */}
       <View style={styles.cardHeader}>
         <View style={[styles.kindBadge, { backgroundColor: cfg.bg }]}>
@@ -98,11 +147,11 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
       </View>
 
       {/* Título em destaque */}
-      <Text style={styles.title} numberOfLines={3}>{card.title}</Text>
+      {measuredText('title', card.title, 3, styles.title)}
 
       {/* Contexto/descrição (menor, mais apagado) */}
       {card.context && (
-        <Text style={styles.context} numberOfLines={2}>{card.context}</Text>
+        measuredText('context', card.context, 2, styles.context)
       )}
 
       {/* Metadata: data + horário + pessoa */}
@@ -120,7 +169,7 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
           {(card.assignee || card.counterparty) && (
             <View style={styles.assigneeChip}>
               <Ionicons name="person-outline" size={12} color={Colors.textSecondary} />
-              <Text style={styles.assigneeText} numberOfLines={1}>{card.assignee || card.counterparty}</Text>
+              {measuredText('person', card.assignee || card.counterparty || '', 1, styles.assigneeText)}
             </View>
           )}
         </View>
@@ -144,21 +193,31 @@ export function BotMessageCard({ card }: BotMessageCardProps) {
       {/* Tags como chips coloridos — SÓ em tarefas/deadlines/finanças */}
       {card.kind !== 'event' && showTags && (
         <View style={styles.tagsRow}>
-          {(financeTags ?? card.tags!).map((tag) => {
+          {(financeTags ?? card.tags!).map((tag, index) => {
             const c = getTagColor(tag);
             return (
               <View key={tag} style={[styles.tagChip, { backgroundColor: c.bg }]}>
-                <Text style={[styles.tagText, { color: c.text }]} numberOfLines={1}>{tag}</Text>
+                {measuredText(`tag:${index}`, tag, 1, [styles.tagText, { color: c.text }])}
               </View>
             );
           })}
         </View>
       )}
+      {(hasOverflow || expanded) && <TouchableOpacity style={styles.expandButton} activeOpacity={ControlOpacity.pressed}
+        onPress={() => { onExpansionChange?.(); setExpansion({ key: contentKey, expanded: !expanded }); }}
+        accessibilityRole="button" accessibilityState={{ expanded }}
+        accessibilityLabel={expanded ? 'Recolher conteúdo do registro' : 'Ver conteúdo completo do registro'}>
+        <Text style={styles.expandText}>{expanded ? 'Ver menos' : 'Ver mais'}</Text>
+      </TouchableOpacity>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  textViewport: { flexShrink: 1, minWidth: 0 },
+  measurement: { position: 'absolute', left: 0, right: 0, top: 0, opacity: 0 },
+  expandButton: { alignSelf: 'flex-start', minHeight: 48, justifyContent: 'center', paddingVertical: Spacing.sm },
+  expandText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accentText },
   card: {
     ...SurfaceStyles.message,
     borderRadius: Radius.lg,
@@ -174,6 +233,7 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   kindBadge: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -182,6 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   kindLabel: {
+    flexShrink: 1,
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.xs,
   },
@@ -207,6 +268,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   dateChip: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
@@ -215,10 +277,12 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   dateText: {
+    flexShrink: 1,
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
   },
   assigneeChip: {
+    maxWidth: '100%',
       ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
@@ -240,6 +304,7 @@ const styles = StyleSheet.create({
   amountIn: { color: Colors.accentText },
   amountOut: { color: Colors.primary },
   pendingChip: {
+    maxWidth: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
@@ -249,6 +314,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3C7',
   },
   pendingText: {
+    flexShrink: 1,
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.xs,
     color: Colors.warningText,
@@ -260,6 +326,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.xs,
   },
   tagChip: {
+    maxWidth: '100%',
     paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radius.full,

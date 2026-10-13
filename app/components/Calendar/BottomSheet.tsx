@@ -19,6 +19,7 @@ import { getBottomSheetLayout, isBottomKeyboard } from '../../../src/utils/botto
 
 import { SheetDraftContext, type DraftEntry } from '../../../src/components/sheet-draft';
 import { AppAlert } from '../../../src/services/appAlert';
+import { useSystemReducedMotion } from '../../../src/hooks/use-system-reduced-motion';
 
 const SHEET_HEIGHT = 420;
 
@@ -101,12 +102,16 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
   // Bounded consumers (sales, quotes, report editor) already own their scroll
   // and footer. Natural-height forms get an overflow-only scroll viewport.
   const ownsScroll = contentOwnsScroll ?? (maxHeight !== undefined || sheetHeight !== undefined);
-  const translateY = useRef(new Animated.Value(height)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const reducedMotion = useSystemReducedMotion();
+  const reducedMotionRef = useRef(reducedMotion);
+  reducedMotionRef.current = reducedMotion;
+  const translateY = useRef(new Animated.Value(reducedMotion ? 0 : height)).current;
+  const backdropOpacity = useRef(new Animated.Value(reducedMotion && visible ? 1 : 0)).current;
   const onCloseRef = useRef(onClose);
   const dismissibleRef = useRef(dismissible);
   const heightRef = useRef(height);
   const closingRef = useRef(false);
+  const closeAnimationRef = useRef(0);
   const drafts = useMemo(() => new Map<object, DraftEntry>(), [visible]);
   const draftState = useRef({ visible: false, initial: '', current: '' });
   const snapshot = JSON.stringify(draft) ?? '';
@@ -130,6 +135,11 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
 
   const open = useCallback(() => {
     closingRef.current = false;
+    if (reducedMotionRef.current) {
+      translateY.setValue(0);
+      backdropOpacity.setValue(1);
+      return;
+    }
     Animated.parallel([
       Animated.spring(translateY, {
         toValue: 0,
@@ -154,7 +164,8 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
         confirmationRef.current = true;
         const session = draftsRef.current;
         // A cancelled drag must leave the sheet at its original position.
-        Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 70, friction: 10 }).start();
+        if (reducedMotionRef.current) translateY.setValue(0);
+        else Animated.spring(translateY, { toValue: 0, useNativeDriver: true, tension: 70, friction: 10 }).start();
         Keyboard.dismiss();
         const keepEditing = () => { confirmationRef.current = false; };
         AppAlert.alert('Descartar alterações?', 'Você tem alterações não salvas. Deseja descartá-las?', [
@@ -168,6 +179,13 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
       }
       Keyboard.dismiss();
       closingRef.current = true;
+      const closeAnimation = ++closeAnimationRef.current;
+      if (reducedMotionRef.current) {
+        translateY.setValue(heightRef.current);
+        backdropOpacity.setValue(0);
+        onCloseRef.current();
+        return;
+      }
       Animated.parallel([
         Animated.timing(translateY, {
           toValue: heightRef.current,
@@ -180,6 +198,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
           useNativeDriver: true,
         }),
       ]).start(({ finished }) => {
+        if (closeAnimation !== closeAnimationRef.current) return;
         if (finished) onCloseRef.current();
         else closingRef.current = false;
       });
@@ -207,6 +226,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
           close();
           return;
         }
+        if (reducedMotionRef.current) { translateY.setValue(0); return; }
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
@@ -215,6 +235,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
         }).start();
       },
       onPanResponderTerminate: () => {
+        if (reducedMotionRef.current) { translateY.setValue(0); return; }
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
@@ -233,6 +254,22 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
       backdropOpacity.setValue(0);
     }
   }, [visible, open, translateY, backdropOpacity, height]);
+
+  useEffect(() => {
+    if (!reducedMotion || !visible) return;
+    const wasClosing = closingRef.current;
+    // Native animation cancellation may report its completion asynchronously.
+    if (wasClosing) closeAnimationRef.current++;
+    translateY.stopAnimation();
+    backdropOpacity.stopAnimation();
+    translateY.setValue(wasClosing ? heightRef.current : 0);
+    backdropOpacity.setValue(wasClosing ? 0 : 1);
+    if (wasClosing) {
+      closingRef.current = true;
+      onCloseRef.current();
+    }
+  }, [reducedMotion, visible, translateY, backdropOpacity]);
+
 
   return (
       <View style={styles.overlay}>
@@ -261,7 +298,7 @@ const BottomSheetContent = forwardRef<BottomSheetHandle, BottomSheetProps & {
              {backgroundDecoration}
              <View
                style={styles.handleHitArea}
-               hitSlop={{ top: 16, bottom: 16, left: 48, right: 48 }}
+               hitSlop={{ top: 16, bottom: 0, left: 48, right: 48 }}
                {...panResponder.panHandlers}
              >
                <View style={styles.handle} />

@@ -14,7 +14,7 @@ import { EventListItem } from '../components/Calendar/EventListItem';
 import { FilterChips } from '../components/Calendar/FilterChips';
 import { SkeletonLoader } from '../components/Calendar/SkeletonLoader';
 import { EmptyState } from '../components/Calendar/EmptyState';
-import { FAB } from '../components/Calendar/FAB';
+import { FAB, FAB_LAYOUT } from '../components/Calendar/FAB';
 import { AppointmentForm } from '../components/Calendar/AppointmentForm';
 import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../components/account/UserAvatar';
@@ -236,6 +236,7 @@ export default function CalendarioScreen() {
       </View>
 
       <ScrollView
+        contentContainerStyle={{ paddingBottom: FAB_LAYOUT.clearance }}
         showsVerticalScrollIndicator={false}
         {...listPanResponder.panHandlers}
       >

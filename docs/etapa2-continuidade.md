@@ -1,5 +1,61 @@
 # Etapa 2 — registro para continuidade
 
+## Atualização de 13/10/2026 — retomada com avaliação web em formato de celular
+
+**Estado atual:** correções da Etapa 2 implementadas e verificadas na cobertura web abaixo. Todos os testes relevantes executados passaram. A homologação de teclado, botão Voltar e navegação nativa do Android continua pendente, pois o aparelho não estava disponível. O registro de 09/10 abaixo foi mantido como histórico e não representa o resultado atual dos testes.
+
+### Correções adicionais da retomada
+
+- Corrigido o fixture de `bottom-sheet-dismissal.test.cjs`: `transpileModule` usava um target antigo e convertia o spread do iterador de `Map` incorretamente. Foi definido ES2020. O código de produção já percorria o Map corretamente; o fluxo de rascunho interno também foi confirmado no navegador. A suíte foi incorporada a `npm run test:bottom-sheet`.
+- Criado `src/components/sheet-close-button.tsx`, reutilizado por InformationEditor, TaskPeopleSelector e TaskOrderSelector. A superfície visual continua com 34 dp; o alvo real mede 48 × 48, dispensando hitSlop que poderia ser limitado pelo pai.
+- Completados os mínimos de toque de chips de prioridade, tipo, categoria, presets de valor, adicionar tag e controles de expandir detalhes. O botão de confirmar nova tag passou a medir 48 × 48.
+- TagSelector registra também a tag digitada e ainda não enviada no contexto de rascunho; fechar o formulário protege esse conteúdo.
+- Calendário e seletor de data agora comportam sete alvos de 48 dp. A largura disponível inclui a borda da superfície. Em telas menores que a grade, há scroll horizontal local, sem alargar a página nem sobrepor alvos. Nesses casos o gesto do calendário não captura o scroll para trocar o mês. Os círculos, cores e tamanhos de texto foram mantidos.
+- Navegação de meses do Financeiro, cabeçalhos de conta e controles de ativação/acesso da Loja tiveram seus alvos completados para 48 dp. A área expandida do handle do BottomSheet deixou de invadir o cabeçalho abaixo.
+- Ações dos formulários passaram a expor papel de botão e estado disabled quando aplicável. InformationEditor preserva busy e loading.
+- `FormActionStyles.secondaryDisabled` separa o estado desabilitado da ação secundária do background de disabled primário. Cancelar continua secundário durante loading, sem receber fundo verde.
+- Removidos os estilos antigos de fechar que ficaram sem uso após compartilhar SheetCloseButton.
+
+### Comportamentos efetivamente verificados no navegador
+
+Avaliação pelo navegador disponibilizado no editor, com viewports de **390 × 844, 360 × 780 e 320 × 740 CSS px**. Utilizada a cópia isolada `%TEMP%\lumio-interaction-stage2`, com autenticação sintética e Supabase desativado. São medidas web; não equivalem a medições de dp no Android.
+
+| Tela/fluxo | Verificação efetiva |
+| --- | --- |
+| Equipe, Clientes, Fornecedores, Catálogo, Estoque, Vendas, Orçamentos, Contratos e Entregas | Abrir cadastro, alterar um campo, Cancelar, Continuar editando com valor preservado e descartar mediante confirmação. |
+| Equipe | Salvar um cadastro sintético sem confirmação indevida; backdrop e Escape web solicitam confirmação; manter preserva texto. |
+| Tarefas | Adicionar desabilitado com descrição vazia; preservar rascunho interno; selecionar data; salvar; proteger e descartar uma tag ainda não enviada. |
+| Calendário | Preservar rascunho de evento e salvar; célula medida 48 × 48; em 320 px a grade mede 336 px dentro de viewport local de 278 px, sem overflow da página; última coluna acessível por scroll e seleção. |
+| Seletor de data | Sete células consecutivas medidas 48 × 48 sem sobreposição, seleção e cancelamento com confirmação. |
+| Financeiro | Disabled inicial, manter dados, expandir detalhes, alcançar ação e salvar transação sintética; setas de mês medidas 48 × 48. |
+| Perfil / InformationEditor | Fechar mede 48 × 48, Salvar mede 50 px de altura; manter dados e salvar; Salvar/Cancelar/Fechar bloqueados durante loading simulado de 1,8 s. |
+| FABs dos módulos | Abertura por clique a 3 px da borda inferior. Nos cinco primeiros módulos os FABs mediram 56 × 56, com limite inferior y=824 em viewport de altura 844. Na web, inset inferior é zero; isso não valida barra nativa. |
+| Loja | Scroll até o último módulo; botão final com altura 48 e totalmente acessível dentro de viewport 360 × 780; largura do body igual à janela. |
+
+Não foram executados nesta retomada todos os caminhos de vínculos entre módulos, edição de relatório, senha/exclusão de conta, cadastro genérico de `[id]`, atendimento ou movimentação de estoque. Seus componentes compartilhados foram inspecionados pelo código; não marcá-los como visualmente testados. Nos módulos a prova de rascunho cobre cadastro, sem representar todos os campos, dependências e regras de salvamento.
+
+### Testes e evidências atuais
+
+- Typecheck sem erros.
+- BottomSheet: 6 testes de layout e 5 de dispensa aprovados.
+- AppAlert: 6 testes aprovados.
+- Modal focus: 7 testes aprovados.
+- `git diff --check` sem erros após limpeza de whitespace.
+- Evidências web em `docs/auditoria-visual/etapa2-web/`: `01-financeiro-formulario.png`, `02-perfil-loading.png`, `03-equipe-formulario.png`, `04-vendas-formulario.png`, `05-calendario-320.png`, `06-loja-360.png` e `07-seletor-calendario-390.png`. Capturas de loading com usuário e e-mail sintéticos; nenhuma captura de conta real.
+
+O preview isolado permanece em `http://localhost:8082/calendario`, com viewport 390 × 844 para revisão. Não alterar o projeto principal para reproduzir autenticação ou módulos da cópia. Não foram feitos novos commits ou push nesta retomada. O histórico da auditoria e seus 19 achados foram preservados.
+
+### Pendências nativas
+
+1. No Android real, primeiro Voltar com IME aberta deve apenas ocultar teclado, preservando formulário e conteúdo. Escape web e teclado simulado em teste não certificam esse comportamento.
+2. Confirmar FABs e Loja com insets reais, navegação de três botões e por gestos, incluindo scroll.
+3. Conferir alvos, arraste e scroll com touch nativo, foco/teclado e estados de formulário que não foram exercitados na web.
+
+---
+
+## Registro histórico de 09/10/2026
+
+
 Trabalho interrompido a pedido do usuário em 09/10/2026. **A Etapa 2 está parcialmente implementada e não está concluída.** Escopo autorizado: VIS-019, VIS-010, VIS-006 e VIS-004, conforme `docs/auditoria-visual-lumio.md`. Não houve commits, publicação ou alteração deliberada de dados reais. O relatório da auditoria não foi reescrito.
 
 ## Contexto que deve ser preservado

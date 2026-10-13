@@ -1,0 +1,64 @@
+{
+  "app/plugins/catalogo.tsx": [
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/clientes.tsx": [
+    "headerTitle",
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/comissoes.tsx": [
+    "headerTitle",
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/contratos.tsx": [
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/entregas.tsx": [
+    "empty",
+    "emptyText",
+    "hint"
+  ],
+  "app/plugins/equipe.tsx": [
+    "empty",
+    "muted"
+  ],
+  "app/plugins/estoque.tsx": [
+    "headerTitle",
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/fornecedores.tsx": [
+    "headerTitle",
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/orcamentos.tsx": [
+    "headerTitle",
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/vendas.tsx": [
+    "headerTitle",
+    "empty",
+    "emptyText"
+  ],
+  "app/plugins/[id].tsx": [
+    "headerTitle"
+  ],
+  "app/(tabs)/tarefas.tsx": [
+    "emptyContainer",
+    "emptyIconCircle",
+    "emptyTitle",
+    "emptySubtitle"
+  ],
+  "app/components/Finance/FinanceEmptyState.tsx": [
+    "container",
+    "iconCircle",
+    "title",
+    "subtext"
+  ]
+}

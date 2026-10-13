@@ -1,52 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const vm = require('node:vm');
-const ts = require('typescript');
 
-function fixture() {
-  const slots = []; let cursor = 0, keyboard = false, closed = 0;
-  const alerts = [], effects = [], ref = { current: null }, modalRef = { current: null };
-  const hooks = {
-    forwardRef: callback => callback,
-    useRef(value) { return slots[cursor++] ??= { current: value }; },
-    useState(initial) { const i = cursor++; if (!slots[i]) slots[i] = { value: typeof initial === 'function' ? initial() : initial }; return [slots[i].value, value => { slots[i].value = value; }]; },
-    useMemo(callback, deps) { const i = cursor++; if (!slots[i] || deps.some((v, j) => v !== slots[i].deps[j])) slots[i] = { value: callback(), deps }; return slots[i].value; },
-    useCallback(callback, deps) { return hooks.useMemo(() => callback, deps); },
-    useEffect(callback, deps) { const i = cursor++; if (!slots[i] || deps.some((v, j) => v !== slots[i][j])) effects.push(callback); slots[i] = deps; },
-    useImperativeHandle(target, callback) { target.current = callback(); },
-  };
-  const animation = () => ({ start: callback => callback?.({ finished: true }) });
-  const native = {
-    Platform: { OS: 'android' }, Dimensions: { get: () => ({ height: 844 }) },
-    useWindowDimensions: () => ({ height: 844, width: 390 }),
-    StyleSheet: { create: value => value, absoluteFillObject: {} },
-    Keyboard: { metrics: () => undefined, isVisible: () => keyboard, dismiss: () => { keyboard = false; }, addListener: () => ({ remove() {} }) },
-    Animated: { Value: class { setValue() {} }, parallel: animation, spring: animation, timing: animation, View: 'AnimatedView' },
-    PanResponder: { create: handlers => ({ panHandlers: handlers }) },
-  };
-  const module = { exports: {} };
-  const source = ts.transpileModule(fs.readFileSync('app/components/Calendar/BottomSheet.tsx', 'utf8') + '\nexport { BottomSheetContent };', { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  vm.runInNewContext(source, { module, exports: module.exports, require(name) {
-    if (name === 'react') return hooks;
-    if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };
-    if (name === 'react-native') return native;
-    if (name === 'react-native-safe-area-context') return { useSafeAreaInsets: () => ({ top: 24, bottom: 24, left: 0, right: 0 }) };
-    if (name.endsWith('/bottomSheetLayout')) return { isBottomKeyboard: () => false, getBottomSheetLayout: () => ({ minHeight: 0, maxHeight: 796, paddingBottom: 56 }) };
-    if (name.endsWith('/sheet-draft')) return { SheetDraftContext: { Provider: 'DraftProvider' } };
-    if (name.endsWith('/appAlert')) return { AppAlert: { alert: (...args) => alerts.push(args) } };
-    return { Colors: {}, Radius: {}, Spacing: {}, SurfaceStyles: {} };
-  } });
-  function nodes(node) { return !node ? [] : Array.isArray(node) ? node.flatMap(nodes) : typeof node === 'object' ? [node, ...nodes(node.props?.children)] : []; }
-  let props = { visible: true, draft: { name: '' }, onClose: () => { closed++; }, modalRef, children: null };
-  return {
-    ref, modalRef, alerts,
-    get closed() { return closed; },
-    openKeyboard() { keyboard = true; },
-    get keyboard() { return keyboard; },
-    render(changes = {}) { props = { ...props, ...changes }; cursor = 0; const tree = module.exports.BottomSheetContent(props, ref); effects.splice(0).forEach(effect => effect()); return nodes(tree); },
-  };
-}
+const { fixture } = require('./bottom-sheet-fixture.cjs');
 
 test('first Android Back hides the keyboard without dismissing or confirming; second Back protects the draft', () => {
   const app = fixture(); app.render(); app.render({ draft: { name: 'Rascunho' } }); app.openKeyboard();

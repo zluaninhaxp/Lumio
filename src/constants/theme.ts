@@ -1,4 +1,4 @@
-import { Platform, type ViewStyle } from 'react-native';
+import { Platform, type ViewStyle, type TextStyle } from 'react-native';
 
 const PAGE_BACKGROUND = '#F3FFF9';
 // Existing cool off-white, reserved for internal page backgrounds.
@@ -169,3 +169,27 @@ export const FontSize = {
   xxxl: 32,
   display: 40,
 } as const;
+
+/** Semantic roles; size differences between account, forms and authentication are intentional. */
+export const TextStyles = {
+  screenTitle: { fontFamily: Typography.bold, fontSize: FontSize.lg, lineHeight: 24, color: Colors.primary },
+  accountTitle: { fontFamily: Typography.bold, fontSize: FontSize.lg, lineHeight: 24, color: Colors.ink },
+  formTitle: { fontFamily: Typography.bold, fontSize: FontSize.xl, lineHeight: 28, color: Colors.primary },
+  cardTitle: { fontFamily: Typography.semibold, fontSize: FontSize.md, lineHeight: 22, color: Colors.primary },
+  body: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 22, color: Colors.primary },
+  label: { fontFamily: Typography.semibold, fontSize: FontSize.sm, lineHeight: 20, color: Colors.textSecondary },
+  metadata: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20, color: Colors.textSecondary },
+  caption: { fontFamily: Typography.medium, fontSize: FontSize.xs, lineHeight: 16, color: Colors.textSecondary },
+  action: { fontFamily: Typography.semibold, fontSize: FontSize.md, lineHeight: 22, color: Colors.onAction },
+  secondaryAction: { fontFamily: Typography.semibold, fontSize: FontSize.md, lineHeight: 22, color: Colors.textSecondary },
+  authTitle: { fontFamily: Typography.heavy, fontSize: 26, lineHeight: 34, color: Colors.primary },
+  authBody: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 23, color: Colors.textSecondary },
+  authCaption: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 22, color: Colors.textSecondary },
+  warning: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20, color: Colors.warningText },
+} satisfies Record<string, TextStyle>;
+
+/** Preserve native font metrics when adopting a role in an existing control without lineHeight. */
+export function nativeTextStyle<T extends TextStyle>(style: T): Omit<T, 'lineHeight'> {
+  const { lineHeight: _lineHeight, ...nativeStyle } = style;
+  return nativeStyle;
+}

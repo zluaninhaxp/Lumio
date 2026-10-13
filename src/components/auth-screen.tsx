@@ -3,7 +3,7 @@ import { ActivityIndicator, findNodeHandle, Image, Keyboard, KeyboardAvoidingVie
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { ControlOpacity, Colors, Radius, Spacing, SurfaceStyles } from '@/src/constants/theme';
+import { ControlOpacity, Colors, Radius, Spacing, SurfaceStyles, TextStyles } from '@/src/constants/theme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ReportBackdrop } from '@/app/components/onboarding/report-processing';
 // Replace this source to change the mascot without changing the layout.
@@ -70,11 +70,11 @@ function Submit({ label, busy, onPress }: { label: string; busy: boolean; onPres
 const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, opacity: .52 },
   copy: { alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.sm, marginBottom: Spacing.lg },
-  title: { fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 26, lineHeight: 34, letterSpacing: -.6, color: Colors.primary, textAlign: 'center' },
-  subtitle: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 15, lineHeight: 23, color: Colors.textSecondary, textAlign: 'center' },
+  title: { ...TextStyles.authTitle, letterSpacing: -.6, textAlign: 'center' },
+  subtitle: { ...TextStyles.authBody, textAlign: 'center' },
   eye: { minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center', marginRight: -Spacing.sm },
   switchMode: { minHeight: 48, marginTop: Spacing.lg, paddingVertical: Spacing.sm, alignItems: 'center', justifyContent: 'center' },
-  switchText: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 13, lineHeight: 22, color: Colors.textSecondary, textAlign: 'center' },
+  switchText: { ...TextStyles.authCaption, textAlign: 'center' },
   switchLink: { fontFamily: 'PlusJakartaSans_700Bold', color: Colors.accentText },
   safe: { flex: 1, backgroundColor: Colors.bg, overflow: 'hidden' }, flex: { flex: 1 },
   hero: { alignSelf: 'center', marginTop: Spacing.sm }, back: { width: 44, height: 44, borderRadius: 18, backgroundColor: 'rgba(246,255,251,0.82)', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(216,241,231,0.9)' }, scroll: { flexGrow: 1, width: '100%', maxWidth: 460, alignSelf: 'center', paddingHorizontal: Spacing.xl, paddingTop: Spacing.sm, paddingBottom: Spacing.xxl }, error: { marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.md, color: Colors.dangerText, backgroundColor: Colors.dangerLight },

@@ -121,11 +121,11 @@ export function FinanceFilterChips({
 
 const styles = StyleSheet.create({
   container: {
-    height: 42,
+    minHeight: 42,
     backgroundColor: Colors.appBackground,
   },
   optionsLayer: {
-    flex: 1,
+    flexGrow: 0,
   },
   content: {
     paddingLeft: 0,
@@ -134,8 +134,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     alignItems: 'center',
   },
-  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-      ...SurfaceStyles.filter,
+  chip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -157,7 +156,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    height: 42,
+    bottom: 0,
     zIndex: 2,
   },
   searchInputWrap: {
@@ -172,7 +171,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    height: 40,
+    minHeight: 40,
     paddingVertical: 0,
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,

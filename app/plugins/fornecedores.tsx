@@ -1,3 +1,6 @@
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
 import { useMemo, useRef, useState } from "react";
 import {
   View,
@@ -16,7 +19,7 @@ import { SwipeableActions } from "../components/SwipeableActions";
 import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
 import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { FornecedorItem, useAppStore } from "../../src/store";
 import { suggestedDueDate } from "../../src/utils/supplier";
 import { AppAlert } from "@/src/services/appAlert";
@@ -174,7 +177,7 @@ export default function FornecedoresScreen() {
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fornecedores</Text>
+        <Text style={ModuleTextStyles.headerTitle}>Fornecedores</Text>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
             AppAlert.alert(
@@ -217,18 +220,9 @@ export default function FornecedoresScreen() {
         showsVerticalScrollIndicator={false}
       >
         {filtered.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="briefcase-outline"
-              size={46}
-              color={Colors.decorativeMuted}
-            />
-            <Text style={styles.emptyText}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="briefcase-outline" title={query
                 ? "Nenhum fornecedor encontrado."
-                : "Nenhum fornecedor cadastrado ainda."}
-            </Text>
-          </View>
+                : "Nenhum fornecedor cadastrado ainda."} />
         )}
         {filtered.map((supplier) => {
           const history = transactions.filter(
@@ -352,7 +346,7 @@ export default function FornecedoresScreen() {
               {editingId ? "Editar fornecedor" : "Novo fornecedor"}
             </Text>
             <RequiredLabel>Nome</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Nome"
               placeholderTextColor={Colors.placeholder}
@@ -361,7 +355,7 @@ export default function FornecedoresScreen() {
               autoFocus
             />
             <FormLabel>Contato (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Contato (opcional)"
               placeholderTextColor={Colors.placeholder}
@@ -369,7 +363,7 @@ export default function FornecedoresScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
             />
             <FormLabel>Prazo padrão (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Prazo padrão (ex.: 30 dias)"
               placeholderTextColor={Colors.placeholder}
@@ -377,7 +371,7 @@ export default function FornecedoresScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, paymentTerm: v }))}
             />
             <FormLabel>Observações (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={[styles.input, styles.notesInput]}
               placeholder="Observações"
               placeholderTextColor={Colors.placeholder}
@@ -388,11 +382,11 @@ export default function FornecedoresScreen() {
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => modalVisibleSheet.current?.requestClose()}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button">
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -424,7 +418,7 @@ export default function FornecedoresScreen() {
             ))}
             <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.modalCancel}
-              onPress={() => setUnlinkedTransactionId(null)}
+              onPress={() => setUnlinkedTransactionId(null)} accessibilityRole="button"
             >
               <Text style={styles.modalCancelText}>Cancelar</Text>
             </TouchableOpacity>
@@ -445,11 +439,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
   },
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
   searchBox: {
       ...SurfaceStyles.control,
     flexDirection: "row",
@@ -460,13 +449,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.textSecondary,
-  },
   card: {
       ...SurfaceStyles.card,
     borderRadius: Radius.lg,
@@ -482,14 +466,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: Colors.warningText, fontFamily: "PlusJakartaSans_700Bold" },
+  avatarText: { color: Colors.warningText, fontFamily: Typography.bold },
   cardMain: { flex: 1 },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -499,22 +483,22 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: Spacing.md,
   },
-  summaryLabel: { color: Colors.textMuted, fontSize: FontSize.xs },
+  summaryLabel: { ...ModuleTextStyles.metadata, color: Colors.textMuted, fontSize: FontSize.xs },
   total: {
     color: Colors.dangerText,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     fontSize: FontSize.sm,
   },
-  paidTotal: { color: Colors.accentText },
+  paidTotal: { ...ModuleTextStyles.metadata, color: Colors.accentText },
   details: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
   },
-  notes: { color: Colors.textSecondary, marginBottom: Spacing.md },
+  notes: { ...ModuleTextStyles.metadata, color: Colors.textSecondary, marginBottom: Spacing.md },
   historyTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     marginBottom: Spacing.sm,
   },
@@ -524,9 +508,9 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     gap: Spacing.sm,
   },
-  muted: { color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
-  debtText: { color: Colors.dangerText, fontFamily: "PlusJakartaSans_600SemiBold" },
-  paidText: { color: Colors.accentText, fontFamily: "PlusJakartaSans_600SemiBold" },
+  muted: { ...ModuleTextStyles.metadata, color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
+  debtText: { color: Colors.dangerText, fontFamily: Typography.semibold },
+  paidText: { color: Colors.accentText, fontFamily: Typography.semibold },
   cardActions: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -534,11 +518,11 @@ const styles = StyleSheet.create({
   },
   actionText: {
     color: Colors.accentText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
   deleteText: {
     color: Colors.dangerText,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
   migration: {
     backgroundColor: Colors.accentLight,
@@ -547,7 +531,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   migrationTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     color: Colors.primary,
     marginBottom: Spacing.xs,
   },
@@ -571,19 +555,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
-  modalOverlay: {
-      ...SurfaceStyles.backdrop,
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-      ...SurfaceStyles.overlay,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
-  },
   linkCard: {
       ...SurfaceStyles.card,
     margin: Spacing.xl,
@@ -591,45 +562,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xxl,
     gap: Spacing.md,
   },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  input: {
-      ...SurfaceStyles.control,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    color: Colors.primary,
-  },
   notesInput: { minHeight: 72, textAlignVertical: "top" },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  modalCancel: {
-      ...SurfaceStyles.filter,
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.textSecondary,
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.actionBackground,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.onAction,
-  },
   linkOption: {
     padding: Spacing.md,
     borderRadius: Radius.md,

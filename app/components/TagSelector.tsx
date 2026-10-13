@@ -1,6 +1,8 @@
+import { HorizontalOptions } from '../../src/components/horizontal-options';
 import React, { useState } from 'react';
+import { useSheetDraft } from '../../src/components/sheet-draft';
 import { Ionicons } from '@expo/vector-icons';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../src/constants/theme';
 
 interface TagSelectorProps {
@@ -16,6 +18,7 @@ interface TagSelectorProps {
 export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, accent = Colors.actionBackground }: TagSelectorProps) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
+  useSheetDraft({ draft }, () => {});
 
   const submit = () => {
     const value = draft.trim();
@@ -29,13 +32,13 @@ export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, acce
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title}>{title}</Text>
           {!!hint && <Text style={styles.hint}>{hint}</Text>}
         </View>
         <Text style={styles.count}>{tags.length} {tags.length === 1 ? 'opção' : 'opções'}</Text>
       </View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row}>
+      <HorizontalOptions contentContainerStyle={styles.row}>
         {tags.map((tag) => {
           const active = Array.isArray(selected) ? selected.includes(tag) : selected === tag;
           return (
@@ -47,7 +50,7 @@ export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, acce
               accessibilityState={{ selected: active }}
             >
               {active && <Ionicons name="checkmark" size={14} color={Colors.onAction} />}
-              <Text style={[styles.chipText, active && styles.chipTextActive]} numberOfLines={1}>{tag}</Text>
+              <Text style={[styles.chipText, active && styles.chipTextActive]}>{tag}</Text>
             </TouchableOpacity>
           );
         })}
@@ -55,7 +58,7 @@ export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, acce
           <Ionicons name={adding ? 'close-outline' : 'add'} size={16} color={accent} />
           <Text style={[styles.addText, { color: accent }]}>{adding ? 'Fechar' : 'Nova tag'}</Text>
         </TouchableOpacity>
-      </ScrollView>
+      </HorizontalOptions>
       {adding && (
         <View style={styles.addRow}>
           <TextInput
@@ -68,7 +71,7 @@ export function TagSelector({ title, hint, tags, selected, onSelect, onAdd, acce
             onSubmitEditing={submit}
             returnKeyType="done"
           />
-          <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.confirm, { backgroundColor: accent }]} onPress={submit} disabled={!draft.trim()}>
+          <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.confirm, { backgroundColor: accent }]} onPress={submit} disabled={!draft.trim()} accessibilityRole="button" accessibilityLabel="Adicionar tag" accessibilityState={{ disabled: !draft.trim() }}>
             <Ionicons name="checkmark" size={18} color={Colors.onAction} />
           </TouchableOpacity>
         </View>
@@ -82,12 +85,11 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: Spacing.sm },
   title: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.textSecondary },
   hint: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.xs, color: Colors.textMuted, marginTop: 2 },
-  count: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textMuted },
+  count: { flexShrink: 1, fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textMuted },
   row: { gap: 6, paddingVertical: 2 },
-  chip: { minHeight: 48, minWidth: 48, justifyContent: "center",
-      ...SurfaceStyles.filter,
+  chip: { ...SurfaceStyles.filter,
     flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 210, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full },
-  chipText: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary },
+  chipText: { flexShrink: 1, fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs, color: Colors.textSecondary },
   chipTextActive: { color: Colors.onAction },
   addChip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: Spacing.md, paddingVertical: 6, borderRadius: Radius.full, borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.accentIcon, backgroundColor: Colors.accentLight },
   addText: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
@@ -95,5 +97,5 @@ const styles = StyleSheet.create({
   input: {
       ...SurfaceStyles.control,
     flex: 1, minHeight: 44, paddingHorizontal: Spacing.md, borderRadius: Radius.md, color: Colors.primary, fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm },
-  confirm: { width: 44, height: 44, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  confirm: { width: 48, height: 48, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
 });

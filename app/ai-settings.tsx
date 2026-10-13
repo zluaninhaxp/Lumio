@@ -164,7 +164,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
 
   return (
     <AccountScreen>
-      <AccountHeader title="Inteligência Artificial" onBack={() => { activeRef.current = false; setDraft(''); router.back(); }} />
+      <AccountHeader refined title="Inteligência Artificial" onBack={() => { activeRef.current = false; setDraft(''); router.back(); }} />
       <ScrollView
         contentContainerStyle={s.scroll}
         keyboardShouldPersistTaps="handled"
