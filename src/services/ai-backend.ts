@@ -14,7 +14,7 @@ export async function invokeAiBackend(
   try {
     result = await supabase.functions.invoke('ai', {
       body: { action, ...extra }, headers: { Authorization: `Bearer ${session.access_token}` },
-      timeout: action === 'generate' ? 135000 : 40000,
+      timeout: action === 'generate' ? 120000 : 40000,
     });
   } catch (error) {
     throw new AIProviderError((error as { name?: string })?.name === 'AbortError' ? 'timeout' : action === 'status' ? 'status-unavailable' : 'network');
@@ -38,6 +38,7 @@ export async function invokeAiBackend(
     if (code === 'provider_transport_error') throw new AIProviderError('provider');
     if (code === 'provider_invalid_request') throw new AIProviderError('provider-request');
     if (code === 'provider_precondition') throw new AIProviderError('payment-required');
+    if (code === 'provider_access_denied') throw new AIProviderError('provider-model', 'O projeto da chave não tem acesso a esta operação/modelo. Confira permissões e billing no Google AI Studio.');
     if (code === 'provider_model_unavailable') throw new AIProviderError('provider-model');
     if (action === 'status') throw new AIProviderError('status-unavailable');
     if (response?.status || (error as { name?: string }).name === 'FunctionsRelayError') throw new AIProviderError('backend');

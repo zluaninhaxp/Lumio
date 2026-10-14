@@ -1,3 +1,4 @@
+import { financialDate, realizedIncome as isRealizedIncome, realizedExpense as isRealizedExpense } from '../../services/financialRules.ts';
 /**
  * Resposta às CONSULTAS financeiras (seção 30) com dados REAIS do store —
  * substitui o mock hardcoded do `regexEngine.buildBotResponse`.
@@ -11,20 +12,6 @@ import type { Transaction } from '../../store/index.ts';
 import { formatBRL } from './apply.ts';
 import type { FinancialQuery } from './types.ts';
 
-function toISODate(tx: Transaction): string {
-  const [d, m] = tx.date.split('/').map(Number);
-  const y = new Date().getFullYear();
-  return `${y}-${String(m ?? 1).padStart(2, '0')}-${String(d ?? 1).padStart(2, '0')}`;
-}
-
-function isRealizedIncome(tx: Transaction): boolean {
-  return tx.amount > 0 && tx.confirmed !== false && !tx.expectedDate;
-}
-
-function isRealizedExpense(tx: Transaction): boolean {
-  return tx.amount < 0 && tx.supplierPaid !== false;
-}
-
 /** Pendências: receita prevista não confirmada / despesa de fornecedor não paga. */
 function pendingReceivable(tx: Transaction): boolean {
   return tx.amount > 0 && tx.confirmed === false;
@@ -37,7 +24,7 @@ function pendingPayable(tx: Transaction): boolean {
  * Responde a consulta com base nas transações reais. Devolve string pronta
  * para o bot. Não inventa números: tudo sai do array passado.
  */
-export function answerFinancialQuery(query: FinancialQuery, transactions: Transaction[], today: Date): string {
+function answerFinancialQueryImpl(query: FinancialQuery, transactions: Transaction[], today: Date): string {
   const todayISO = isoOf(today);
 
   if (query.kind === 'receivable') {
@@ -72,8 +59,8 @@ export function answerFinancialQuery(query: FinancialQuery, transactions: Transa
 
   // Filtros de período (realizadas)
   let pool = transactions.filter((t) => isRealizedIncome(t) || isRealizedExpense(t));
-  if (query.period === 'today') pool = pool.filter((t) => toISODate(t) === todayISO);
-  else if (query.period === 'month') pool = pool.filter((t) => toISODate(t).startsWith(`${todayISO.slice(0, 7)}`));
+  if (query.period === 'today') pool = pool.filter((t) => financialDate(t) === todayISO);
+  else if (query.period === 'month') pool = pool.filter((t) => financialDate(t)?.startsWith(`${todayISO.slice(0, 7)}`));
 
   const expenses = pool.filter((t) => t.amount < 0);
   const incomes = pool.filter((t) => t.amount > 0);
@@ -123,4 +110,9 @@ export function answerFinancialQuery(query: FinancialQuery, transactions: Transa
 
 function isoOf(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+export function answerFinancialQuery(query: FinancialQuery, transactions: Transaction[], today: Date): string {
+  const result = answerFinancialQueryImpl(query, transactions, today);
+  const unknown = transactions.filter(tx => !financialDate(tx)).length;
+  return unknown && ['today','month'].includes(query.period) ? result + '\nHá ' + unknown + ' registro(s) antigo(s) sem ano informado. Revise a data no Financeiro; eles não entram neste período.' : result;
 }

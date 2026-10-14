@@ -7,12 +7,13 @@ const ts = require('typescript');
 
 // Run the actual screens and service with deterministic hooks and in-memory IO.
 // No account, API key, or Gemini request is used by these integration tests.
-function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySaveFails = false, testPending, savePending, settingsConfigured = true, configured = false, statusError = false, route = 'onboarding', focused = true, view, extraction = null, failProgress = false, progressPending, onboardingDraft = null } = {}) {
+function fixture({ disclosureAccepted = true, from = 'onboarding', keyValid = true, failSave = false, keySaveFails = false, testPending, savePending, settingsConfigured = true, configured = false, statusError = false, route = 'onboarding', focused = true, view, extraction = null, failProgress = false, progressPending, onboardingDraft = null } = {}) {
   let slots = [], cursor = 0, effects = [], tree, screen;
   const calls = [], records = [], timers = [];
   let stagedOnboarding;
   const keyboardListeners = new Map();
   const state = {
+    aiDisclosureAcceptedVersion: disclosureAccepted ? '2026-10-14' : null,
     onboardingDraft, openAnswers: onboardingDraft?.responses ?? {}, onboardingContext: null, onboardingCompleted: false,
     pendingOnboardingExtraction: extraction, activatedPlugins: [],
     setPendingOnboardingExtraction(value, simulation) {
@@ -431,4 +432,8 @@ test('Android masked key edits retain the actual key across typing, paste, selec
   assert.equal(native.props.style.at(-1).color, 'transparent');
   assert.equal(native.props.autoComplete, 'off');
   assert.equal(native.props.importantForAutofill, 'noExcludeDescendants');
+});
+
+test('privacy disclosure is required before sending onboarding answers to AI', async () => {
+ const f=fixture({route:'celebration',disclosureAccepted:false});await f.settle();assert.equal(f.state.pendingOnboardingExtraction,null);assert.ok(f.calls.some(call=>call[0]==='replace'&&call[1]==='/ai-consent'));
 });

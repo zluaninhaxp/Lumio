@@ -142,7 +142,7 @@ test('CHAT→FINANCEIRO: "recebi 500 do João" aparece correto na "tela"', () =>
   const tx = store.state.transactions[0];
   assert.equal(tx.amount, 500);                    // entrada positiva
   assert.equal(tx.clientId, 'cli_1');              // contraparte resolvida
-  assert.equal(tx.date, '13/08');                  // hoje em DD/MM (formato da tela)
+  assert.equal(tx.date, '2026-08-13');                  // data persistida completa, sem inferência de ano
   assert.ok(tx.description.length > 0);
   assert.equal(tx.confirmed, undefined);           // realizada (não prevista)
 
@@ -159,7 +159,7 @@ test('CHAT→FINANCEIRO: "fizeram um pagamento de 30 reais" cria entrada', () =>
   assert.equal(r.intent, 'create_transaction');
   assert.equal(store.state.transactions.length, 1);
   assert.equal(store.state.transactions[0].amount, 30);
-  assert.equal(store.state.transactions[0].date, '13/08');
+  assert.equal(store.state.transactions[0].date, '2026-08-13');
 });
 
 test('CHAT→FINANCEIRO: "paguei 500 de gasolina" sai negativo com categoria', () => {
@@ -298,7 +298,7 @@ test('entryToTransactionPayload: formatos da tela', () => {
   const r = parseFinancialMessage('paguei 1500 no pix', ctx());
   const payload = entryToTransactionPayload(r.entries[0]);
   assert.equal(payload.amount, -1500);
-  assert.equal(payload.date, '13/08');
+  assert.equal(payload.date, '2026-08-13');
   assert.equal(payload.category, 'Sem categoria');  // sem inventar categoria
 });
 

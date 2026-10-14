@@ -11,7 +11,7 @@ const empty = () => ({ ...Object.fromEntries(Object.values(domains).map(key => [
 function fixture(shared = { storage: new Map(), db: new Map() }, identity = 'user-a') {
   const listeners = new Set(), cache = new Map(), timers = new Map(), alerts = [];
   let timerId = 0;
-  const state = { ...Object.fromEntries(Object.keys(domains).map(key => [key, []])), ...clone(preferences), genericPluginItems: {}, chatHistory: [], messages: [], resetOnboardingState() { Object.assign(state, clone(preferences)); }, clearMessages() { state.messages = []; }, setChatHistory(messages) { state.chatHistory = messages; } };
+  const state = { ...Object.fromEntries(Object.keys(domains).map(key => [key, []])), ...clone(preferences), genericPluginItems: {}, chatHistory: [], messages: [], refreshContratos() {}, resetOnboardingState() { Object.assign(state, clone(preferences)); }, clearMessages() { state.messages = []; }, setChatHistory(messages) { state.chatHistory = messages; } };
   const store = { getState: () => state, setState(patch) { Object.assign(state, typeof patch === 'function' ? patch(state) : patch); listeners.forEach(fn => fn(state)); }, subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); } };
   const controls = { identity, offline: false, loseResponse: false, beforeWrite: null, getUserError: null, writes: 0, requestPending: null };
   const row = () => { if (!shared.db.has(controls.identity)) shared.db.set(controls.identity, { revision: 0, snapshot: empty(), messages: [], receipts: new Map() }); return shared.db.get(controls.identity); };
@@ -32,6 +32,7 @@ function fixture(shared = { storage: new Map(), db: new Map() }, identity = 'use
       if (name === 'get_business_state') return { data: { revision: row().revision, ...clone(row().snapshot) } };
       assert.equal(name, 'commit_lumio_state');
       if (row().receipts.has(args.request_id)) return { data: row().receipts.get(args.request_id) };
+      if (controls.rejectValidation) return { error: { code: controls.rejectValidation } };
       controls.writes++;
       if (controls.requestPending) await controls.requestPending;
       if (controls.beforeWrite) { const callback = controls.beforeWrite; controls.beforeWrite = null; await callback(); }
@@ -52,6 +53,7 @@ function fixture(shared = { storage: new Map(), db: new Map() }, identity = 'use
     const requireMock = specifier => {
       if (specifier.includes('lib/supabase')) return { supabase: api, isSupabaseConfigured: true, supabaseProjectScope: 'test-project' };
       if (specifier === '../store') return { useAppStore: store };
+      if (specifier.endsWith('protectedStorage')) return { protectedStorage: storage };
       if (specifier.includes('async-storage')) return { default: storage };
       if (specifier === 'react') return { useEffect() {}, useRef: initial => ({ current: initial }), useState: initial => [initial, () => {}] };
       if (specifier.endsWith('appAlert')) return { AppAlert: { alert: (...args) => alerts.push(args) } };

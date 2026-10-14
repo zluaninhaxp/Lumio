@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { protectedStorage as AsyncStorage } from './protectedStorage';
 import { supabase, supabaseProjectScope } from '../lib/supabase';
 import { useAppStore } from '../store';
 import type { ChatHistoryMessage } from '../types/chat';
@@ -37,14 +37,15 @@ export const chatHistoryService = {
     }
     owner = userId;
     const current = owner === userId ? useAppStore.getState().chatHistory : [];
-    useAppStore.getState().setChatHistory([...messages, ...current.filter(item => !messages.some(existing => existing.id === item.id))]);
+    const recovered = pending.map(payload => ({ ...deserializeChatMessage(payload), pending: true, historical: true }));
+    useAppStore.getState().setChatHistory([...messages, ...current.filter(item => !messages.some(existing => existing.id === item.id) && !pending.some(payload => payload.id === item.id)), ...recovered]);
   },
   async stage(messages: ChatHistoryMessage[]) {
     if (!owner) throw new Error('Aguarde o carregamento do Chat antes de enviar.');
     const userId = owner;
     const epoch = generation;
     const serialized = messages.map(serializeChatMessage);
-    for (const message of serialized) if (!useAppStore.getState().chatHistory.some(item => item.id === message.id) && !pending.some(item => item.id === message.id)) pending.push(message);
+    for (const message of serialized) if (!useAppStore.getState().chatHistory.some(item => item.id === message.id && !item.pending) && !pending.some(item => item.id === message.id)) pending.push(message);
     original.push(...messages.filter(message => !original.some(item => item.id === message.id)));
     const raw = JSON.stringify(pending);
     journal = journal.catch(() => {}).then(() => AsyncStorage.setItem(key(userId), raw));
@@ -58,6 +59,16 @@ export const chatHistoryService = {
     if (owner) { const userId = owner; const raw = JSON.stringify(pending); journal = journal.catch(() => {}).then(() => AsyncStorage.setItem(key(userId), raw)); await journal; }
   },
   async waitForJournal() { await journal; },
+  async reject(ids: string[]) {
+    if (!owner) return;
+    const userId = owner;
+    pending = pending.filter(message => !ids.includes(String(message.id)));
+    original = original.filter(message => !ids.includes(message.id));
+    useAppStore.getState().setChatHistory(useAppStore.getState().chatHistory.filter(message => !ids.includes(message.id)));
+    const raw = JSON.stringify(pending);
+    journal = journal.catch(() => {}).then(() => raw === '[]' ? AsyncStorage.removeItem(key(userId)) : AsyncStorage.setItem(key(userId), raw));
+    await journal;
+  },
   batch() { return pending.map(item => ({ ...item })); },
   hasPending() { return pending.length > 0; },
   async acknowledge(batch: Record<string, unknown>[]) {
@@ -65,11 +76,11 @@ export const chatHistoryService = {
     const epoch = generation;
     const userId = owner;
     const ids = new Set(batch.map(item => item.id));
-    const acknowledged = batch.map(payload => original.find(item => item.id === payload.id) ?? deserializeChatMessage(payload));
+    const acknowledged = batch.map(payload => ({ ...(original.find(item => item.id === payload.id) ?? deserializeChatMessage(payload)), pending: false }));
     pending = pending.filter(item => !ids.has(item.id));
     original = original.filter(item => !ids.has(item.id));
     const history = useAppStore.getState().chatHistory;
-    useAppStore.getState().setChatHistory([...history, ...acknowledged.filter(item => !history.some(existing => existing.id === item.id))]);
+    useAppStore.getState().setChatHistory([...history.map(message => acknowledged.find(item => item.id === message.id) ?? message), ...acknowledged.filter(item => !history.some(existing => existing.id === item.id))]);
     const raw = JSON.stringify(pending);
     journal = journal.catch(() => {}).then(() => raw === '[]' ? AsyncStorage.removeItem(key(userId)) : AsyncStorage.setItem(key(userId), raw));
     await journal;

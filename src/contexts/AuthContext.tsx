@@ -112,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       if (!businessStateService.isStarted(result.user.id)) {
-        businessStateService.clearPrivateState();
+        businessStateService.stop(); businessStateService.clearPrivateState();
         let migrationWarning = false;
         try { await legacyMigrationService.migrate(result.user.id, result.user.email); }
         catch { migrationWarning = true; }

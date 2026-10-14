@@ -3,5 +3,5 @@ export class PersistenceError extends Error {
 }
 export function isRejectedValidation(error: unknown) {
   return !!error && typeof error === 'object' && 'code' in error
-    && ['23503', '23514', '23505', '22023'].includes(String(error.code));
+    && ['23502', '23503', '23514', '23505', '22023', '22P02'].includes(String(error.code));
 }

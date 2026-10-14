@@ -26,6 +26,7 @@ test('incremental migrations: real PostgreSQL transaction, RLS, revision, idempo
     await db.query(`insert into public.business_preferences(owner_id,data) values ($1,'{"activatedPlugins":["catalogo"],"businessName":"Existing"}')`, [A]);
     await db.exec(fs.readFileSync('supabase/migrations/0008_canonical_preferences.sql', 'utf8'));
     await db.exec(fs.readFileSync('supabase/migrations/0009_commit_receipts.sql', 'utf8'));
+    await db.exec(fs.readFileSync('supabase/migrations/0010_strict_business_commit.sql', 'utf8'));
     const seeded = (await db.query('select data from public.business_preferences where owner_id=$1', [A])).rows[0].data;
     assert.deepEqual(seeded.activatedPlugins, ['catalogo']); assert.equal(seeded.businessName, 'Existing'); assert.deepEqual(seeded.pluginOrder, ['clientes']);
     await db.exec('set role authenticated'); await db.query(`select set_config('request.jwt.claim.sub',$1,false)`, [A]);

@@ -6,7 +6,7 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
   else signal?.addEventListener('abort', abort);
-  const timer = setTimeout(abort, url.includes('/auth/v1/') ? 20_000 : 30_000);
+  const timer = setTimeout(abort, url.includes('/auth/v1/') ? 20_000 : url.includes('/functions/v1/ai') ? 150_000 : 30_000);
   try {
     return await fetch(input, { ...init, signal: controller.signal });
   } finally {

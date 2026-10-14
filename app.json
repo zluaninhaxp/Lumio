@@ -35,7 +35,11 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.zluhcastro.lumio"
+      "package": "com.zluhcastro.lumio",
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -70,10 +74,21 @@
           "speechRecognitionPermission": "O Lumio converte sua fala em texto para preencher as respostas do onboarding."
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "configureAndroidBackup": false
+        }
+      ],
       "expo-audio",
-      ["expo-navigation-bar", { "barStyle": "dark" }],
-      "./plugins/withAndroidSystemBars.cjs"
+      [
+        "expo-navigation-bar",
+        {
+          "barStyle": "dark"
+        }
+      ],
+      "./plugins/withAndroidSystemBars.cjs",
+      "./plugins/withPrivateAndroidBackup.cjs"
     ],
     "experiments": {
       "typedRoutes": true

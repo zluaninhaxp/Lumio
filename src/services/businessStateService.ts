@@ -1,6 +1,10 @@
+import { setDraftIdentity } from './accountScope';
+import { changedSnapshotPaths } from './syncMerge';
+import { isRejectedValidation } from './persistenceErrors';
+import { assertBusinessSnapshot } from './snapshotValidation';
 import { PersistenceError } from './persistenceErrors';
 import { chatHistoryService } from './chatHistoryService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { protectedStorage as AsyncStorage } from './protectedStorage';
 import { mergeSnapshots, snapshotsEqual, conflictGroup, resolveWithRemote, type ConflictChoice } from './syncMerge';
 import { isSupabaseConfigured, supabase, supabaseProjectScope } from '../lib/supabase';
 import { useAppStore, type AppStore } from '../store';
@@ -39,6 +43,7 @@ function snapshotFromStore(state: AppStore): Snapshot {
   snapshot.generic_plugin_items = Object.entries(state.genericPluginItems).flatMap(([pluginId, items]) =>
     (items ?? []).map((item) => ({ ...item, pluginId })));
   snapshot.preferences = {
+    aiDisclosureAcceptedVersion: state.aiDisclosureAcceptedVersion,
     onboardingDraft: state.onboardingDraft,
     onboardingReportDraft: state.onboardingCompleted || !state.pendingOnboardingExtraction ? null : { extraction: state.pendingOnboardingExtraction, isSimulation: state.pendingOnboardingExtractionIsSimulation },
     learnedIntentMarkers: state.learnedIntentMarkers,
@@ -83,6 +88,7 @@ function hydrate(snapshot: Snapshot) {
   for (const key of ['financialExpenseCategories', 'financialIncomeCategories', 'taskTags', 'calendarEventTypes', 'recommendedPlugins']) {
     if (Array.isArray(prefs[key])) patch[key] = prefs[key];
   }
+  patch.aiDisclosureAcceptedVersion = typeof prefs.aiDisclosureAcceptedVersion === 'string' ? prefs.aiDisclosureAcceptedVersion : null;
   if ('onboardingDraft' in prefs) {
     patch.onboardingDraft = prefs.onboardingDraft;
     const draft = prefs.onboardingDraft as import('../types/onboardingDraft').OnboardingDraft | null;
@@ -114,13 +120,15 @@ let resolutionEpoch = 0;
 let inFlight: Promise<void> | null = null;
 let journalWrites: Promise<void> = Promise.resolve();
 let conflictRemote: { revision: number; snapshot: Snapshot } | null = null;
+let chatPreparation: { before: Snapshot; after: Snapshot; ids: string[] } | null = null;
+let rejectedPaths: string[] = [];
 const journalKey = (id: string) => '@lumio/unsaved/' + supabaseProjectScope + '/' + id;
 const clone = (value: Snapshot): Snapshot => JSON.parse(JSON.stringify(value));
 function journal() {
   if (!owner || !confirmed) return;
   const activeGeneration = generation;
   const key = journalKey(owner);
-  const draft = JSON.stringify({ base: confirmed, snapshot: snapshotFromStore(useAppStore.getState()), onboarding: pendingOnboarding, outstanding });
+  const draft = JSON.stringify({ base: confirmed, snapshot: snapshotFromStore(useAppStore.getState()), onboarding: pendingOnboarding, outstanding, chatPreparation, rejectedPaths });
   journalWrites = journalWrites.catch(() => {}).then(() => AsyncStorage.setItem(key, draft));
   void journalWrites.catch(() => { if (activeGeneration === generation) publish('error', 'Não foi possível preservar o rascunho no aparelho. Mantenha o aplicativo aberto e tente salvar novamente.'); });
 }
@@ -187,6 +195,7 @@ async function drain() {
       await chatHistoryService.waitForJournal();
       if (activeGeneration !== generation) throw new Error('A conta foi alterada.');
       if (!outstanding) {
+        assertBusinessSnapshot(snapshotFromStore(useAppStore.getState()));
         outstanding = { id: Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), revision,
           snapshot: clone(snapshotFromStore(useAppStore.getState())), messages: chatHistoryService.batch(), onboarding: pendingOnboarding };
         journal(); await journalWrites;
@@ -197,8 +206,8 @@ async function drain() {
       if (activeGeneration !== generation) throw new Error('A conta foi alterada.');
       if (error) {
         if (error.code === 'PT409' && conflicts++ < 3) { outstanding = null; await synchronize(); continue; }
-        if (['23503','23514','23505','22023','42501'].includes(error.code)) outstanding = null;
-        throw new PersistenceError('Não foi possível salvar (' + (error.code ?? 'conexão') + '). ' + (['23503','23514','23505','22023'].includes(error.code) ? 'Revise os campos e vínculos do cadastro e tente novamente.' : 'Conecte-se à internet e tente novamente. Seu rascunho foi preservado.'), error.code ?? 'NETWORK');
+        if (['23502','23503','23514','23505','22023','22P02','42501'].includes(error.code)) outstanding = null;
+        throw new PersistenceError('Não foi possível salvar (' + (error.code ?? 'conexão') + '). ' + (['23502','23503','23514','23505','22023','22P02'].includes(error.code) ? 'Revise os campos e vínculos do cadastro e tente novamente.' : 'Conecte-se à internet e tente novamente. Seu rascunho foi preservado.'), error.code ?? 'NETWORK');
       }
       if (!Number.isSafeInteger(data) || data <= request.revision) throw new Error('O servidor não confirmou a gravação. Tente novamente.');
       revision = data as number;
@@ -206,7 +215,7 @@ async function drain() {
       if (pendingOnboarding === onboarding) pendingOnboarding = null;
       await chatHistoryService.acknowledge(messages);
       if (activeGeneration !== generation) throw new Error('A conta foi alterada.');
-      outstanding = null;
+      outstanding = null; chatPreparation = null;
       pending = !snapshotsEqual(snapshotFromStore(useAppStore.getState()), snapshot);
       if (pending) journal();
     }
@@ -216,6 +225,19 @@ async function drain() {
     if (activeGeneration === generation) publish('ready');
   } catch (error) {
     if (activeGeneration === generation) {
+      if (isRejectedValidation(error) && chatPreparation) {
+        const rejected = chatPreparation;
+        if (businessStateService.cancelRejectedPreparation(rejected.before, rejected.after)) {
+          await chatHistoryService.reject(rejected.ids); chatPreparation = null; outstanding = null;
+        } else {
+          // Preserve the overlapping version before an explicit group recovery.
+          await AsyncStorage.setItem('@lumio/rejected/' + supabaseProjectScope + '/' + activeOwner + '/' + Date.now(), JSON.stringify({ preparation: rejected, current: snapshotFromStore(useAppStore.getState()), messages: chatHistoryService.batch() }));
+          rejectedPaths = changedSnapshotPaths(rejected.before,rejected.after);
+          conflictRemote = await fetchRemote();
+          journal();
+          publish('conflict','Uma tentativa foi rejeitada e há edições vinculadas posteriores. A cópia foi preservada; use a versão remota do grupo e refaça a operação.');
+        }
+      }
       pending = !!confirmed && !snapshotsEqual(snapshotFromStore(useAppStore.getState()), confirmed);
       if (pending) journal();
       if (!conflictRemote) publish('error', error instanceof Error ? error.message : 'Falha ao sincronizar. Tente novamente.');
@@ -225,6 +247,13 @@ async function drain() {
 }
 
 export const businessStateService = {
+  async waitForJournal() { await journalWrites; await chatHistoryService.waitForJournal(); },
+  stageChatPreparation(before: Snapshot, ids: string[]) {
+    requireOwner();
+    if (rejectedPaths.length) throw new Error('Resolva a tentativa rejeitada antes de enviar outro comando.');
+    const after = snapshotFromStore(useAppStore.getState()); assertBusinessSnapshot(after);
+    chatPreparation = { before, after: clone(after), ids }; journal();
+  },
   capturePreparation() { return clone(snapshotFromStore(useAppStore.getState())); },
   cancelRejectedPreparation(before: Snapshot, after: Snapshot) {
     const reverted = mergeSnapshots(after, snapshotFromStore(useAppStore.getState()), before);
@@ -250,15 +279,16 @@ export const businessStateService = {
     finally { if (inFlight === operation) inFlight = null; }
     if (pending || outstanding || pendingOnboarding || chatHistoryService.hasPending()) await this.commit();
   },
-  async refresh() { await this.commit(); },
+  async refresh() { await this.commit(); useAppStore.getState().refreshContratos(); if (pending) await this.commit(); },
   canKeepLocal() {
+    if (rejectedPaths.length) return false;
     if (!conflictRemote || !confirmed) return true;
     const local = snapshotFromStore(useAppStore.getState());
     return conflictGroup(confirmed, local, conflictRemote.snapshot, mergeSnapshots(confirmed, local, conflictRemote.snapshot).conflicts).canKeepLocal;
   },
   conflictDetails() {
     if (!conflictRemote || !confirmed) return '';
-    return mergeSnapshots(confirmed, snapshotFromStore(useAppStore.getState()), conflictRemote.snapshot).conflicts.join('\n');
+    return [...mergeSnapshots(confirmed, snapshotFromStore(useAppStore.getState()), conflictRemote.snapshot).conflicts, ...rejectedPaths].join('\n');
   },
   async resolveConflict(choice: ConflictChoice) {
     requireOwner();
@@ -271,10 +301,12 @@ export const businessStateService = {
     const local = snapshotFromStore(useAppStore.getState());
     const conflicts = mergeSnapshots(confirmed!, local, remote.snapshot).conflicts;
     if (choice === 'local' && !conflictGroup(confirmed!, local, remote.snapshot, conflicts).canKeepLocal) throw new Error('Este conflito envolve operações vinculadas. Use a versão remota e tente sua operação novamente com os valores atualizados.');
-    const merged = { snapshot: choice === 'remote' ? resolveWithRemote(confirmed!, local, remote.snapshot) : resolveWithRemote(confirmed!, local, remote.snapshot, 'local') };
+    if (rejectedPaths.length && choice !== 'remote') throw new Error('Esta tentativa foi rejeitada pelo servidor; restaure o grupo remoto.');
+    const merged = { snapshot: resolveWithRemote(confirmed!, local, remote.snapshot, choice, rejectedPaths) };
     if (choice === 'remote') resolutionEpoch++;
     if (choice === 'remote') await chatHistoryService.resolveBusinessConflict();
     confirmed = clone(remote.snapshot); revision = remote.revision; conflictRemote = null;
+    rejectedPaths = []; chatPreparation = null;
     hydrate(merged.snapshot); pending = !snapshotsEqual(merged.snapshot, confirmed);
     if (pending) journal();
     await this.commit();
@@ -294,10 +326,12 @@ export const businessStateService = {
     let restored = remote.snapshot;
     let base = clone(remote.snapshot);
     if (raw) {
-      let draft: { base: Snapshot; snapshot: Snapshot; outstanding?: CommitRequest; onboarding?: Record<string, unknown> };
+      let draft: { base: Snapshot; snapshot: Snapshot; outstanding?: CommitRequest; onboarding?: Record<string, unknown>; chatPreparation?: typeof chatPreparation; rejectedPaths?: string[] };
       try { draft = JSON.parse(raw); }
       catch { throw new Error('Rascunho local inválido. A cópia foi preservada para recuperação.'); }
       if (!draft.base || !draft.snapshot) throw new Error('Rascunho local inválido.');
+      chatPreparation = draft.chatPreparation ?? null;
+      rejectedPaths = draft.rejectedPaths ?? [];
       if (draft.outstanding) {
         const receipt = await receiptFor(userId, draft.outstanding);
         if (activeGeneration !== generation) return;
@@ -312,11 +346,12 @@ export const businessStateService = {
       const merged = mergeSnapshots(draft.base, draft.snapshot, remote.snapshot);
       restored = merged.snapshot;
       pendingOnboarding = draft.onboarding ?? null;
-      if (merged.conflicts.length) { base = draft.base; conflictRemote = remote; }
+      if (merged.conflicts.length || rejectedPaths.length) { base = draft.base; conflictRemote = remote; }
     } else if (!Object.keys((remote.snapshot.preferences ?? {}) as object).length) {
       // Bootstrap preferences of legacy accounts once, through the revision-checked RPC.
       restored = { ...remote.snapshot, preferences: snapshotFromStore(useAppStore.getState()).preferences };
     }
+    setDraftIdentity(supabaseProjectScope, userId);
     owner = userId; revision = remote.revision; confirmed = base;
     hydrate(restored);
     if (pendingOnboarding) useAppStore.setState({ openAnswers: pendingOnboarding.responses as Record<string, string>,
@@ -333,16 +368,19 @@ export const businessStateService = {
       if (timer) clearTimeout(timer);
       if (!changeHolds) timer = setTimeout(() => { timer = null; void this.commit().catch(() => {}); }, 150);
     });
+    let billingWarning: string | null = null;
+    if (!conflictRemote) { try { useAppStore.getState().refreshContratos(); } catch { billingWarning = 'Há um contrato com data inválida ou histórico extenso. Revise-o em Contratos antes de gerar cobranças.'; } }
     if (conflictRemote) publish('conflict', 'Há um rascunho em conflito com outro aparelho. Escolha qual versão manter.');
     else if (pending || pendingOnboarding || outstanding) { journal(); publish('error', 'Há alterações não confirmadas recuperadas. Conecte-se à internet e toque em Tentar novamente.'); }
+    else if (billingWarning) publish('warning', billingWarning);
     else publish('ready');
   },
   stop() {
-    generation++;
+    generation++; setDraftIdentity(supabaseProjectScope, null);
     inFlight = null;
     if (timer) clearTimeout(timer);
     timer = null; unsubscribe?.(); unsubscribe = null;
-    owner = null; revision = 0; confirmed = null; pending = false; pendingOnboarding = null; outstanding = null; conflictRemote = null;
+    owner = null; revision = 0; confirmed = null; pending = false; pendingOnboarding = null; outstanding = null; conflictRemote = null; chatPreparation = null; rejectedPaths = [];
     publish('idle');
   },
   clearPrivateState() {

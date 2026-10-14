@@ -1,3 +1,6 @@
+import { isRejectedValidation } from '../../src/services/persistenceErrors';
+import type { Snapshot } from '../../src/services/syncMerge';
+import { localISO } from '../../src/services/financialRules';
 import { chatHistoryService } from '../../src/services/chatHistoryService';
 import { businessStateService } from '../../src/services/businessStateService';
 import { AppAlert } from '../../src/services/appAlert';
@@ -653,15 +656,22 @@ return date.toISOString().split('T')[0];
     if (sendingRef.current) return;
     sendingRef.current = true; setSending(true);
     businessStateService.holdChanges();
+    const scope = businessStateService.scope();
+    let before: Snapshot | null = null;
+    let staged = false;
     try {
       if (!pendingPair.current) {
         if (!businessStateService.isStarted()) throw new Error('Aguarde o carregamento da conta.');
+        before = businessStateService.capturePreparation();
         prepare();
+        if (pendingPair.current) businessStateService.stageChatPreparation(before, (pendingPair.current as Message[]).map(message => message.id));
+        staged = true;
         pendingCompletion.current = finish ?? null;
       }
       if (!pendingPair.current) return;
       await chatHistoryService.stage(pendingPair.current);
       await businessStateService.commit();
+      if (scope !== businessStateService.scope()) { pendingPair.current = null; pendingCompletion.current = null; return; }
       if (chosenMessage.current) {
         useAppStore.getState().setChatHistory(useAppStore.getState().chatHistory.map(message => message.id === chosenMessage.current ? { ...message, historical: true, quickActions: undefined, actions: undefined } : message));
         chosenMessage.current = null;
@@ -670,6 +680,11 @@ return date.toISOString().split('T')[0];
       pendingCompletion.current?.(); pendingCompletion.current = null;
       scrollToBottom();
     } catch (error) {
+      if (before && !staged && scope === businessStateService.scope()) businessStateService.cancelRejectedPreparation(before, businessStateService.capturePreparation());
+      if (isRejectedValidation(error) || (before && !staged)) {
+        if (pendingPair.current) await chatHistoryService.reject(pendingPair.current.map(message => message.id));
+        pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
+      }
       AppAlert.alert('Mensagem não confirmada', error instanceof Error ? error.message : 'Tente novamente com internet. Sua tentativa foi preservada.', undefined, { variant: 'warning' });
     } finally {
       businessStateService.releaseChanges();
@@ -893,7 +908,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
           const quantity = parsed.entities.orderQuantity || 0;
           const unitPrice = parsed.entities.unitPrice || 0;
-          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
+          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: localISO(), createdAt: new Date().toISOString() });
           botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
         }
       }
@@ -1139,7 +1154,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       return (
         <View style={[styles.userBubbleContainer, grouped && styles.groupedMessage]}>
           <View style={styles.userBubble}>
-            <Text style={styles.userText}>{item.text}</Text>
+            <Text style={styles.userText}>{item.pending ? 'Pendente de confirmação · ' : ''}{item.text}</Text>
           </View>
         </View>
       );
@@ -1179,7 +1194,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
             </View>
           ) : (
             <View style={styles.botBubble}>
-              <Text style={styles.botText}>{item.text}</Text>
+              <Text style={styles.botText}>{item.pending ? 'Pendente de confirmação · ' : ''}{item.text}</Text>
             </View>
           )}
           {item.quickActions && item.quickActions.length > 0 && (

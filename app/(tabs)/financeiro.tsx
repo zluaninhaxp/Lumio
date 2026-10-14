@@ -1,3 +1,6 @@
+import { confirmAction } from '../../src/services/confirmedAction';
+import { financialDate, transactionOrigin } from '../../src/services/financialRules';
+import { AppAlert } from '../../src/services/appAlert';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
@@ -50,6 +53,7 @@ export default function FinanceiroScreen() {
   const [bodyHeight, setBodyHeight] = useState<number>();
   const handledReturnRef = useRef<string | null>(null);
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
+  const markSupplierTransactionPaid = useAppStore((state) => state.markSupplierTransactionPaid);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
   const financialIncomeCategories = useAppStore((state) => state.financialIncomeCategories);
@@ -140,6 +144,8 @@ export default function FinanceiroScreen() {
   );
 
   const handleEdit = useCallback((item: Transaction) => {
+    const origin = transactionOrigin(item);
+    if (origin && financialDate(item)) { AppAlert.alert('Lançamento vinculado', 'Altere a origem em ' + origin + ' para preservar o histórico.'); return; }
     setEditingItem(item);
     setSheetVisible(true);
   }, []);
@@ -211,7 +217,7 @@ export default function FinanceiroScreen() {
         onLongPress={enterSelectionMode}
         onDelete={handleSwipeDelete}
         onEdit={handleEdit}
-        onMarkReceived={(id) => markTransactionReceived(id, true)}
+        onMarkReceived={(id) => void confirmAction('finance-settle:' + id, () => { if (item.amount > 0) markTransactionReceived(id, true); else markSupplierTransactionPaid(id, true); return () => {}; })}
         onSwipeOpen={handleSwipeOpen}
       />
     ),

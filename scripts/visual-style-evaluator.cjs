@@ -7,6 +7,7 @@ function evaluate(file, cache=new Map()) {
  const shared=['src/constants/theme.ts','src/components/module-text-styles.ts','src/components/form-action-styles.ts','app/components/Tasks/taskFormStyles.ts','app/components/Forms/pluginFormStyles.ts'];
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports:module.exports,module,require(name){
  if(name==='react-native')return native;
+ if(name.endsWith('accountScope'))return { draftIdentity:()=>null,onDraftIdentityChange:()=>()=>{} };
  if(name==='react')return{forwardRef:fn=>fn,createContext:()=>({})};
  const rel=name.startsWith('@/')?name.slice(2):path.posix.normalize(path.posix.join(path.posix.dirname(file),name));const match=shared.find(x=>x.replace(/\.tsx?$/,'')===rel);if(match)return evaluate(match,cache).exports;
  return{};

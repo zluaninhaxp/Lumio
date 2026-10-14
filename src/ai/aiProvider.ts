@@ -66,7 +66,7 @@ const AI_ERROR_DEFAULT_MESSAGES: Record<AIErrorKind, string> = {
   'missing-api-key': 'Você ainda não configurou sua chave de IA.',
   unauthorized: 'Sua chave de IA foi recusada. Confira se ela está correta e ativa.',
   'quota-exceeded':
-    'O limite gratuito da sua conta Google foi atingido por enquanto. ' +
+    'A quota da sua conta Google foi atingida por enquanto. ' +
     'Tente novamente mais tarde ou aguarde a renovação da cota.',
   'payment-required': 'O plano da sua chave de IA exige pagamento para esta chamada.',
   network: 'Sem conexão com a IA. Verifique sua internet e tente novamente.',

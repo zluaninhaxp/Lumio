@@ -27,17 +27,20 @@
     "test:visual-stage4": "node scripts/visual-stage4.test.cjs",
     "test:visual-stage5": "node scripts/visual-stage5.test.cjs",
     "test:visual-stage6": "node scripts/visual-stage6.test.cjs",
-    "test:persistence": "node scripts/persistence.test.cjs && node scripts/persistence-auth.test.cjs && node scripts/persistence-sql.test.cjs"
+    "test:persistence": "node scripts/persistence.test.cjs && node scripts/persistence-auth.test.cjs && node scripts/persistence-sql.test.cjs",
+    "test:prelaunch": "node scripts/prelaunch.test.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.0.3",
+    "@noble/ciphers": "1.3.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@supabase/supabase-js": "^2.112.3",
     "expo": "~54.0.36",
     "expo-asset": "~12.0.13",
     "expo-audio": "~1.1.1",
     "expo-constants": "~18.0.13",
+    "expo-crypto": "~15.0.9",
     "expo-font": "~14.0.12",
     "expo-image-manipulator": "~14.0.8",
     "expo-image-picker": "~17.0.11",

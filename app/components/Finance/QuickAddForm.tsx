@@ -1,3 +1,5 @@
+import { draftIdentity, onDraftIdentityChange } from '../../../src/services/accountScope';
+import { localISO, dateInput, parseDateInput, financialDate, transactionOrigin } from '../../../src/services/financialRules';
 import { HorizontalOptions } from '../../../src/components/horizontal-options';
 import { FormTextInput } from '../../../src/components/form-text-input';
 import { useSheetDraft } from '../../../src/components/sheet-draft';
@@ -21,9 +23,8 @@ import { TaskPeopleSelector } from '../Tasks/TaskPeopleSelector';
 import { useConfirmedSave } from "../../../src/hooks/use-confirmed-save";
 
 function formatTransactionDateInput(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 4);
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+  return digits.length > 4 ? digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4) : digits.length > 2 ? digits.slice(0,2) + '/' + digits.slice(2) : digits;
 }
 
 interface QuickAddFormProps {
@@ -67,6 +68,7 @@ type TransactionDraft = {
 };
 
 let pendingTransactionDraft: TransactionDraft | null = null;
+onDraftIdentityChange(() => { pendingTransactionDraft = null; });
 let preserveDraftOnClose = false;
 
 export function clearPendingTransactionDraft() {
@@ -90,7 +92,7 @@ export function setPendingTransactionRelation(relation: 'client' | 'supplier' | 
 export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, incomeCategories }: QuickAddFormProps) {
   const router = useRouter();
   const isEditing = !!editData;
-  const draft = !editData ? pendingTransactionDraft : null;
+  const draft = !editData && draftIdentity() ? pendingTransactionDraft : null;
   const initialAmount = editData
     ? formatCurrencyValue(Math.abs(editData.amount))
     : draft?.amount ?? '';
@@ -114,8 +116,8 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
 
   const today = new Date();
   const initialDateStr = editData
-    ? editData.date
-    : draft?.transactionDate ?? today.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    ? dateInput(editData.date)
+    : draft?.transactionDate ?? dateInput(localISO(today));
   const [transactionDate, setTransactionDate] = useState(initialDateStr);
   const { fornecedorItems, estoqueItems, activatedPlugins, receiveStockFromPurchase, addFinancialExpenseCategory, addFinancialIncomeCategory } = useAppStore();
   const [clientId, setClientId] = useState(editData?.clientId ?? draft?.clientId);
@@ -134,9 +136,9 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
 
           const num = parseCurrency(amount);
           if (!amount.trim() || isNaN(num) || num <= 0) return;
-          if (!/^\d{2}\/\d{2}$/.test(transactionDate.trim())) return;
+          if (!parseDateInput(transactionDate)) throw new Error('Informe a data completa (DD/MM/AAAA). O ano antigo não será presumido.');
           if (!description.trim()) return;
-          const finalDate = transactionDate.trim() || initialDateStr;
+          const finalDate = parseDateInput(transactionDate)!;
 
           const selectedClientId = clientId;
           const selectedSupplierId = supplierId;
@@ -172,7 +174,7 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
   const canSave =
     amount.trim().length > 0 &&
     parseCurrency(amount) > 0 &&
-    /^\d{2}\/\d{2}$/.test(transactionDate.trim()) &&
+    !!parseDateInput(transactionDate) &&
     description.trim().length > 0;
 
   const presetAmounts = ['10', '50', '100', '200', '500'];
@@ -238,6 +240,12 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
     );
   };
 
+  if (editData && !financialDate(editData) && transactionOrigin(editData)) return <View style={styles.container}>
+    <Text style={styles.title}>Revisar ano do histórico</Text>
+    <Text style={styles.label}>O registro antigo tem apenas dia e mês. Informe a data completa conhecida; o valor e a origem serão preservados.</Text>
+    <FormTextInput accessibilityLabel="Data completa do histórico" style={styles.input} value={transactionDate} onChangeText={value => setTransactionDate(formatTransactionDateInput(value))} placeholder="DD/MM/AAAA" maxLength={10} keyboardType="number-pad" editable={!financeSave.locked} />
+    <TouchableOpacity accessibilityRole="button" disabled={financeSave.locked || !parseDateInput(transactionDate)} onPress={() => void financeSave.run(() => { onSave({ ...editData, date: parseDateInput(transactionDate)! }); return onSaved; })} style={styles.presetBtn}><Text style={styles.label}>Confirmar data informada</Text></TouchableOpacity>
+  </View>;
   return (
     <View style={styles.container}>
       <Text style={styles.title}>{isEditing ? 'Editar transação' : 'Nova transação'}</Text>
@@ -288,10 +296,10 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
         style={styles.input}
         value={transactionDate}
         onChangeText={(value) => setTransactionDate(formatTransactionDateInput(value))}
-        placeholder="DD/MM"
+        placeholder="DD/MM/AAAA"
         placeholderTextColor={Colors.placeholder}
         keyboardType="number-pad"
-        maxLength={5} editable={!financeSave.locked}
+        maxLength={10} editable={!financeSave.locked}
       />
 
       <Text style={styles.label}>Descrição *</Text>

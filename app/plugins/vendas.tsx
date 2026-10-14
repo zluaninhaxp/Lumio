@@ -1,3 +1,4 @@
+import { localISO } from '../../src/services/financialRules';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -34,8 +35,7 @@ import { confirmAction } from "../../src/services/confirmedAction";
 type DraftItem = Omit<OrderItem, "id" | "unitPrice"> & { id: string; unitPrice: number | string; addToCatalog?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 const parsePrice = (value: number | string) => Number(String(value).replace(",", "."));
-const todayLabel = () =>
-  new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+const todayLabel = () => localISO();
 const emptyItem = (): DraftItem => ({
   id: `${Date.now()}-${Math.random()}`,
   name: "",

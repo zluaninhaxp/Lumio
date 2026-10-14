@@ -24,10 +24,12 @@ Deno.serve(async (req) => {
     const verifier = createClient(Deno.env.get('SUPABASE_URL')!, anonKey, { auth: { persistSession: false } });
     const proof = await verifier.auth.signInWithPassword({ email: identity.user.email, password: body.password });
     if (proof.error || proof.data.user?.id !== uid) return json({ error: 'invalid_credentials' }, 403);
-    const listed = await admin.storage.from('profile-photos').list(uid, { limit: 1000 });
-    if (listed.error) throw listed.error;
-    const paths = (listed.data ?? []).filter((item) => item.name.endsWith('.webp')).map((item) => `${uid}/${item.name}`);
-    if (paths.length) {
+    // Delete from the beginning each time; offsets would skip rows after removal.
+    while (true) {
+      const listed = await admin.storage.from('profile-photos').list(uid, { limit: 1000 });
+      if (listed.error) throw listed.error;
+      const paths = (listed.data ?? []).filter((item) => item.name.endsWith('.webp')).map((item) => `${uid}/${item.name}`);
+      if (!paths.length) break;
       const removed = await admin.storage.from('profile-photos').remove(paths);
       if (removed.error) throw removed.error;
     }

@@ -1,3 +1,4 @@
+import { financialDate, dateInput, isRealized } from '../services/financialRules';
 import { CategoryColors } from '../constants/theme';
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useAppStore, Transaction } from '../store';
@@ -125,16 +126,8 @@ export function useFinanceState() {
     [period.month, period.year]
   );
 
-  const periodTransactions = useMemo(
-    () =>
-      transactions.filter((t) => {
-        const parts = t.date.split('/');
-        if (parts.length !== 2) return false;
-        const txMonth = parseInt(parts[1], 10);
-        return txMonth === period.month;
-      }),
-    [transactions, period.month]
-  );
+  const legacyTransactions = useMemo(() => transactions.filter(tx => !financialDate(tx)), [transactions]);
+  const periodTransactions = useMemo(() => transactions.filter(tx => financialDate(tx)?.startsWith(period.year + '-' + String(period.month).padStart(2,'0') + '-')), [transactions, period.month, period.year]);
 
   const onboardingCategoryLabels = useMemo(
     () =>
@@ -185,31 +178,27 @@ export function useFinanceState() {
       grouped[t.date].push(t);
     });
 
-    return Object.entries(grouped)
-      .sort(([a], [b]) => {
-        const [da, ma] = a.split('/').map(Number);
-        const [db, mb] = b.split('/').map(Number);
-        if (ma !== mb) return mb - ma;
-        return db - da;
-      })
+    const dated = Object.entries(grouped)
+      .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, data]) => ({
-        title: getSectionTitle(date),
+        title: getSectionTitle(dateInput(date).slice(0,5)),
         data,
       }));
-  }, [filteredTransactions]);
+    return [...dated, ...(legacyTransactions.length ? [{ title: 'Ano não informado — revise a data completa', data: legacyTransactions.filter(tx => !search.trim() || tx.description.toLowerCase().includes(search.toLowerCase())) }] : [])];
+  }, [filteredTransactions, legacyTransactions, search]);
 
   const summary = useMemo(() => {
     const entradas = periodTransactions
-      .filter((t) => t.amount > 0 && t.confirmed !== false)
+      .filter((t) => t.amount > 0 && isRealized(t))
       .reduce((s, t) => s + t.amount, 0);
     const saidas = periodTransactions
-      .filter((t) => t.amount < 0)
+      .filter((t) => t.amount < 0 && isRealized(t))
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const saldo = entradas - saidas;
 
     const catMap: Record<string, number> = {};
     periodTransactions
-      .filter((t) => t.amount < 0 && t.category !== 'Receita')
+      .filter((t) => t.amount < 0 && isRealized(t) && t.category !== 'Receita')
       .forEach((t) => {
       if (t.category) catMap[t.category] = (catMap[t.category] || 0) + Math.abs(t.amount);
       });
@@ -281,7 +270,7 @@ export function useFinanceState() {
 
   const hasActiveFilters = filter !== 'Todos' || search.trim().length > 0;
 
-  const periodHasData = periodTransactions.length > 0;
+  const periodHasData = periodTransactions.length > 0 || legacyTransactions.length > 0;
 
   return {
     filteredTransactions,

@@ -1,3 +1,4 @@
+import { localISO, validISO, advanceBillingDate, assertEditableTransaction } from '../services/financialRules';
 import type { OnboardingDraft } from '../types/onboardingDraft';
 import type { ChatHistoryMessage } from '../types/chat';
 import { create } from 'zustand';
@@ -56,6 +57,9 @@ function normalizeHydratedProfile(value: OnboardingExtractionResult | null): { e
 export interface Transaction {
   id: string;
   source?: 'manual' | 'chat';
+  /** Read-only financial history whose source was removed. */
+  originArchived?: boolean;
+  legacyDate?: string;
   date: string;
   description: string;
   amount: number;
@@ -356,6 +360,7 @@ export interface AppStore {
   setHasSeenSplash: (value: boolean) => void;
 
   onboardingCompleted: boolean;
+  aiDisclosureAcceptedVersion: string | null;
   businessName: string;
   businessType: string;
   onboardingDraft: OnboardingDraft | null;
@@ -630,23 +635,22 @@ function toLocalIsoDate(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function formatTransactionDate(isoDate: string): string {
-  const [year, month, day] = isoDate.split('-');
-  return `${day}/${month}`;
-}
+function formatTransactionDate(isoDate: string): string { return isoDate; }
 
-function advanceContractDate(isoDate: string, period: ContractPeriod): string {
-  const [year, month, day] = isoDate.split('-').map(Number);
-  const date = new Date(year, month - 1, day);
+function advanceContractDate(isoDate: string, period: ContractPeriod, anchor: string): string {
   const months = period === 'mensal' ? 1 : period === 'trimestral' ? 3 : period === 'semestral' ? 6 : 12;
-  date.setMonth(date.getMonth() + months);
-  return toLocalIsoDate(date);
+  return advanceBillingDate(isoDate, months, anchor);
 }
 
 function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Pedido, 'id'>>): Partial<AppStore> | null {
   const current = state.pedidos.find((pedido) => pedido.id === id);
   if (!current) return null;
   const next: Pedido = { ...current, ...updates, id };
+  const paid = state.commissions.some(entry => entry.orderId === id && entry.paid);
+  if (paid && ['total','employeeId','items','status','date'].some(key => JSON.stringify(current[key as keyof Pedido]) !== JSON.stringify(next[key as keyof Pedido])))
+    throw new Error('Esta venda tem comissão paga. Seu histórico não pode ser reescrito. Solicite suporte para um estorno documentado.');
+  if (next.status !== 'concluido' && state.entregas.some(delivery => delivery.orderId === id && delivery.status !== 'cancelada'))
+    throw new Error('Cancele a entrega vinculada antes de cancelar a venda.');
   const wasCompleted = current.status === 'concluido';
   const willBeCompleted = next.status === 'concluido';
   const oldDeductions = current.stockDeductions ?? [];
@@ -677,31 +681,39 @@ function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Ped
     transactions = transactions.filter((item) => item.id !== transactionId);
     transactionId = undefined;
   }
-  let commissions = state.commissions;
-  if (willBeCompleted && !wasCompleted && next.employeeId) {
-    const employee = state.employeeItems.find((e) => e.id === next.employeeId);
-    const rate = employee?.commissionRate ?? 0;
-    if (rate > 0) {
-      const now = new Date();
-      const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const entry: CommissionEntry = {
-        id: generateId('com_'), employeeId: next.employeeId, orderId: id,
-        amount: next.total * rate / 100, rate, month, paid: false,
-        createdAt: now.toISOString(),
-      };
-      commissions = [entry, ...commissions];
-    }
-  } else if (!willBeCompleted && wasCompleted) {
-    commissions = commissions.filter((c) => !(c.orderId === id && !c.paid));
+  const previous = state.commissions.find(entry => entry.orderId === id && !entry.paid);
+  let commissions = state.commissions.filter(entry => entry.orderId !== id || entry.paid);
+  if (willBeCompleted && next.employeeId && !paid) {
+    const employee = state.employeeItems.find(entry => entry.id === next.employeeId);
+    const rate = previous?.employeeId === next.employeeId ? previous.rate : employee?.commissionRate ?? 0;
+    if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('Revise o percentual de comissão do funcionário.');
+    if (rate > 0) commissions = [{
+      id: previous?.id ?? 'commission:' + id, employeeId: next.employeeId, orderId: id,
+      amount: Math.round(next.total * rate) / 100, rate,
+      month: previous?.month ?? (validISO(next.date) ? next.date.slice(0,7) : localISO().slice(0,7)),
+      paid: false, createdAt: previous?.createdAt ?? new Date().toISOString(),
+    }, ...commissions];
   }
   return { pedidos: state.pedidos.map((pedido) => pedido.id === id ? { ...next, financeTransactionId: transactionId, stockDeductions: newDeductions } : pedido), estoqueItems: nextItems, stockMovements: nextMovements, transactions, commissions };
 }
 
+function settleTaskTransactions(state: AppStore, taskId: string | undefined, done: boolean): Transaction[] {
+  if (!taskId) return state.transactions;
+  return state.transactions.map(tx => tx.taskId === taskId ? { ...tx,
+    ...(tx.amount > 0 ? { confirmed: done } : { supplierPaid: done }),
+    ...(done && (tx.confirmed === false || tx.supplierPaid === false) ? { date: localISO() } : {}),
+  } : tx);
+}
+function protectDerivedEvent(state: AppStore, eventId: string) {
+  const origin = eventId.startsWith('contract-due:') ? 'Contratos' : state.entregas.some(row=>row.calendarEventId===eventId) ? 'Entregas' : state.atendimentos.some(row=>row.calendarEventId===eventId) ? 'Agenda (atendimento)' : null;
+  if(origin) throw new Error('Este evento pertence a ' + origin + '. Altere sua origem para preservar os vínculos.');
+}
 export const useAppStore = create<AppStore>((set) => ({
   hasSeenSplash: false,
   setHasSeenSplash: (value) => set({ hasSeenSplash: value }),
 
   onboardingCompleted: false,
+  aiDisclosureAcceptedVersion: null,
   businessName: '',
   businessType: '',
   onboardingDraft: null,
@@ -1045,7 +1057,7 @@ export const useAppStore = create<AppStore>((set) => ({
       const order = s.pedidos.find((pedido) => pedido.id === entrega.orderId)!;
       const delivery: Entrega = { ...entrega, id: deliveryId, calendarEventId, financeTransactionId, createdAt: entrega.createdAt || new Date().toISOString() };
       const event: CalendarEvent = { id: calendarEventId, date: entrega.estimatedDate, time: null, description: `Entrega do pedido ${order.id.slice(-6)}`, done: false, type: 'event' };
-      const transaction: Transaction | undefined = financeTransactionId ? { id: financeTransactionId, date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), description: `Frete do pedido ${order.id.slice(-6)}`, amount: -(entrega.freightValue ?? 0), category: 'Frete', orderId: order.id } : undefined;
+      const transaction: Transaction | undefined = financeTransactionId ? { id: financeTransactionId, date: localISO(), description: `Frete do pedido ${order.id.slice(-6)}`, amount: -(entrega.freightValue ?? 0), category: 'Frete', orderId: order.id } : undefined;
       return { entregas: [delivery, ...s.entregas], events: [...s.events, event], transactions: transaction ? [transaction, ...s.transactions] : s.transactions };
     });
     return deliveryId;
@@ -1097,6 +1109,7 @@ export const useAppStore = create<AppStore>((set) => ({
 
   clienteItems: [],
   addClienteItem: (item) => {
+    if (!item.name.trim() || item.name.length > 200) throw new Error('Informe um nome com até 200 caracteres.');
     let id: string | null = null;
     set((s) => {
       if (s.clienteItems.some((client) => normalizePersonName(client.name) === normalizePersonName(item.name))) return s;
@@ -1117,16 +1130,16 @@ export const useAppStore = create<AppStore>((set) => ({
   removeClienteItem: (id) =>
     set((s) => {
       const contractIds = new Set(s.contratos.filter((contrato) => contrato.clientId === id).map((contrato) => contrato.id));
-      const appointmentEventIds = new Set(s.atendimentos.filter((atendimento) => atendimento.clientId === id).map((atendimento) => atendimento.calendarEventId));
+      const appointmentEventIds = new Set<string>();
       return {
         clienteItems: s.clienteItems.filter((i) => i.id !== id),
         tasks: s.tasks.map((task) => task.clientId === id ? { ...task, clientId: undefined } : task),
         pedidos: s.pedidos.map((pedido) => pedido.clientId === id ? { ...pedido, clientId: undefined } : pedido),
         orcamentos: s.orcamentos.map((quote) => quote.clientId === id ? { ...quote, clientId: undefined } : quote),
-        transactions: s.transactions.filter((transaction) => !contractIds.has(transaction.contractId ?? '')).map((transaction) => transaction.clientId === id ? { ...transaction, clientId: undefined } : transaction),
+        transactions: s.transactions.map(transaction => ({ ...transaction, ...(transaction.clientId === id ? { clientId: undefined } : {}), ...(contractIds.has(transaction.contractId ?? '') ? { contractId: undefined, originArchived: true } : {}) })),
         events: s.events.filter((event) => !appointmentEventIds.has(event.id) && ![...contractIds].some((contractId) => event.id.startsWith(`contract-due:${contractId}:`))).map((event) => event.clientId === id ? { ...event, clientId: undefined } : event),
         contratos: s.contratos.filter((contrato) => !contractIds.has(contrato.id)),
-        atendimentos: s.atendimentos.filter((atendimento) => atendimento.clientId !== id),
+        atendimentos: s.atendimentos.map(item => item.clientId === id ? { ...item, clientId: undefined } : item),
       };
     }),
   linkTransactionToClient: (transactionId, clientId) =>
@@ -1140,7 +1153,8 @@ export const useAppStore = create<AppStore>((set) => ({
   addContrato: (contrato) => {
     let id: string | null = null;
     set((s) => {
-      if (!s.clienteItems.some((client) => client.id === contrato.clientId) || contrato.value <= 0) return s;
+      if (!s.clienteItems.some((client) => client.id === contrato.clientId) || !Number.isFinite(contrato.value) || contrato.value <= 0) return s;
+      if (!validISO(contrato.startDate)) throw new Error('Informe uma data inicial válida (AAAA-MM-DD).');
       id = generateId('ctr_');
       return { contratos: [{ ...contrato, id, nextBillingDate: contrato.startDate }, ...s.contratos] };
     });
@@ -1149,15 +1163,27 @@ export const useAppStore = create<AppStore>((set) => ({
   updateContrato: (id, updates) => {
     let updated = false;
     set((s) => {
-      const current = s.contratos.find((contrato) => contrato.id === id);
-      if (!current || (updates.clientId && !s.clienteItems.some((client) => client.id === updates.clientId))) return s;
-      updated = true;
+      const current = s.contratos.find(item => item.id === id);
+      if (!current || (updates.clientId && !s.clienteItems.some(item => item.id === updates.clientId))) return s;
       const next = { ...current, ...updates, id };
-      return { contratos: s.contratos.map((contrato) => contrato.id === id ? next : contrato), events: next.status === 'cancelado' ? s.events.filter((event) => !event.id.startsWith(`contract-due:${id}:`)) : s.events };
+      if (!validISO(next.startDate) || !Number.isFinite(next.value) || next.value <= 0) throw new Error('Revise a data inicial e o valor do contrato.');
+      const reschedule = ['startDate','period','value','clientId','status'].some(key => current[key as keyof Contrato] !== next[key as keyof Contrato]);
+      if (reschedule) {
+        const paidDates = s.transactions.filter(tx => tx.contractId === id && tx.confirmed !== false && validISO(tx.expectedDate)).map(tx => tx.expectedDate!).sort();
+        next.nextBillingDate = next.startDate;
+        for (let count = 0; paidDates.length && next.nextBillingDate <= paidDates[paidDates.length-1]; count++) {
+          if (count > 1000) throw new Error('Contrato muito antigo. Solicite suporte para revisar o histórico.');
+          next.nextBillingDate = advanceContractDate(next.nextBillingDate, next.period, next.startDate);
+        }
+      }
+      updated = true;
+      return { contratos: s.contratos.map(item => item.id === id ? next : item),
+        transactions: reschedule ? s.transactions.filter(tx => tx.contractId !== id || tx.confirmed !== false) : s.transactions,
+        events: reschedule ? s.events.filter(event => !event.id.startsWith('contract-due:' + id + ':') || event.done) : s.events };
     });
     return updated;
   },
-  removeContrato: (id) => set((s) => ({ contratos: s.contratos.filter((contrato) => contrato.id !== id), transactions: s.transactions.filter((transaction) => transaction.contractId !== id), events: s.events.filter((event) => !event.id.startsWith(`contract-due:${id}:`)) })),
+  removeContrato: (id) => set((s) => ({ contratos: s.contratos.filter((contrato) => contrato.id !== id), transactions: s.transactions.map(transaction => transaction.contractId === id ? { ...transaction, contractId: undefined, originArchived: true } : transaction), events: s.events.filter((event) => !event.id.startsWith(`contract-due:${id}:`)) })),
   refreshContratos: () => set((s) => {
     const today = toLocalIsoDate(new Date());
     let changed = false;
@@ -1166,7 +1192,10 @@ export const useAppStore = create<AppStore>((set) => ({
     const contratos = s.contratos.map((contrato) => {
       if (contrato.status !== 'ativo') return contrato;
       let nextBillingDate = contrato.nextBillingDate;
+      let generated = 0;
+      if (!validISO(nextBillingDate) || !validISO(contrato.startDate)) throw new Error('Revise as datas do contrato antes de gerar cobranças.');
       while (nextBillingDate <= today) {
+        if (++generated > 1000) throw new Error('Contrato muito antigo. Solicite suporte para revisar as cobranças.');
         const expectedDate = nextBillingDate;
         const exists = transactions.some((transaction) => transaction.contractId === contrato.id && transaction.expectedDate === expectedDate);
         if (!exists) {
@@ -1175,7 +1204,7 @@ export const useAppStore = create<AppStore>((set) => ({
           events.push({ id: `contract-due:${contrato.id}:${expectedDate}`, date: expectedDate, time: null, description: `Cobrança da assinatura ${contrato.id.slice(-6)}`, done: false, type: 'event' });
           changed = true;
         }
-        nextBillingDate = advanceContractDate(nextBillingDate, contrato.period);
+        nextBillingDate = advanceContractDate(nextBillingDate, contrato.period, contrato.startDate);
         changed = true;
       }
       const nextEventId = `contract-due:${contrato.id}:${nextBillingDate}`;
@@ -1192,13 +1221,15 @@ export const useAppStore = create<AppStore>((set) => ({
     if (!transaction) return s;
     const eventId = transaction.contractId && transaction.expectedDate ? `contract-due:${transaction.contractId}:${transaction.expectedDate}` : undefined;
     return {
-      transactions: s.transactions.map((item) => item.id === transactionId ? { ...item, confirmed: received } : item),
-      events: eventId ? s.events.map((event) => event.id === eventId ? { ...event, done: received } : event) : s.events,
+      transactions: s.transactions.map((item) => item.id === transactionId ? { ...item, confirmed: received, ...(received && item.confirmed === false ? { date: localISO() } : {}) } : item),
+      events: s.events.map(event => event.id === eventId || (transaction.taskId && event.taskId === transaction.taskId) ? { ...event, done: received } : event),
+      tasks: s.tasks.map(task => task.id === transaction.taskId ? { ...task, done: received } : task),
     };
   }),
 
   fornecedorItems: [],
   addFornecedorItem: (item) => {
+    if (!item.name.trim() || item.name.length > 200) throw new Error('Informe um nome com até 200 caracteres.');
     let id: string | null = null;
     set((s) => {
       if (s.fornecedorItems.some((supplier) => normalizePersonName(supplier.name) === normalizePersonName(item.name))) return s;
@@ -1221,17 +1252,23 @@ export const useAppStore = create<AppStore>((set) => ({
       fornecedorItems: s.fornecedorItems.filter((i) => i.id !== id),
       tasks: s.tasks.map((task) => task.supplierId === id ? { ...task, supplierId: undefined } : task),
       events: s.events.map((event) => event.supplierId === id ? { ...event, supplierId: undefined } : event),
-      transactions: s.transactions.map((t) => t.supplierId === id ? { ...t, supplierId: undefined, supplierDueDate: undefined, supplierPaid: undefined } : t),
+      transactions: s.transactions.map((t) => t.supplierId === id ? { ...t, supplierId: undefined } : t),
     })),
   linkTransactionToSupplier: (transactionId, supplierId, updates = {}) =>
     set((s) => ({
       transactions: s.transactions.map((t) => t.id === transactionId ? { ...t, supplierId, ...updates } : t),
     })),
-  markSupplierTransactionPaid: (transactionId, paid) =>
-    set((s) => ({ transactions: s.transactions.map((t) => t.id === transactionId ? { ...t, supplierPaid: paid } : t) })),
+  markSupplierTransactionPaid: (transactionId, paid) => set(s => {
+    const tx = s.transactions.find(item => item.id === transactionId);
+    return { transactions: s.transactions.map(item => item.id === transactionId ? { ...item, supplierPaid: paid, ...(paid && item.supplierPaid === false ? { date: localISO() } : {}) } : item),
+      tasks: s.tasks.map(task => task.id === tx?.taskId ? { ...task, done: paid } : task),
+      events: s.events.map(event => tx?.taskId && event.taskId === tx.taskId ? { ...event, done: paid } : event) };
+  }),
 
   employeeItems: [],
   addEmployeeItem: (item) => {
+    if (!Number.isFinite(item.commissionRate ?? 0) || (item.commissionRate ?? 0) < 0 || (item.commissionRate ?? 0) > 100) throw new Error('Comissão deve estar entre 0 e 100%.');
+    if (!item.name.trim() || item.name.length > 200) throw new Error('Informe um nome com até 200 caracteres.');
     let id: string | null = null;
     set((s) => {
       if (s.employeeItems.some((employee) => normalizePersonName(employee.name) === normalizePersonName(item.name))) return s;
@@ -1380,22 +1417,33 @@ export const useAppStore = create<AppStore>((set) => ({
 
   transactions: [],
   addTransaction: (t) => {
+    if (!validISO(t.date)) throw new Error('Informe a data completa do lançamento.');
     const id = generateId('txn_');
     set((s) => ({ transactions: [{ ...t, id }, ...s.transactions] }));
     return id;
   },
-  removeTransaction: (id) =>
-    set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) })),
-  updateTransaction: (id, updates) =>
+  removeTransaction: (id) => {
+    assertEditableTransaction(useAppStore.getState().transactions.find(tx => tx.id === id));
+    set(s => ({ transactions: s.transactions.filter(tx => tx.id !== id) }));
+  },
+  updateTransaction: (id, updates) => {
+    const current = useAppStore.getState().transactions.find(tx => tx.id === id);
+    const changed = Object.keys(updates).filter(key => JSON.stringify(current?.[key as keyof Transaction]) !== JSON.stringify((updates as Partial<Transaction>)[key as keyof Transaction]));
+    const resolvingLegacyDate = !!current && !validISO(current.date) && changed.every(key => key === 'date');
+    if (!resolvingLegacyDate && changed.some(key => key !== 'category')) assertEditableTransaction(current);
+    if (updates.date && !validISO(updates.date)) throw new Error('Informe a data completa do lançamento.');
     set((s) => ({
       transactions: s.transactions.map((t) =>
-        t.id === id ? { ...t, ...updates } : t
+        t.id === id ? { ...t, ...updates, ...(resolvingLegacyDate ? { legacyDate: t.date } : {}) } : t
       ),
-    })),
-  removeTransactions: (ids) =>
+    }));
+  },
+  removeTransactions: (ids) => {
+    ids.forEach(id => assertEditableTransaction(useAppStore.getState().transactions.find(tx => tx.id === id)));
     set((s) => ({
       transactions: s.transactions.filter((t) => !ids.includes(t.id)),
-    })),
+    }));
+  },
 
   tasks: [] as Task[],
   addTask: (t) => {
@@ -1435,7 +1483,7 @@ export const useAppStore = create<AppStore>((set) => ({
       }
       // Sincronização `done` TAMBÉM é tratada em `toggleTask`; aqui cobre o
       // caso raro de vir via `updateTask({ done })`.
-      return { tasks: s.tasks.map((tt) => (tt.id === id ? next : tt)), events };
+      return { tasks: s.tasks.map((tt) => (tt.id === id ? next : tt)), events, transactions: updates.done !== undefined ? settleTaskTransactions(s,id,updates.done) : s.transactions };
     });
   },
   toggleTask: (id) =>
@@ -1450,7 +1498,7 @@ export const useAppStore = create<AppStore>((set) => ({
       if (task.calendarEventId) {
         events = s.events.map((e) => (e.id === task.calendarEventId ? { ...e, done: newDone } : e));
       }
-      return { tasks, events };
+      return { tasks, events, transactions: settleTaskTransactions(s,id,newDone) };
     }),
   removeTask: (id) =>
     set((s) => {
@@ -1540,6 +1588,7 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   toggleEvent: (id) =>
     set((s) => {
+      protectDerivedEvent(s,id);
       const event = s.events.find((e) => e.id === id);
       if (!event) return s;
       const newDone = !event.done;
@@ -1553,10 +1602,11 @@ export const useAppStore = create<AppStore>((set) => ({
           tasks = s.tasks.map((t) => (t.id === event.taskId ? { ...t, done: newDone } as Task : t));
         }
       }
-      return { events, tasks };
+      return { events, tasks, transactions: event.source === 'task' ? settleTaskTransactions(s,event.taskId,newDone) : s.transactions };
     }),
   removeEvent: (id) =>
     set((s) => {
+      protectDerivedEvent(s,id);
       const event = s.events.find((e) => e.id === id);
       if (!event) return s;
       // Sincronização exclusão (seção 11): remover um evento derivado
@@ -1574,6 +1624,7 @@ export const useAppStore = create<AppStore>((set) => ({
     }),
   updateEvent: (id, updates) =>
     set((s) => {
+      protectDerivedEvent(s,id);
       const event = s.events.find((e) => e.id === id);
       if (!event) return s;
       const next = { ...event, ...updates, id } as CalendarEvent;
@@ -1586,6 +1637,7 @@ export const useAppStore = create<AppStore>((set) => ({
           const patches: Partial<Task> = {};
           if (updates.done !== undefined) patches.done = updates.done;
           if (updates.date !== undefined) patches.dueDate = updates.date;
+          if (updates.description !== undefined) patches.description = updates.description;
           if (Object.keys(patches).length > 0) {
             tasks = s.tasks.map((t) => (t.id === event.taskId ? { ...t, ...patches } as Task : t));
           }
@@ -1594,6 +1646,7 @@ export const useAppStore = create<AppStore>((set) => ({
       return {
         events: s.events.map((e) => (e.id === id ? next : e)),
         tasks,
+        transactions: event.source === 'task' && updates.done !== undefined ? settleTaskTransactions(s,event.taskId,updates.done) : s.transactions,
       };
     }),
 

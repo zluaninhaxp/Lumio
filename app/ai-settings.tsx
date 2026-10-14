@@ -170,6 +170,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        <TouchableOpacity accessibilityRole="link" onPress={() => router.push('/privacy')}><Text style={styles.helpLinkText}>Uso opcional de IA, dados enviados e custos</Text></TouchableOpacity>
         <Text style={s.sectionTitle}>PROVEDOR</Text>
         <View style={styles.providerCard}>
           <Ionicons name="sparkles" size={22} color={Colors.accentIcon} />

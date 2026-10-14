@@ -1,4 +1,4 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { protectedStorage } from '../services/protectedStorage';
 import { createClient, processLock } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { authFetch } from './authFetch';
@@ -22,7 +22,8 @@ export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!, {
       global: { fetch: authFetch },
       auth: {
-        storage: AsyncStorage,
+        storage: protectedStorage,
+        flowType: 'pkce',
         lock: processLock,
         autoRefreshToken: true,
         persistSession: true,

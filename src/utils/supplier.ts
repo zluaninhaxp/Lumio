@@ -1,3 +1,4 @@
+import { parseDateInput, localISO } from '../services/financialRules';
 export function parsePaymentDays(term: string): number | null {
   const match = term.match(/\d+/);
   if (!match) return null;
@@ -6,16 +7,15 @@ export function parsePaymentDays(term: string): number | null {
 }
 
 export function transactionDateToISO(date: string): string {
-  const [day, month] = date.split('/').map(Number);
-  const year = new Date().getFullYear();
-  if (!day || !month) return new Date().toISOString().split('T')[0];
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const iso = parseDateInput(date);
+  if (!iso) throw new Error('Informe uma data completa para calcular o prazo.');
+  return iso;
 }
 
 export function addDays(dateISO: string, days: number): string {
   const date = new Date(`${dateISO}T00:00:00`);
   date.setDate(date.getDate() + days);
-  return date.toISOString().split('T')[0];
+  return localISO(date);
 }
 
 export function suggestedDueDate(transactionDate: string, paymentTerm: string): string | undefined {

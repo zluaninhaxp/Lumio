@@ -1,3 +1,4 @@
+import { PRIVACY_VERSION } from '../src/constants/privacy';
 import { businessStateService } from '../src/services/businessStateService';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
@@ -141,6 +142,7 @@ export default function CelebrationScreen() {
    * em 'error' com "Tentar novamente" / "Continuar com simulação".
    */
   const runExtraction = useCallback(() => {
+    if (useAppStore.getState().aiDisclosureAcceptedVersion !== PRIVACY_VERSION) { router.replace('/ai-consent'); return; }
     if (requestInFlightRef.current) return;
     requestInFlightRef.current = true;
     startedRef.current = true;

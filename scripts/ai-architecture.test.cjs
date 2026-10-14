@@ -132,7 +132,7 @@ test('transient Gemini 503 is retried once; invalid requests and quota are not r
   assert.equal(f.providerCalls.length - before429, 1);
 });
 
-test('structured generation uses the fast model first and falls back after 503', async () => {
+test('structured generation retries the compatible model after 503 without legacy fallback', async () => {
   const f = backend(), key = 'test-only-provider-secret-for-A';
   await f.call('token-A', { action: 'set_key', key });
   f.configure({ responseSequence: [503, 200] });
@@ -143,12 +143,12 @@ test('structured generation uses the fast model first and falls back after 503',
   const calls = f.providerCalls.slice(start);
   assert.equal(calls.length, 2);
   assert.match(calls[0].url, /gemini-3\.5-flash-lite:generateContent$/);
-  assert.match(calls[1].url, /gemini-2\.5-flash:generateContent$/);
+  assert.match(calls[1].url, /gemini-3\.5-flash-lite:generateContent$/);
   assert.equal(calls[0].key, key);
   assert.equal(calls[1].key, key);
   assert.equal(calls[0].body.generationConfig.responseMimeType, 'application/json');
   assert.equal(calls[0].body.generationConfig.thinkingConfig, undefined);
-  assert.equal(calls[1].body.generationConfig.thinkingConfig.thinkingBudget, 1024);
+  assert.equal(calls[1].body.generationConfig.thinkingConfig, undefined);
   assert.ok(!JSON.stringify(f.logs).includes(key));
 
   f.configure({ responseSequence: [503, 503] });

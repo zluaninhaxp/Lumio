@@ -121,9 +121,9 @@ export function TransactionItem({
             <Text style={styles.desc} numberOfLines={1}>{item.description}</Text>
           </View>
           <Text style={styles.category} numberOfLines={1}>
-           {item.category || 'Sem categoria'}{item.confirmed === false ? ' · Prevista' : ''}
+           {item.category || 'Sem categoria'}{item.confirmed === false ? ' · Prevista' : item.supplierPaid === false ? ' · A pagar' : ''}
           </Text>
-          {item.confirmed === false && onMarkReceived && <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>Marcar recebida</Text></TouchableOpacity>}
+          {(item.confirmed === false || item.supplierPaid === false) && onMarkReceived && <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => onMarkReceived(item.id)}><Text style={styles.receiveText}>{isIncome ? 'Marcar recebida' : 'Marcar paga'}</Text></TouchableOpacity>}
         </View>
 
         <Text
