@@ -8,8 +8,8 @@ import { useAppStore } from '../../src/store';
 import { canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
 import { useAuth } from '../../src/hooks/useAuth';
 import { onboardingService } from '../../src/services/onboardingService';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
 import { AppAlert } from "@/src/services/appAlert";
 import { confirmAction } from "../../src/services/confirmedAction";
 

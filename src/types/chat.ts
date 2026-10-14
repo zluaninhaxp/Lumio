@@ -1,4 +1,4 @@
-import type { BotCard } from '../../app/components/chat/BotMessageCard';
+import type { BotCard } from '../components/chat/BotMessageCard';
 import type { FinancialDirectionAmbiguity } from '../engine/financialEngine';
 import type { TaskEventAmbiguity } from '../engine/calendarEngine/domainAmbiguity';
 export type ChatAmbiguity = FinancialDirectionAmbiguity | TaskEventAmbiguity;

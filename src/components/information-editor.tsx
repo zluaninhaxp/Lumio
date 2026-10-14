@@ -4,8 +4,8 @@ import { FormActionStyles } from './form-action-styles';
 import { forwardRef, useRef, useImperativeHandle, type ReactNode } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import { ModalScrollView } from './modal-scroll-view';
-import { BottomSheet, type BottomSheetHandle } from '../../app/components/Calendar/BottomSheet';
-import { FormLabel } from '../../app/components/RequiredLabel';
+import { BottomSheet, type BottomSheetHandle } from './Calendar/BottomSheet';
+import { FormLabel } from './RequiredLabel';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles, TextStyles, nativeTextStyle } from '../constants/theme';
 export function EditorField({ label, ...props }: TextInputProps & { label: string; }) {
   return <><FormLabel>{label}</FormLabel><FormTextInput style={styles.input} placeholderTextColor={Colors.placeholder} accessibilityLabel={label} {...props} /></>;

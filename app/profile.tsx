@@ -1,12 +1,12 @@
 import { AccountRow, AccountSection, BusinessBadge, AccountDivider, accountLayout } from '../src/components/account-menu';
 import { InformationEditor, EditorField, BusinessIdentityFields } from '../src/components/information-editor';
-import type { BottomSheetHandle } from './components/Calendar/BottomSheet';
+import type { BottomSheetHandle } from '../src/components/Calendar/BottomSheet';
 import { useEffect, useState, useRef } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
-import { UserAvatar } from './components/account/UserAvatar';
+import { AccountHeader, AccountScreen, sharedStyles as s } from '../src/components/account/_shared';
+import { UserAvatar } from '../src/components/account/UserAvatar';
 import { useAuth } from '../src/hooks/useAuth';
 import { authService } from '../src/services/authService';
 import { onboardingService } from '../src/services/onboardingService';

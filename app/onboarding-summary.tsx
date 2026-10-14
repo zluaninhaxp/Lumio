@@ -7,7 +7,7 @@ import { useAppStore } from '../src/store';
 import { useAuth } from '../src/hooks/useAuth';
 import { onboardingService } from '../src/services/onboardingService';
 import type { OnboardingExtractionResult } from '../src/ai/types';
-import ReportDetail from './components/onboarding/report-detail';
+import ReportDetail from '../src/components/onboarding/report-detail';
 import { useForwardOnboarding } from '../src/hooks/use-forward-onboarding';
 import { AppAlert } from "@/src/services/appAlert";
 

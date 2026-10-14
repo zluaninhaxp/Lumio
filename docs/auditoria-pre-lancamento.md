@@ -2,7 +2,36 @@
 
 Data: 14/10/2026, America/Sao_Paulo. Checkout auditado: `a8ab61dee4dbba737238f2721ebc567ba91b5e6c` (`feat: reforçar persistência e sincronização do Lumio`).
 
-## Veredito executivo
+## Estado atual após retomada — 14/10/2026
+
+O diagnóstico original abaixo se refere ao checkout `a8ab61d`. As correções preparadas em `8a0d207` foram retomadas e receberam revisão adicional. **O código local avançou, mas a distribuição segue pendente de implantação aprovada e validação do APK.** Não interpretar os estados históricos “confirmado” como ausência das correções atuais, nem interpretar teste local como prova de implantação.
+
+| Achado | Estado atual | Evidência / pendência |
+| --- | --- | --- |
+| P0-01 | Corrigido e migration 0010 aplicada | Histórico remoto confirma 0001–0010 alinhadas; testes PostgreSQL isolados para revisão NULL, coleções ausentes, rollback, RLS e recibos. |
+| P0-02 | Corrigido localmente; APK pendente | Exclusão de cliente/contrato preserva e desvincula histórico; teste sobre store real. |
+| P0-03 | Corrigido localmente; APK pendente | Preflight, rollback da preparação, recuperação explícita de grupo e mensagens pendentes após restart; testes dos serviços reais. |
+| P1-01 | Corrigido localmente; APK pendente | Recalcula comissão pendente e bloqueia alteração incompatível após pagamento. |
+| P1-02 | Corrigido localmente; dados antigos exigem revisão | Datas completas; registros sem ano ficam separados e não recebem ano presumido. |
+| P1-03 | Corrigido localmente; APK pendente | Regras compartilhadas de realizado/previsto; retomada corrigiu despesas com dois flags pendentes e confirmação por tarefa, agenda e Financeiro. |
+| P1-04 | Corrigido localmente; APK pendente | Alterações derivadas passam pela origem; recebimento/pagamento sincroniza tarefa e evento. |
+| P1-05 | Corrigido localmente; dois aparelhos pendentes | Conflitos por agregado comercial preservam operações vinculadas; testes de merge. |
+| P1-06 | Corrigido localmente; APK pendente | Mensagens recuperadas aparecem como pendentes/históricas sem reexecutar comandos. |
+| P1-07 | Corrigido; handler `ai` v8 ativo | Fetch preserva timeout da IA; deadline total no handler e limites por tentativa. Disponibilidade/quota do provedor não foi exercitada. |
+| P1-08 | Corrigido; `ai` v8 ativo; chave nova pendente | Teste/salvamento usam o modelo do relatório; erros de acesso distinguem chave rejeitada. Disponibilidade real não foi exercitada. |
+| P1-09 | Aviso e consentimento implementados; operação pendente | Responsável, contato e retenção informados pela usuária; implementação de retenção/backups e adequação jurídica não comprovadas. |
+| P1-10 | Corrigido localmente; binário pendente | AES-GCM, chave via SecureStore e chunks para journals; prebuild com backup/transferência excluídos. |
+| P1-11 | Corrigido; handler `delete-account` v2 ativo | Purge retomável por identidade; recibo de A preserva sessão/estado de B; exclusão remota drena fotos de qualquer extensão e subpastas. Teste em conta descartável segue pendente. |
+| P1-12 | Corrigido localmente; APK pendente | Drafts auxiliares isolados e limpos na troca de identidade. |
+| P1-13 | Parcial; deploy confirmado | Migrations 0001–0010 e ai v8/delete-account v2 confirmados no projeto, com JWT habilitado. Leitura final de grants/RLS/bucket e teste isolado A/B seguem pendentes. |
+| P1-14 | Corrigido localmente; Auth/SMTP/links reais pendentes | Reenvio, recuperação PKCE e callback; cadastro agora encaminha à confirmação quando signup não retorna sessão. |
+| P2-06 | Corrigido localmente; APK pendente | Dia âncora, fevereiro/bissexto, preservação de cobranças recebidas e geração após hidratação/refresh. |
+| P2-08 | Parcial | Paginação e formatos antigos/subpastas na exclusão corrigidos; concorrência de upload, erros de URL e HEIC permanecem fora desta correção. |
+| Outros P2/P3 | Backlog preservado | Não foram declarados resolvidos por esta retomada. |
+
+Ver [relatório de preparação do APK](relatorio-preparacao-apk.md) para evidências, falha ambiental do Gradle e matriz restante, e [pacote de revisão do deploy](deploy-pre-lancamento/revisao.md). Nenhuma chamada paga de IA ou escrita/exclusão de conta real foi executada.
+
+## Veredito executivo original — checkout a8ab61d
 
 **Ainda não recomendo entregar o APK atual para testes irrestritos de todos os módulos.** Há caminhos confirmados de exclusão inesperada de dados, uma validação incompleta da RPC de substituição e um caminho de rejeição do Chat que pode bloquear novas gravações. São os três P0 abaixo. Não foi confirmado vazamento entre contas no backend; também não foi comprovada a segurança da implantação atual por esta auditoria.
 

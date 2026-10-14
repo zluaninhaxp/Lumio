@@ -1,4 +1,4 @@
-import { ModuleSuggestions, type ModuleSuggestion } from '../components/Tasks/ModuleSuggestions';
+import { ModuleSuggestions, type ModuleSuggestion } from '../../src/components/Tasks/ModuleSuggestions';
 import { useDismissedTaskSuggestions } from '../../src/hooks/use-dismissed-task-suggestions';
 import { useSystemReducedMotion } from '../../src/hooks/use-system-reduced-motion';
 import { HorizontalOptions } from '../../src/components/horizontal-options';
@@ -8,7 +8,7 @@ import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Modal, LayoutAnimation, Platform, UIManager, ActivityIndicator,
+  Modal, LayoutAnimation, Platform, ActivityIndicator,
   Pressable, ScrollView, KeyboardAvoidingView, Keyboard,
   type NativeMethods,
 } from 'react-native';
@@ -18,25 +18,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { ControlOpacity, CategoryColors, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { daysUntil } from '../../src/utils/supplier';
-import { FAB } from '../components/Calendar/FAB';
-import { BottomSheet } from '../components/Calendar/BottomSheet';
-import { TaskForm, type TaskFormData } from '../components/Tasks/TaskForm';
-import { TaskDateSelector } from '../components/Tasks/TaskDateSelector';
-import { TaskPeopleSelector } from '../components/Tasks/TaskPeopleSelector';
+import { FAB } from '../../src/components/Calendar/FAB';
+import { BottomSheet } from '../../src/components/Calendar/BottomSheet';
+import { TaskForm, type TaskFormData } from '../../src/components/Tasks/TaskForm';
+import { TaskDateSelector } from '../../src/components/Tasks/TaskDateSelector';
+import { TaskPeopleSelector } from '../../src/components/Tasks/TaskPeopleSelector';
 import { useAuth } from '../../src/hooks/useAuth';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { ChatIndicator } from '../components/ChatIndicator';
-import { BottomFade } from '../components/BottomFade';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { ChatIndicator } from '../../src/components/ChatIndicator';
+import { BottomFade } from '../../src/components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
 import { AppAlert } from "@/src/services/appAlert";
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 type Task = ReturnType<typeof useAppStore.getState>['tasks'][number];
 type Subtask = Task['subtasks'][number];

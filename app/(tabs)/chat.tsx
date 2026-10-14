@@ -37,11 +37,11 @@ import type { TaxonomyDomain } from '../../src/engine/taxonomy/types';
 import { onboardingService } from '../../src/services/onboardingService';
 import { learnedIntentRepository } from '../../src/repositories/learnedIntentRepository';
 import { ONBOARDING_MASCOTS } from '../../src/data/onboarding-messages';
-import VoiceInput from '../components/onboarding/VoiceInput';
+import VoiceInput from '../../src/components/onboarding/VoiceInput';
 import { useAuth } from '../../src/hooks/useAuth';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { BotMessageCard, type BotCard } from '../components/chat/BotMessageCard';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { BotMessageCard, type BotCard } from '../../src/components/chat/BotMessageCard';
 import { parseCommand, buildCommandHelp, missingCommandFields, getCommandDefinitions, type ParsedCommand } from '../../src/engine/commandEngine';
 
 type PendingCommandAction = Exclude<Extract<QuickActionValue, `command_${string}`>, 'command_create_catalog_for_stock'>;

@@ -10,9 +10,13 @@ import { useAppStore } from '@/src/store';
 import { PersistenceFeedback } from '@/src/components/persistence-feedback';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Keep the native launch screen until fonts, session and destination are ready.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [loaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -28,7 +32,7 @@ export default function RootLayout() {
     migrateCatalogItems();
   }, [refreshContratos, migrateCatalogItems]);
 
-  if (!loaded) return null;
+  if (!loaded && !fontError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

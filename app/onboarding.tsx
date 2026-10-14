@@ -27,12 +27,12 @@ import {
   MascotExpressionKey,
 } from '../src/data/mascotExpressions';
 import Svg, { Path } from 'react-native-svg';
-import LumioSpeechBubble from './components/onboarding/lumio-speech-bubble';
+import LumioSpeechBubble from '../src/components/onboarding/lumio-speech-bubble';
 import { onboardingAiMessages, onboardingMessages } from '../src/data/onboarding-messages';
 import { onboardingService } from '../src/services/onboardingService';
 import { onboardingRepository } from '../src/repositories/onboardingRepository';
-import UserReply from './components/onboarding/UserReply';
-import VoiceInput from './components/onboarding/VoiceInput';
+import UserReply from '../src/components/onboarding/UserReply';
+import VoiceInput from '../src/components/onboarding/VoiceInput';
 import { MessageComposer } from '../src/components/message-composer';
 import { ControlOpacity, Colors } from '../src/constants/theme';
 

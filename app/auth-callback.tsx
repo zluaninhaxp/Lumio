@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { AccountHeader, AccountScreen } from './account/_shared';
+import { AccountHeader, AccountScreen } from '../src/components/account/_shared';
 import { accountLayout } from '../src/components/account-menu';
 import { Colors, Spacing } from '../src/constants/theme';
 import { exchangeAuthLink, AUTH_REDIRECT } from '../src/services/authLinks';

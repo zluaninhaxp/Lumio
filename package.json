@@ -9,6 +9,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "typecheck:edge": "deno check supabase/functions/ai/index.ts supabase/functions/delete-account/index.ts",
     "test:surfaces": "node scripts/card-surfaces.test.cjs",
     "test:task-suggestions": "node scripts/task-suggestions.test.cjs",
     "test:voice": "node scripts/voice-recognition.test.cjs",

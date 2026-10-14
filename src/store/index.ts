@@ -700,7 +700,7 @@ function applyOrderUpdate(state: AppStore, id: string, updates: Partial<Omit<Ped
 function settleTaskTransactions(state: AppStore, taskId: string | undefined, done: boolean): Transaction[] {
   if (!taskId) return state.transactions;
   return state.transactions.map(tx => tx.taskId === taskId ? { ...tx,
-    ...(tx.amount > 0 ? { confirmed: done } : { supplierPaid: done }),
+    ...(tx.amount > 0 ? { confirmed: done } : { supplierPaid: done, ...(tx.confirmed !== undefined ? { confirmed: done } : {}) }),
     ...(done && (tx.confirmed === false || tx.supplierPaid === false) ? { date: localISO() } : {}),
   } : tx);
 }
@@ -1221,7 +1221,7 @@ export const useAppStore = create<AppStore>((set) => ({
     if (!transaction) return s;
     const eventId = transaction.contractId && transaction.expectedDate ? `contract-due:${transaction.contractId}:${transaction.expectedDate}` : undefined;
     return {
-      transactions: s.transactions.map((item) => item.id === transactionId ? { ...item, confirmed: received, ...(received && item.confirmed === false ? { date: localISO() } : {}) } : item),
+      transactions: s.transactions.map((item) => item.id === transactionId ? { ...item, confirmed: received, ...(item.amount < 0 ? { supplierPaid: received } : {}), ...(received && (item.confirmed === false || item.supplierPaid === false) ? { date: localISO() } : {}) } : item),
       events: s.events.map(event => event.id === eventId || (transaction.taskId && event.taskId === transaction.taskId) ? { ...event, done: received } : event),
       tasks: s.tasks.map(task => task.id === transaction.taskId ? { ...task, done: received } : task),
     };
@@ -1260,7 +1260,7 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   markSupplierTransactionPaid: (transactionId, paid) => set(s => {
     const tx = s.transactions.find(item => item.id === transactionId);
-    return { transactions: s.transactions.map(item => item.id === transactionId ? { ...item, supplierPaid: paid, ...(paid && item.supplierPaid === false ? { date: localISO() } : {}) } : item),
+    return { transactions: s.transactions.map(item => item.id === transactionId ? { ...item, supplierPaid: paid, ...(item.confirmed !== undefined ? { confirmed: paid } : {}), ...(paid && (item.supplierPaid === false || item.confirmed === false) ? { date: localISO() } : {}) } : item),
       tasks: s.tasks.map(task => task.id === tx?.taskId ? { ...task, done: paid } : task),
       events: s.events.map(event => tx?.taskId && event.taskId === tx.taskId ? { ...event, done: paid } : event) };
   }),

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AccountHeader, AccountScreen } from './account/_shared';
+import { AccountHeader, AccountScreen } from '../src/components/account/_shared';
 import { accountLayout } from '../src/components/account-menu';
 import { Colors, Spacing, Typography } from '../src/constants/theme';
 import { PRIVACY_VERSION } from '../src/constants/privacy';

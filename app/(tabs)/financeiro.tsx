@@ -16,24 +16,24 @@ import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
 import { useAppStore, type Transaction } from '../../src/store';
-import { CollapsingHeader } from '../components/Finance/CollapsingHeader';
-import { TransactionItem } from '../components/Finance/TransactionItem';
+import { CollapsingHeader } from '../../src/components/Finance/CollapsingHeader';
+import { TransactionItem } from '../../src/components/Finance/TransactionItem';
 import {
   QuickAddForm,
   clearPendingTransactionDraft,
   consumeDraftClosePreservation,
   setPendingTransactionRelation,
-} from '../components/Finance/QuickAddForm';
-import { MonthSelector } from '../components/Finance/MonthSelector';
-import { FinanceSkeleton } from '../components/Finance/FinanceSkeleton';
-import { FinanceEmptyState } from '../components/Finance/FinanceEmptyState';
-import { UndoSnackbar } from '../components/Finance/UndoSnackbar';
-import { SelectionBar } from '../components/Finance/SelectionBar';
-import { FAB } from '../components/Calendar/FAB';
-import { BottomSheet } from '../components/Calendar/BottomSheet';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { BottomFade } from '../components/BottomFade';
+} from '../../src/components/Finance/QuickAddForm';
+import { MonthSelector } from '../../src/components/Finance/MonthSelector';
+import { FinanceSkeleton } from '../../src/components/Finance/FinanceSkeleton';
+import { FinanceEmptyState } from '../../src/components/Finance/FinanceEmptyState';
+import { UndoSnackbar } from '../../src/components/Finance/UndoSnackbar';
+import { SelectionBar } from '../../src/components/Finance/SelectionBar';
+import { FAB } from '../../src/components/Calendar/FAB';
+import { BottomSheet } from '../../src/components/Calendar/BottomSheet';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { BottomFade } from '../../src/components/BottomFade';
 
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;

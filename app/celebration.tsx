@@ -23,10 +23,10 @@ import {
 import { OnboardingExtractionResult } from '../src/ai/types';
 import { useAuth } from '../src/hooks/useAuth';
 import { onboardingService } from '../src/services/onboardingService';
-import CelebrationText from '@/app/components/CelebrationText';
-import ReportProcessing from '@/app/components/onboarding/report-processing';
+import CelebrationText from '@/src/components/CelebrationText';
+import ReportProcessing from '@/src/components/onboarding/report-processing';
 import { useForwardOnboarding } from '../src/hooks/use-forward-onboarding';
-import ReportError from '@/app/components/onboarding/report-error';
+import ReportError from '@/src/components/onboarding/report-error';
 
 const BG_COLOR = '#007F6A';
 

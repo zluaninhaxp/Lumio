@@ -3,7 +3,7 @@ import { useIsFocused } from '@react-navigation/native';
 import { Stack, useRouter } from 'expo-router';
 import { useAppStore } from '../src/store';
 import { useForwardOnboarding } from '../src/hooks/use-forward-onboarding';
-import ReportIntro from './components/onboarding/report-intro';
+import ReportIntro from '../src/components/onboarding/report-intro';
 
 export default function OnboardingReportIntroScreen() {
   const router = useRouter();

@@ -23,6 +23,50 @@ const clone = value => JSON.parse(JSON.stringify(value));
 const freshStore = () => loader()('src/store/index.ts').useAppStore;
 const baseSale = () => ({ items: [], total: 100, status: 'concluido', date: '2026-10-14', createdAt: '2026-10-14T12:00:00Z', employeeId: 'e' });
 
+test('P1-11: an old deletion receipt preserves another account session and private state', async () => {
+  for (const activeId of ['A', 'B', null]) {
+    const calls = [], data = new Map([['@lumio/deletion-cleanup/p', JSON.stringify({userId:'A',email:'a@example.invalid'})]]);
+    const storage = {getItem:async k=>data.get(k)??null,removeItem:async k=>data.delete(k)};
+    const api = {auth:{getSession:async()=>({data:{session:activeId?{user:{id:activeId}}:null},error:null}),signOut:async()=>{calls.push('signOut');return {error:null};}}};
+    const load = loader({'../lib/supabase':{supabase:api,isSupabaseConfigured:true,supabaseProjectScope:'p'},'./businessStateService':{businessStateService:{stop:()=>calls.push('stop'),clearPrivateState:()=>calls.push('clear')}},'./photoService':{photoService:{}},'./protectedStorage':{protectedStorage:storage},'./localPrivacy':{purgeAccountStorage:async(...args)=>calls.push(args)}});
+    await load('src/services/authService.ts').authService.finishDeletionCleanup();
+    assert.equal(calls.includes('signOut'),activeId==='A');
+    assert.equal(calls.includes('stop'),activeId==='A');
+    assert.equal(calls.includes('clear'),activeId==='A');
+    assert.deepEqual(calls.at(-1),['p','A','a@example.invalid']);
+    assert.equal(data.size,0);
+  }
+});
+
+test('P1-03: task expense confirmation clears both pending flags from task and Finance', () => {
+  const {isRealized}=loader()('src/services/financialRules.ts');
+  for (const action of ['task','finance','supplier','event']) {
+    const store=freshStore();
+    store.setState({tasks:[{id:'task',done:false,calendarEventId:'ev'}],events:[{id:'ev',taskId:'task',source:'task',done:false}],transactions:[{id:'tx',taskId:'task',amount:-50,date:'2026-10-20',confirmed:false,supplierPaid:false}]});
+    if(action==='task')store.getState().toggleTask('task');
+    if(action==='finance')store.getState().markTransactionReceived('tx',true);
+    if(action==='supplier')store.getState().markSupplierTransactionPaid('tx',true);
+    if(action==='event')store.getState().updateEvent('ev',{done:true});
+    assert.equal(isRealized(store.getState().transactions[0]),true,action);
+    assert.equal(store.getState().tasks[0].done,true,action);
+    assert.equal(store.getState().events[0].done,true,action);
+    store.getState().toggleTask('task');
+    assert.equal(isRealized(store.getState().transactions[0]),false,action+' undo');
+    store.getState().toggleTask('task');
+    assert.equal(isRealized(store.getState().transactions[0]),true,action+' redo');
+  }
+});
+
+test('P1-11/P2-08: deletion drains mixed-extension pages and nested photos before deleting Auth',async()=>{
+  let handler, deleted=false;
+  const objects=Array.from({length:1000},(_,i)=>`A/${i}.jpg`).concat(['A/current.webp','A/old/avatar.png','B/preserve.webp']);
+  const bucket={list:async prefix=>({data:[...new Set(objects.filter(p=>p.startsWith(prefix+'/')).map(p=>p.slice(prefix.length+1).split('/')[0]))].slice(0,1000).map(name=>({name,id:objects.includes(prefix+'/'+name)?name:null})),error:null}),remove:async paths=>{for(const p of paths)objects.splice(objects.indexOf(p),1);return {error:null};}};
+  const admin={storage:{from:()=>bucket},auth:{getUser:async()=>({data:{user:{id:'A',email:'a@example.invalid'}}}),admin:{deleteUser:async()=>{assert.deepEqual(objects,['B/preserve.webp']);deleted=true;return {};}}}};
+  loader({'npm:@supabase/supabase-js@2':{createClient:()=>({auth:{signInWithPassword:async()=>({data:{user:{id:'A'}}})}})},'../_shared/secure.ts':{admin,authorized:async()=> 'A',limited:async()=>true,readLimitedBody:async()=>JSON.stringify({password:'test123'}),json:(body,status=200)=>new Response(JSON.stringify(body),{status})}},{Deno:{serve:fn=>handler=fn,env:{get:()=> 'test'}}})('supabase/functions/delete-account/index.ts');
+  const result=await handler(new Request('https://example.invalid',{method:'POST',headers:{Authorization:'Bearer test'}}));
+  assert.equal(result.status,200);assert.equal(deleted,true);
+});
+
 test('P0-02: deleting a customer/contract preserves paid and pending financial history', () => {
   const store = freshStore();
   store.setState({ clienteItems: [{ id:'c',name:'Cliente' }], contratos:[{id:'ctr',clientId:'c'}], transactions:[{id:'paid',clientId:'c',contractId:'ctr',amount:100,confirmed:true},{id:'pending',clientId:'c',contractId:'ctr',amount:100,confirmed:false}], atendimentos:[{id:'apt',clientId:'c',calendarEventId:'ev',status:'concluido'}], events:[{id:'ev',done:true},{id:'contract-due:ctr:2026-10-14'}] });
@@ -124,8 +168,10 @@ test('P1-12: auxiliary drafts are cleared between identities, including logout',
   const load=loader(),scope=load('src/services/accountScope.ts'),draft=load('src/utils/relationDraft.ts');scope.setDraftIdentity('p','A');draft.saveRelationDraft('sales',{description:'Private A'});assert.equal(draft.getRelationDraft('sales').description,'Private A');scope.setDraftIdentity('p','B');assert.equal(draft.getRelationDraft('sales'),null);scope.setDraftIdentity('p',null);draft.saveRelationDraft('sales',{description:'No owner'});assert.equal(draft.getRelationDraft('sales'),null);
 });
 test('P1-11: deletion purge removes only the requested user legacy/journal keys',async()=>{
-  const data=new Map([['@lumio/users',JSON.stringify([{id:'legacyA',email:'a@example.invalid'},{id:'B',email:'b@example.invalid'}])],['@lumio/onboarding/legacyA','old'],['@lumio/unsaved/p/A','private'],['@lumio/unsaved/p/B','preserve']]);const storage={getItem:async k=>data.get(k)??null,setItem:async(k,v)=>data.set(k,v),removeItem:async k=>data.delete(k),getAllKeys:async()=>[...data.keys()]};
+  const data=new Map([['@lumio/session',JSON.stringify({userId:'B'})],['@lumio/users',JSON.stringify([{id:'legacyA',email:'a@example.invalid'},{id:'B',email:'b@example.invalid'}])],['@lumio/onboarding/legacyA','old'],['@lumio/unsaved/p/A','private'],['@lumio/unsaved/p/B','preserve']]);const storage={getItem:async k=>data.get(k)??null,setItem:async(k,v)=>data.set(k,v),removeItem:async k=>data.delete(k),getAllKeys:async()=>[...data.keys()]};
   const load=loader({'@react-native-async-storage/async-storage':{__esModule:true,default:storage},'./protectedStorage':{protectedStorage:storage}});await load('src/services/localPrivacy.ts').purgeAccountStorage('p','A','a@example.invalid');assert.equal(data.has('@lumio/unsaved/p/A'),false);assert.equal(data.has('@lumio/onboarding/legacyA'),false);assert.equal(data.get('@lumio/unsaved/p/B'),'preserve');assert.equal(JSON.parse(data.get('@lumio/users')).length,1);
+  assert.equal(JSON.parse(data.get('@lumio/session')).userId,'B');
+  data.set('@lumio/session',JSON.stringify({userId:'B'}));await load('src/services/localPrivacy.ts').purgeAccountStorage('p','B');assert.equal(data.has('@lumio/session'),false);
 });
 test('P1-07: real global fetch preserves AI deadline and propagates caller cancellation',async()=>{
   const delays=[];let aborted=false;const load=loader({}, {fetch:async (_input,init)=>{aborted=init.signal.aborted;return new Response('{}');},setTimeout:(_fn,delay)=>{delays.push(delay);return 1;},clearTimeout(){}});const fetcher=load('src/lib/authFetch.ts').authFetch;

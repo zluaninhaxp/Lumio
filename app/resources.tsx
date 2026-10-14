@@ -1,6 +1,6 @@
 import { ScrollView, Text } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
+import { AccountHeader, AccountScreen, sharedStyles as s } from '../src/components/account/_shared';
 import { AccountRow, AccountSection, accountLayout } from '../src/components/account-menu';
 import { Colors } from '../src/constants/theme';
 export default function ResourcesScreen() {

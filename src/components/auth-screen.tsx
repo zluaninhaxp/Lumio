@@ -6,7 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ControlOpacity, Colors, Radius, Spacing, SurfaceStyles, TextStyles } from '@/src/constants/theme';
 import { useAuth } from '@/src/hooks/useAuth';
-import { ReportBackdrop } from '@/app/components/onboarding/report-processing';
+import { ReportBackdrop } from '@/src/components/onboarding/report-processing';
 // Replace this source to change the mascot without changing the layout.
 const INPUT_MIN_HEIGHT = 56;
 const AUTH_IMAGE = require('../../assets/login-Lumio.png');
@@ -54,7 +54,7 @@ function Login({ done }: { done: (complete: boolean) => void }) {
 function Register({ done }: { done: () => void }) {
   const router = useRouter();
   const { register } = useAuth(); const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirm, setConfirm] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const pending = useRef(false);
-  const submit = useCallback(async () => { if (pending.current) return; setError(''); if (password !== confirm) { setError('As senhas não coincidem.'); return; } pending.current = true; setBusy(true); try { await register(name, email, password); done(); } catch (e: any) { setError(e?.message ?? 'Não foi possível criar sua conta. Tente novamente.'); } finally { pending.current = false; setBusy(false); } }, [busy, confirm, done, email, name, password, register]);
+  const submit = useCallback(async () => { if (pending.current) return; setError(''); if (password !== confirm) { setError('As senhas não coincidem.'); return; } pending.current = true; setBusy(true); try { await register(name, email, password); done(); } catch (e: any) { if (e instanceof AuthError && e.code === 'EMAIL_CONFIRMATION_REQUIRED') router.push({ pathname: '/recover-access', params: { confirmation: '1', email } }); setError(e?.message ?? 'Não foi possível criar sua conta. Tente novamente.'); } finally { pending.current = false; setBusy(false); } }, [busy, confirm, done, email, name, password, register]);
   return <View>{error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" selectable style={s.error}>{error}</Text> : null}<Field label="Nome" icon="person-outline" value={name} onChangeText={setName} placeholder="Seu nome" autoComplete="name" textContentType="name" /><Field label="E-mail" icon="mail-outline" value={email} onChangeText={setEmail} placeholder="voce@email.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" textContentType="emailAddress" /><Field label="Senha" icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="Mínimo de 6 caracteres" autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" secureTextEntry /><Field label="Confirmar senha" icon="shield-checkmark-outline" value={confirm} onChangeText={setConfirm} placeholder="Repita a senha" autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" secureTextEntry autoCorrect={false} onSubmitEditing={submit} /><Submit label="Criar conta" busy={busy} onPress={submit} /></View>;
 }
 type FieldProps = TextInputProps & { label: string; icon: React.ComponentProps<typeof Ionicons>['name'] };

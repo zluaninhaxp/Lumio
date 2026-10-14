@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { AccountHeader, AccountScreen, sharedStyles as s } from './account/_shared';
+import { AccountHeader, AccountScreen, sharedStyles as s } from '../src/components/account/_shared';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../src/constants/theme';
 import { aiKeyService } from '../src/services/ai-key-service';
 import { useAiKeyStatus } from '../src/hooks/use-ai-key-status';

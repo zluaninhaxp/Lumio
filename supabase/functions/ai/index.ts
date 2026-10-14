@@ -1,4 +1,3 @@
-// @ts-nocheck -- Deno Edge runtime types are checked separately.
 import { admin, authorized, hex, limited, readLimitedBody, unhex } from '../_shared/secure.ts';
 import { buildOnboardingExtractionPrompt } from '../_shared/onboarding-prompt.ts';
 import { parsePersonalization, validContext } from '../_shared/ai-validation.ts';
@@ -44,7 +43,7 @@ async function generate(key: string, prompt: string, jsonMode: boolean, selected
         method: 'POST', signal: controller.signal,
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.4, ...(jsonMode ? { responseMimeType: 'application/json', maxOutputTokens: 16384,  } : {}) } }),
+          generationConfig: { temperature: 0.4, ...(jsonMode ? { responseMimeType: 'application/json', maxOutputTokens: 16384 } : {}) } }),
       });
       if (!response.ok) {
         let providerCode: string | undefined;
@@ -52,7 +51,7 @@ async function generate(key: string, prompt: string, jsonMode: boolean, selected
         try {
           const providerError = (await response.json())?.error;
           providerCode = typeof providerError?.status === 'string' ? providerError.status : undefined;
-          keyReason = providerError?.details?.find(d => d.reason === 'API_KEY_INVALID' || d.reason === 'API_KEY_EXPIRED')?.reason;
+          keyReason = providerError?.details?.find((d: { reason?: string }) => d.reason === 'API_KEY_INVALID' || d.reason === 'API_KEY_EXPIRED')?.reason;
         } catch { /* Never log or forward the raw provider response. */ }
         if (keyReason || response.status === 401) throw new Failure('provider_rejected_key', 400, response.status);
         if (response.status === 403) throw new Failure('provider_access_denied', 502, 403);
@@ -65,7 +64,7 @@ async function generate(key: string, prompt: string, jsonMode: boolean, selected
       let body;
       try { body = await response.json(); } catch { throw new Failure('invalid_response', 502); }
       const candidate = body?.candidates?.[0];
-      const text = candidate?.content?.parts?.filter(p => !p.thought && typeof p.text === 'string').map(p => p.text).join('').trim();
+      const text = candidate?.content?.parts?.filter((p: { thought?: boolean; text?: string }) => !p.thought && typeof p.text === 'string').map((p: { text?: string }) => p.text).join('').trim();
       if (!text || (candidate.finishReason && candidate.finishReason !== 'STOP')) throw new Failure('invalid_response', 502);
       console.info('[AI PROVIDER]', { response: 'success', structured: jsonMode, model: selectedModel });
       return text;
@@ -95,8 +94,8 @@ export async function handler(req: Request): Promise<Response> {
     let body;
     try { body = JSON.parse(bodyText); } catch { return reply({ error: 'invalid_input' }, 400); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return reply({ error: 'invalid_input' }, 400);
-    const limits = { status: [120, 3600], set_key: [10, 3600], delete_key: [10, 3600], test: [10, 3600], generate: [20, 3600] };
-    const fields = { status: ['action'], set_key: ['action', 'key'], delete_key: ['action'], test: ['action', 'key'], generate: ['action', 'context'] };
+    const limits: Record<string, [number, number]> = { status: [120, 3600], set_key: [10, 3600], delete_key: [10, 3600], test: [10, 3600], generate: [20, 3600] };
+    const fields: Record<string, string[]> = { status: ['action'], set_key: ['action', 'key'], delete_key: ['action'], test: ['action', 'key'], generate: ['action', 'context'] };
     if (typeof body.action !== 'string' || !Object.hasOwn(limits, body.action)) return reply({ error: 'invalid_input' }, 400);
     action = body.action;
     if (Object.keys(body).some(k => !fields[action].includes(k))) return reply({ error: 'invalid_input' }, 400);

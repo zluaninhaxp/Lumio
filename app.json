@@ -4,7 +4,7 @@
     "slug": "lumio",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/lumio-app-icon.png",
     "splash": {
       "image": "./assets/lumio-splash.png",
       "resizeMode": "contain",
@@ -26,10 +26,8 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#00A878",
+        "foregroundImage": "./assets/lumio-app-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

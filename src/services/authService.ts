@@ -52,8 +52,14 @@ export const authService = {
     const raw = await protectedStorage.getItem(key);
     if (!raw) return;
     const { userId, email } = JSON.parse(raw);
-    businessStateService.stop(); businessStateService.clearPrivateState();
-    await client().auth.signOut({ scope: 'local' });
+    if (typeof userId !== 'string' || !userId || (email !== undefined && typeof email !== 'string')) throw new Error('Recibo de exclusão inválido. Solicite suporte para concluir a limpeza local.');
+    const saved = await client().auth.getSession();
+    if (saved.error) throw saved.error;
+    if (saved.data.session?.user.id === userId) {
+      businessStateService.stop(); businessStateService.clearPrivateState();
+      const { error } = await client().auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    }
     await purgeAccountStorage(supabaseProjectScope, userId, email);
     await protectedStorage.removeItem(key);
   },

@@ -2,7 +2,23 @@
 
 Data: 14/10/2026 (America/Sao_Paulo)
 
-## Estado ao interromper
+## Atualização da retomada — 14/10/2026
+
+O estado abaixo foi retomado a partir de `8a0d207`, branch `develop`, inicialmente limpa. As correções desta rodada, incluindo componentes movidos para `src/components/`, rotas, splash única e ícone, foram preparadas para o commit `fix: consolidar correcoes pre-lancamento e rotas do Lumio`. Consulte `git log` para identificar o hash; push ainda pendente.
+
+- Os três pontos da revisão final foram reproduzidos em testes que falharam antes da correção e passaram depois: recibo de exclusão de A encerrando B; despesa com flags pendentes incoerentes; fotos legadas/subpastas não removidas. Corrigidos em `authService`, `localPrivacy`, store e handler `delete-account`.
+- O cadastro agora encaminha para confirmação/reenvio quando signup não retorna sessão (P1-14).
+- Os handlers `ai`/`delete-account` e helper `secure` têm checagem Deno efetiva, sem `@ts-nocheck`; sete erros foram corrigidos. `npm run typecheck:edge` requer Deno no PATH. O TypeScript do app exclui o runtime Edge e cópias locais em `.cache`.
+- Auditoria principal atualizada com tabela de estado; criados [relatório de preparação do APK](relatorio-preparacao-apk.md) e [pacote concreto de revisão do deploy](deploy-pre-lancamento/revisao.md), com SQL exato, diffs, hashes e redirects Auth.
+- Passaram TypeScript, 25 testes pré-lançamento, 273 motores/store, persistência (17+5+1), IA (11), segurança local e fluxos afetados. Exportação Android/Hermes e prebuild isolado aprovados. Evidências locais em `.cache/prelaunch`; não são versionadas.
+- Java foi encontrado no Android Studio/JBR; Gradle 8.14.3 foi obtido. `assembleRelease` falhou antes da compilação por `AccessDeniedException` ao mover cache Groovy para diretório imutável, inclusive fora do sandbox e com tentativas de mitigação. Não há APK novo.
+- Android USB disponível: Galaxy M31/SM-M315F, Android 12. Tem Expo Go; não tem package Lumio instalado. Nenhuma instalação/desinstalação, limpeza de dados ou validação visual do novo binário foi feita.
+
+**Próximo passo:** revisar/aprovar os artefatos concretos antes de migration/deploy; resolver o cache Gradle ou usar fluxo de preview assinado aprovado e seguir a matriz no APK. Não aplicar SQL, deploy ou alterações Auth automaticamente. Nenhuma escrita remota, chamada paga IA, exclusão de conta real ou build EAS foi executado nesta retomada. Os itens das seções seguintes são o registro da interrupção anterior; usar esta atualização e os novos relatórios como estado atual.
+
+**Atualização após aprovação da usuária:** Supabase CLI 2.121.0 confirma projeto `foruzsalsyqmccutvhdu`; migrations 0001–0010 estão alinhadas. `ai` v8 e `delete-account` v2 foram implantadas e estão ACTIVE com `verify_jwt=true`; `photo` continua v3. Não houve alteração Auth nem chamada paga. A build local ainda falha no cache Gradle; consulte o relatório de preparação antes de distribuir.
+
+## Estado ao interromper anteriormente
 
 O trabalho está salvo no commit local `fix: preparar correcao pre-lancamento do Lumio` (veja o hash no `git log`). A branch é `develop`. Nenhum push foi feito. Arquivos ignorados como `.env`, `.cache`, `node_modules` e estado local do Expo não fazem parte do commit.
 
