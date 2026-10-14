@@ -7,12 +7,13 @@ const ts = require('typescript');
 
 // Run the actual screens and service with deterministic hooks and in-memory IO.
 // No account, API key, or Gemini request is used by these integration tests.
-function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySaveFails = false, testPending, savePending, settingsConfigured = true, configured = false, statusError = false, route = 'onboarding', focused = true, view, extraction = null } = {}) {
+function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySaveFails = false, testPending, savePending, settingsConfigured = true, configured = false, statusError = false, route = 'onboarding', focused = true, view, extraction = null, failProgress = false, progressPending, onboardingDraft = null } = {}) {
   let slots = [], cursor = 0, effects = [], tree, screen;
   const calls = [], records = [], timers = [];
+  let stagedOnboarding;
   const keyboardListeners = new Map();
   const state = {
-    openAnswers: {}, onboardingContext: null, onboardingCompleted: false,
+    onboardingDraft, openAnswers: onboardingDraft?.responses ?? {}, onboardingContext: null, onboardingCompleted: false,
     pendingOnboardingExtraction: extraction, activatedPlugins: [],
     setPendingOnboardingExtraction(value, simulation) {
       state.pendingOnboardingExtraction = value;
@@ -27,6 +28,7 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
       state.openAnswers = { ...answers };
       state.onboardingContext = { answers: { ...answers } };
     },
+    hydrateOnboarding() {},
     resetOnboardingState() { state.openAnswers = {}; state.onboardingContext = null; },
   };
   const store = Object.assign(selector => selector(state), {
@@ -62,6 +64,7 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
   const user = { id: 'test-user', onboardingCompleted: false };
   const auth = { currentUser: user, loading: false, isAuthenticated: true, refreshUser: async () => { calls.push(['refresh']); } };
   const repo = {
+    async get() { return records.at(-1) ?? null; },
     async save(id, data) {
       calls.push(['save', structuredClone(data)]);
       if (failSave) throw new Error('offline');
@@ -89,6 +92,7 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
     '@/app/components/onboarding/report-error': { default: 'ReportError' },
     'react-native-reanimated': { useReducedMotion: () => false, default: { View: 'AnimatedView', Image: 'AnimatedImage' }, useSharedValue: value => hooks.useRef({ value }).current, useAnimatedStyle: fn => fn(), withTiming: value => value, withDelay: (_, value) => value, withRepeat: value => value, withSequence: (...values) => values.at(-1), cancelAnimation() {}, Easing: { out: value => value, inOut: value => value, cubic: 1, ease: 1 } },
     '../src/store': { useAppStore: store },
+    '../store': { useAppStore: store },
     '../src/hooks/useAuth': { useAuth: () => auth },
     '../src/components/api-key-input': { default: 'TextInput' },
     '../src/engine/openOnboardingEngine': null,
@@ -99,7 +103,9 @@ function fixture({ from = 'onboarding', keyValid = true, failSave = false, keySa
     './components/onboarding/VoiceInput': { default: 'VoiceInput' },
     '../repositories/onboardingRepository': { onboardingRepository: repo },
     '../src/repositories/onboardingRepository': { onboardingRepository: repo },
-    './userService': { userService: { markOnboardingCompleted: async () => { calls.push(['complete']); user.onboardingCompleted = true; return user; } } },
+    '../src/services/businessStateService': { businessStateService: { holdChanges() {}, releaseChanges() {}, async commit() { await progressPending; if (failProgress) throw new Error('offline'); } } },
+    './businessStateService': { businessStateService: { isStarted: () => true, holdChanges() {}, releaseChanges() {}, stageOnboarding: value => { stagedOnboarding = value; }, async commit() { if (!stagedOnboarding) return; await repo.save(user.id, stagedOnboarding); calls.push(['complete']); user.onboardingCompleted = true; } } },
+    './userService': { userService: { getById: async () => user, markOnboardingCompleted: async () => { calls.push(['complete']); user.onboardingCompleted = true; return user; } } },
     './account/_shared': { AccountScreen: 'AccountScreen', AccountHeader: 'AccountHeader', sharedStyles: {} },
     '../src/hooks/use-ai-key-status': { useAiKeyStatus: () => ({ status: statusError ? 'error' : (inSettings ? settingsConfigured : configured) ? 'configured' : 'notConfigured', error: statusError ? 'Falha ao consultar IA.' : undefined, refresh: async () => { calls.push(['keyStatusRefresh']); } }) },
     '../src/services/ai-key-service': { aiKeyService: { status: async () => { calls.push(['keyStatus']); return configured; }, save: async (_draft, id) => { calls.push(['saveKey', id]); await savePending; if (keySaveFails) throw new Error('offline'); if (!keyValid) throw new AIProviderError('invalid'); }, test: async () => { calls.push(['testKey']); await testPending; if (!keyValid) throw new AIProviderError('invalid'); } } },

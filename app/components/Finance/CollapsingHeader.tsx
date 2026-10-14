@@ -41,6 +41,7 @@ interface CollapsingHeaderProps {
 }
 
 const FILTERS_STRIP_HEIGHT = 54;
+const SUMMARY_VERTICAL_SPACE = Spacing.xs + Spacing.md;
 
 export function CollapsingHeader({
   summary,
@@ -82,7 +83,8 @@ export function CollapsingHeader({
   }, [headerMaxHeight, onHeightChange]);
 
   const handleCardLayout = useCallback((e: LayoutChangeEvent) => {
-    const h = e.nativeEvent.layout.height + Spacing.xs;
+    // Include the wrapper's breathing room so the filters do not cover the shadow.
+    const h = e.nativeEvent.layout.height + SUMMARY_VERTICAL_SPACE;
     if (h > 0) {
       setCardHeight(h);
     }
@@ -188,7 +190,11 @@ export function CollapsingHeader({
         ]}
         pointerEvents={headerCollapsed ? 'none' : 'auto'}
       >
-        {summaryNeedsScroll ? <ScrollView style={{ maxHeight: summaryViewport! - Spacing.xs, flexGrow: 0 }} nestedScrollEnabled>{summaryContent}</ScrollView> : summaryContent}
+        {summaryNeedsScroll ? <ScrollView
+          style={{ maxHeight: summaryViewport! - SUMMARY_VERTICAL_SPACE, flexGrow: 0, marginHorizontal: -Spacing.sm }}
+          contentContainerStyle={{ paddingHorizontal: Spacing.sm, paddingVertical: Spacing.md }}
+          nestedScrollEnabled
+        >{summaryContent}</ScrollView> : summaryContent}
 
       </Animated.View>
 
@@ -241,6 +247,7 @@ const styles = StyleSheet.create({
   },
   cardWrapper: {
     paddingTop: Spacing.xs,
+    paddingBottom: Spacing.md,
   },
   summaryCard: {
       ...SurfaceStyles.card,

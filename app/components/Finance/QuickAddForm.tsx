@@ -18,6 +18,7 @@ import { getPluginDefinition } from '../../../src/plugins/registry';
 import { TagSelector } from '../TagSelector';
 import { taskFormStyles } from '../Tasks/taskFormStyles';
 import { TaskPeopleSelector } from '../Tasks/TaskPeopleSelector';
+import { useConfirmedSave } from "../../../src/hooks/use-confirmed-save";
 
 function formatTransactionDateInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 4);
@@ -31,6 +32,7 @@ interface QuickAddFormProps {
   editData?: Transaction | null;
   categories: string[];
   incomeCategories: string[];
+    onSaved: () => void;
 }
 
 function formatCurrencyValue(value: number): string {
@@ -85,7 +87,7 @@ export function setPendingTransactionRelation(relation: 'client' | 'supplier' | 
   else pendingTransactionDraft.employeeId = id;
 }
 
-export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCategories }: QuickAddFormProps) {
+export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, incomeCategories }: QuickAddFormProps) {
   const router = useRouter();
   const isEditing = !!editData;
   const draft = !editData ? pendingTransactionDraft : null;
@@ -127,41 +129,45 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
 
   const requestClose = useSheetDraft({ amount, type, description, category, transactionDate, clientId, supplierId, employeeId, supplierDueDate, supplierPaid, stockItemId, stockQuantity, stockReceived }, onCancel);
 
-  const handleSave = () => {
-    const num = parseCurrency(amount);
-    if (!amount.trim() || isNaN(num) || num <= 0) return;
-    if (!/^\d{2}\/\d{2}$/.test(transactionDate.trim())) return;
-    if (!description.trim()) return;
-    const finalDate = transactionDate.trim() || initialDateStr;
+  const financeSave = useConfirmedSave();
+    const handleSave = () => { return financeSave.run(() => {
 
-    const selectedClientId = clientId;
-    const selectedSupplierId = supplierId;
-    const selectedSupplierTerm = fornecedorItems.find((supplier) => supplier.id === selectedSupplierId)?.paymentTerm ?? '';
-    const finalSupplierDueDate = type === 'saida' && selectedSupplierId
-      ? supplierDueDate || suggestedDueDate(finalDate, selectedSupplierTerm)
-      : undefined;
+          const num = parseCurrency(amount);
+          if (!amount.trim() || isNaN(num) || num <= 0) return;
+          if (!/^\d{2}\/\d{2}$/.test(transactionDate.trim())) return;
+          if (!description.trim()) return;
+          const finalDate = transactionDate.trim() || initialDateStr;
 
-    const shouldReceiveStock = type === 'saida' && !!stockItemId && stockReceived && !!Number(stockQuantity.replace(',', '.'));
-    const data = {
-      date: finalDate,
-      description: description.trim() || (type === 'entrada' ? 'Receita' : 'Despesa'),
-      amount: type === 'entrada' ? num : -num,
-      category: category.trim(),
-      clientId: selectedClientId,
-      supplierId: selectedSupplierId,
-      employeeId,
-      supplierDueDate: selectedSupplierId ? finalSupplierDueDate : undefined,
-      supplierPaid: selectedSupplierId ? supplierPaid : undefined,
-      stockItemId,
-      stockQuantity: stockItemId ? Number(stockQuantity.replace(',', '.')) || undefined : undefined,
-      stockReceived: stockItemId ? (editData?.stockReceived ?? false) : undefined,
-    };
-    const transactionId = onSave(data);
-    clearPendingTransactionDraft();
-    if (shouldReceiveStock && data.stockItemId && data.stockQuantity) {
-      receiveStockFromPurchase(transactionId, data.stockItemId, data.stockQuantity);
-    }
-  };
+          const selectedClientId = clientId;
+          const selectedSupplierId = supplierId;
+          const selectedSupplierTerm = fornecedorItems.find((supplier) => supplier.id === selectedSupplierId)?.paymentTerm ?? '';
+          const finalSupplierDueDate = type === 'saida' && selectedSupplierId
+            ? supplierDueDate || suggestedDueDate(finalDate, selectedSupplierTerm)
+            : undefined;
+
+          const shouldReceiveStock = type === 'saida' && !!stockItemId && stockReceived && !!Number(stockQuantity.replace(',', '.'));
+          const data = {
+            date: finalDate,
+            description: description.trim() || (type === 'entrada' ? 'Receita' : 'Despesa'),
+            amount: type === 'entrada' ? num : -num,
+            category: category.trim(),
+            clientId: selectedClientId,
+            supplierId: selectedSupplierId,
+            employeeId,
+            supplierDueDate: selectedSupplierId ? finalSupplierDueDate : undefined,
+            supplierPaid: selectedSupplierId ? supplierPaid : undefined,
+            stockItemId,
+            stockQuantity: stockItemId ? Number(stockQuantity.replace(',', '.')) || undefined : undefined,
+            stockReceived: stockItemId ? (editData?.stockReceived ?? false) : undefined,
+          };
+          const transactionId = onSave(data);
+
+          if (shouldReceiveStock && data.stockItemId && data.stockQuantity) {
+            receiveStockFromPurchase(transactionId, data.stockItemId, data.stockQuantity);
+          }
+
+      return () => { clearPendingTransactionDraft(); onSaved(); };
+      }); };
 
   const canSave =
     amount.trim().length > 0 &&
@@ -262,7 +268,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
              onChangeText={(value) => setAmount(formatCurrencyInput(value))}
         placeholder="R$ 0,00"
         placeholderTextColor={Colors.placeholder}
-        keyboardType="decimal-pad" focusStyle={{ color: Colors.accentText }}
+        keyboardType="decimal-pad" focusStyle={{ color: Colors.accentText }} editable={!financeSave.locked}
       />
 
       <View style={styles.presetRow}>
@@ -285,7 +291,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         placeholder="DD/MM"
         placeholderTextColor={Colors.placeholder}
         keyboardType="number-pad"
-        maxLength={5}
+        maxLength={5} editable={!financeSave.locked}
       />
 
       <Text style={styles.label}>Descrição *</Text>
@@ -294,7 +300,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         value={description}
         onChangeText={setDescription}
         placeholder="Ex: Gasolina posto BR"
-        placeholderTextColor={Colors.placeholder}
+        placeholderTextColor={Colors.placeholder} editable={!financeSave.locked}
       />
 
       {renderCategorySelector()}
@@ -332,7 +338,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
             }}
           />
           {!!supplierId && <>
-            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><FormTextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.placeholder} /></View>
+            <View style={styles.supplierMetaRow}><Text style={styles.supplierMetaLabel}>Vencimento</Text><FormTextInput style={styles.dueDateInput} value={supplierDueDate} onChangeText={setSupplierDueDate} placeholder="AAAA-MM-DD" placeholderTextColor={Colors.placeholder} editable={!financeSave.locked} /></View>
             <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setSupplierPaid((paid) => !paid)}><View style={[styles.checkBox, supplierPaid && styles.checkBoxActive]}>{supplierPaid && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Já pago</Text></TouchableOpacity>
           </>}
           {type === 'saida' && activatedPlugins.includes('estoque') && !!supplierId && <>
@@ -341,7 +347,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
               <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.categoryChip, !stockItemId && styles.categoryChipActive]} onPress={() => setStockItemId(undefined)}><Text style={[styles.categoryChipText, !stockItemId && styles.categoryChipTextActive]}>Não vincular</Text></TouchableOpacity>
               {estoqueItems.map((item) => <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={item.id} style={[styles.categoryChip, stockItemId === item.id && styles.categoryChipActive]} onPress={() => setStockItemId(item.id)}><Text style={[styles.categoryChipText, stockItemId === item.id && styles.categoryChipTextActive]}>{item.name}</Text></TouchableOpacity>)}
             </HorizontalOptions>
-            {!!stockItemId && <><FormTextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.placeholder} keyboardType="decimal-pad" /><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
+            {!!stockItemId && <><FormTextInput style={styles.input} value={stockQuantity} onChangeText={setStockQuantity} placeholder="Quantidade recebida" placeholderTextColor={Colors.placeholder} keyboardType="decimal-pad" editable={!financeSave.locked} /><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.paidRow} onPress={() => setStockReceived((received) => !received)}><View style={[styles.checkBox, stockReceived && styles.checkBoxActive]}>{stockReceived && <Text style={styles.checkMark}>✓</Text>}</View><Text style={styles.paidText}>Compra recebida, dar entrada agora</Text></TouchableOpacity></>}
           </>}
         </>
       )}
@@ -352,8 +358,7 @@ export function QuickAddForm({ onSave, onCancel, editData, categories, incomeCat
         </TouchableOpacity>
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={!canSave} accessibilityRole="button" accessibilityState={{ disabled: !canSave }}
+          onPress={handleSave} accessibilityRole="button" accessibilityState={{ disabled: !canSave }} disabled={!canSave || financeSave.saving}
         >
           <Text style={styles.saveBtnText}>
             {isEditing ? 'Salvar' : 'Adicionar'}

@@ -1,3 +1,7 @@
+import { chatHistoryService } from '../../src/services/chatHistoryService';
+import { businessStateService } from '../../src/services/businessStateService';
+import { AppAlert } from '../../src/services/appAlert';
+import type { ChatHistoryMessage as Message, ChatAmbiguity, QuickActionValue } from '../../src/types/chat';
 import { useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, Image,
@@ -37,21 +41,6 @@ import { AccountSheet } from '../components/account/AccountSheet';
 import { BotMessageCard, type BotCard } from '../components/chat/BotMessageCard';
 import { parseCommand, buildCommandHelp, missingCommandFields, getCommandDefinitions, type ParsedCommand } from '../../src/engine/commandEngine';
 
-interface Message {
-  id: string;
-  type: 'user' | 'bot' | 'fallback';
-  text: string;
-  actions?: string[];
-  quickActions?: { label: string; value: QuickActionValue }[];
-  ambiguity?: ChatAmbiguity;
-  fallbackSourceText?: string;
-  /** Cards visuais (substituem `text` quando presentes). */
-  cards?: BotCard[];
-  timestamp: Date;
-}
-
-type ChatAmbiguity = FinancialDirectionAmbiguity | TaskEventAmbiguity;
-type QuickActionValue = ChatAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other' | 'command_add_client' | 'command_add_supplier' | 'command_add_employee' | 'command_add_stock' | 'command_add_catalog' | 'command_create_catalog_for_stock';
 type PendingCommandAction = Exclude<Extract<QuickActionValue, `command_${string}`>, 'command_create_catalog_for_stock'>;
 type PendingCommand = { action: PendingCommandAction; values: Record<string, string>; fieldIndex: number };
 
@@ -80,7 +69,13 @@ const INITIAL_MESSAGES: Message[] = [
 
 export default function ChatScreen() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const history = useAppStore((state) => state.chatHistory);
+  const messages = history.length ? history : INITIAL_MESSAGES;
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const pendingPair = useRef<Message[] | null>(null);
+  const pendingCompletion = useRef<(() => void) | null>(null);
+  const chosenMessage = useRef<string | null>(null);
   const [input, setInput] = useState('');
   const [pendingFinancialText, setPendingFinancialText] = useState<string | null>(null);
   const [pendingIntentMarkerPhrase, setPendingIntentMarkerPhrase] = useState<string | null>(null);
@@ -90,6 +85,10 @@ export default function ChatScreen() {
   const flatListRef = useRef<FlatList>(null);
   const followContentResize = useRef(true);
 const { currentUser } = useAuth();
+  useEffect(() => {
+    pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
+    setInput(''); setPendingCommand(null); setPendingStockCatalogName(null); setPendingFinancialText(null); setPendingIntentMarkerPhrase(null);
+  }, [currentUser?.id]);
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const [availableHeight, setAvailableHeight] = useState(0);
@@ -118,12 +117,7 @@ const { currentUser } = useAuth();
     };
     recordLearnedTerm(taxonomy, domain, rawTerm);
     updateTaxonomy(taxonomy);
-    if (currentUser) {
-      const extraction = useAppStore.getState().onboardingExtraction;
-      void onboardingService.saveStructuredProfile(currentUser.id, extraction ? { ...extraction, taxonomy } : taxonomy).catch((error) => {
-        console.warn('Falha ao salvar termo aprendido:', error);
-      });
-    }
+
   }, [currentUser, updateTaxonomy]);
 
   const resolveClient = useCallback((name: string) => {
@@ -229,20 +223,10 @@ return date.toISOString().split('T')[0];
       .map((marker) => ({ ...marker }));
     if (domain === 'financial' && !isSafeFinancialLearnedMarkerPhrase(phrase)) {
       state.updateLearnedIntentMarkers(markers);
-      if (currentUser) {
-        void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
-          console.warn('Falha ao limpar intenção financeira aprendida:', error);
-        });
-      }
       return;
     }
     recordLearnedIntentMarker({ learnedIntentMarkers: markers }, domain, phrase, resolution);
     state.updateLearnedIntentMarkers(markers);
-    if (currentUser) {
-      void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
-        console.warn('Falha ao salvar intenção aprendida:', error);
-      });
-    }
   }, [currentUser]);
 
   const taskHookFromText = useCallback((text: string): string | null => {
@@ -646,13 +630,13 @@ return date.toISOString().split('T')[0];
     refreshOrcamentos();
     refreshContratos();
     const userMsg: Message = {
-      id: Date.now().toString(),
+      id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
       type: 'user',
       text: userText,
       timestamp: new Date(),
     };
     const botMsg: Message = {
-      id: (Date.now() + 1).toString(),
+      id: 'bot-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
       type: outcome.botType ?? 'bot',
       text: outcome.botText ?? '',
       actions: outcome.actions,
@@ -662,84 +646,132 @@ return date.toISOString().split('T')[0];
       fallbackSourceText: outcome.fallbackSourceText,
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, userMsg, botMsg]);
-    scrollToBottom();
+    pendingPair.current = [userMsg, botMsg];
   }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
 
+  const runChatAction = useCallback(async (prepare: () => void, finish?: () => void) => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true);
+    businessStateService.holdChanges();
+    try {
+      if (!pendingPair.current) {
+        if (!businessStateService.isStarted()) throw new Error('Aguarde o carregamento da conta.');
+        prepare();
+        pendingCompletion.current = finish ?? null;
+      }
+      if (!pendingPair.current) return;
+      await chatHistoryService.stage(pendingPair.current);
+      await businessStateService.commit();
+      if (chosenMessage.current) {
+        useAppStore.getState().setChatHistory(useAppStore.getState().chatHistory.map(message => message.id === chosenMessage.current ? { ...message, historical: true, quickActions: undefined, actions: undefined } : message));
+        chosenMessage.current = null;
+      }
+      pendingPair.current = null;
+      pendingCompletion.current?.(); pendingCompletion.current = null;
+      scrollToBottom();
+    } catch (error) {
+      AppAlert.alert('Mensagem não confirmada', error instanceof Error ? error.message : 'Tente novamente com internet. Sua tentativa foi preservada.', undefined, { variant: 'warning' });
+    } finally {
+      businessStateService.releaseChanges();
+      sendingRef.current = false; setSending(false);
+    }
+  }, [scrollToBottom]);
+
   const handleFinancialChoice = useCallback((message: Message, value: FinancialDirectionAmbiguity['options'][number]['value']) => {
-    if (!message.ambiguity || message.ambiguity.type !== 'financial_direction') return;
-    const option = message.ambiguity.options.find((item) => item.value === value);
-    if (!option) return;
-    commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
-  }, [applyFinancialChoice, commitMessages]);
+  if (message.historical || useAppStore.getState().chatHistory.find(item => item.id === message.id)?.historical) return;
+if (sendingRef.current) return;
+if (!pendingPair.current) chosenMessage.current = message.id;
+  return runChatAction(() => {
+
+      if (!message.ambiguity || message.ambiguity.type !== 'financial_direction') return;
+      const option = message.ambiguity.options.find((item) => item.value === value);
+      if (!option) return;
+      commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
+
+  });
+  }, [applyFinancialChoice, commitMessages, runChatAction]);
 
   const handleTaskEventChoice = useCallback((message: Message, value: 'task' | 'event') => {
-    if (!message.ambiguity || message.ambiguity.type !== 'task_or_event') return;
-    const option = message.ambiguity.options.find((item) => item.value === value);
-    if (!option) return;
-    commitMessages(option.label, applyTaskEventChoice(message.ambiguity, value));
-  }, [applyTaskEventChoice, commitMessages]);
+  if (message.historical || useAppStore.getState().chatHistory.find(item => item.id === message.id)?.historical) return;
+if (sendingRef.current) return;
+if (!pendingPair.current) chosenMessage.current = message.id;
+  return runChatAction(() => {
+
+      if (!message.ambiguity || message.ambiguity.type !== 'task_or_event') return;
+      const option = message.ambiguity.options.find((item) => item.value === value);
+      if (!option) return;
+      commitMessages(option.label, applyTaskEventChoice(message.ambiguity, value));
+
+  });
+  }, [applyTaskEventChoice, commitMessages, runChatAction]);
 
   const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
-    if (value === 'command_create_catalog_for_stock') {
-      if (!pendingStockCatalogName) return;
-      setPendingCommand({ action: 'command_add_catalog', values: { nome: pendingStockCatalogName, controlaestoque: 'sim' }, fieldIndex: 1 });
-      setPendingStockCatalogName(null);
-      commitMessages('Adicionar ao Catálogo', { botText: COMMAND_FIELDS.command_add_catalog[1].prompt, botType: 'bot' });
-      return;
-    }
-    if (value.startsWith('command_')) {
-      const action = value as PendingCommandAction;
-      setPendingCommand({ action, values: {}, fieldIndex: 0 });
-      commitMessages('Cadastrar', { botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' });
-      return;
-    }
-    if (value === 'register_expense') {
-      setPendingFinancialText('gastei');
-      // O fallback genérico não é evidência suficiente para aprender direção
-      // financeira: a frase pode ser uma tarefa, como "coloque 700 da obra".
-      setPendingIntentMarkerPhrase(null);
-      commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
-    } else if (value === 'register_income') {
-      setPendingFinancialText('recebi');
-      setPendingIntentMarkerPhrase(null);
-      commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
-    } else if (value === 'add_task') {
-      const sourceText = message.fallbackSourceText?.trim();
-      if (!sourceText) {
-        commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+  if (message.historical || useAppStore.getState().chatHistory.find(item => item.id === message.id)?.historical) return;
+if (sendingRef.current) return;
+if (!pendingPair.current) chosenMessage.current = message.id;
+  return runChatAction(() => {
+
+      if (value === 'command_create_catalog_for_stock') {
+        if (!pendingStockCatalogName) return;
+        setPendingCommand({ action: 'command_add_catalog', values: { nome: pendingStockCatalogName, controlaestoque: 'sim' }, fieldIndex: 1 });
+        setPendingStockCatalogName(null);
+        commitMessages('Adicionar ao Catálogo', { botText: COMMAND_FIELDS.command_add_catalog[1].prompt, botType: 'bot' });
         return;
       }
-      const normalized = normalizeMessage(sourceText);
-      const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
-      const taskId = addTask({
-        description: sourceText,
-        source: 'chat',
-        done: false,
-        dueDate: temporal.dueDate,
-        dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
-        priority: 'media',
-        subtasks: [],
-        tags: [],
-        createdAt: new Date().toISOString(),
-      });
-      const hook = taskHookFromText(sourceText);
-      if (taskId && hook) persistIntentMarker('task', hook, 'task');
-      commitMessages('Adicionar tarefa', {
-        botText: taskId ? '' : 'Não foi possível criar a tarefa.',
-        botType: 'bot',
-        cards: taskId ? [{
-          kind: temporal.isDeadline ? 'deadline' : 'task',
-          title: sourceText,
-          date: temporal.dueDate ?? undefined,
-          dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
-          time: temporal.dueTime ?? undefined,
-        }] : undefined,
-      });
-    } else if (value === 'other') {
-      commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
-    }
-  }, [addTask, commitMessages, pendingStockCatalogName, persistIntentMarker, taskHookFromText]);
+      if (value.startsWith('command_')) {
+        const action = value as PendingCommandAction;
+        setPendingCommand({ action, values: {}, fieldIndex: 0 });
+        commitMessages('Cadastrar', { botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' });
+        return;
+      }
+      if (value === 'register_expense') {
+        setPendingFinancialText('gastei');
+        // O fallback genérico não é evidência suficiente para aprender direção
+        // financeira: a frase pode ser uma tarefa, como "coloque 700 da obra".
+        setPendingIntentMarkerPhrase(null);
+        commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
+      } else if (value === 'register_income') {
+        setPendingFinancialText('recebi');
+        setPendingIntentMarkerPhrase(null);
+        commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
+      } else if (value === 'add_task') {
+        const sourceText = message.fallbackSourceText?.trim();
+        if (!sourceText) {
+          commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+          return;
+        }
+        const normalized = normalizeMessage(sourceText);
+        const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
+        const taskId = addTask({
+          description: sourceText,
+          source: 'chat',
+          done: false,
+          dueDate: temporal.dueDate,
+          dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
+          priority: 'media',
+          subtasks: [],
+          tags: [],
+          createdAt: new Date().toISOString(),
+        });
+        const hook = taskHookFromText(sourceText);
+        if (taskId && hook) persistIntentMarker('task', hook, 'task');
+        commitMessages('Adicionar tarefa', {
+          botText: taskId ? '' : 'Não foi possível criar a tarefa.',
+          botType: 'bot',
+          cards: taskId ? [{
+            kind: temporal.isDeadline ? 'deadline' : 'task',
+            title: sourceText,
+            date: temporal.dueDate ?? undefined,
+            dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
+            time: temporal.dueTime ?? undefined,
+          }] : undefined,
+        });
+      } else if (value === 'other') {
+        commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
+      }
+
+  });
+  }, [addTask, commitMessages, pendingStockCatalogName, persistIntentMarker, taskHookFromText, runChatAction]);
 
 
   /**
@@ -1038,20 +1070,28 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   }, [applyCommand, applyFinancialEngine, applyTaskEngineResult, handlePluginIntent, pendingCommand]);
 
   const handleSend = useCallback(() => {
-    const text = input.trim();
-    if (!text) return;
-    commitMessages(text, processMessage(text));
-    setInput('');
-  }, [input, processMessage, commitMessages]);
+  return runChatAction(() => {
+
+      const text = input.trim();
+      if (!text) return;
+      commitMessages(text, processMessage(text));
+
+
+  }, () => setInput(current => current === input ? '' : current));
+  }, [input, processMessage, commitMessages, runChatAction]);
 
   const runCommandSuggestion = useCallback((commandName: string) => {
-    const text = `/${commandName}`;
-    commitMessages(text, processMessage(text));
-    setInput('');
-  }, [processMessage, commitMessages]);
+  return runChatAction(() => {
+
+      const text = `/${commandName}`;
+      commitMessages(text, processMessage(text));
+
+
+  }, () => setInput(current => current === input ? '' : current));
+  }, [input, processMessage, commitMessages, runChatAction]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
-    if (!transcript.trim()) return;
+    if (sendingRef.current || !transcript.trim()) return;
     setInput(transcript.trim());
   }, []);
 
@@ -1115,7 +1155,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
             </View>
             <View style={styles.quickActionsRow}>
               {fallbackActions.map(({ label, value }) => (
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)} disabled={sending || item.historical}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1149,7 +1189,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
                   ? handleGenericQuickAction(item, action.value)
                   : item.ambiguity?.type === 'task_or_event'
                     ? handleTaskEventChoice(item, action.value as 'task' | 'event')
-                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
+                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])} disabled={sending || item.historical}>
                   <Text style={styles.quickActionText}>{action.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1267,7 +1307,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
         <BottomSurface style={styles.inputBar} organicEdge={!showCommandPanel}
           onLayout={event => setComposerHeight(event.nativeEvent.layout.height)}>
-          <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend}
+          <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend} loading={sending}
             voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInput} appearance="onboarding" />} />
         </BottomSurface>
         </View>

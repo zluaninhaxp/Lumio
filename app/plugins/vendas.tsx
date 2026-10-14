@@ -28,6 +28,8 @@ import { getPluginDefinition } from "../../src/plugins/registry";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 type DraftItem = Omit<OrderItem, "id" | "unitPrice"> & { id: string; unitPrice: number | string; addToCatalog?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -165,65 +167,71 @@ export default function VendasScreen() {
     setItems((current) => [...current, item]);
     setTimeout(() => formScrollRef.current?.scrollToEnd({ animated: true }), 80);
   };
-  const saveOrder = () => {
+  const saveOrderConfirmation = useConfirmedSave();
+    const saveOrder = () => {
+     void saveOrderConfirmation.run(() => {
     const validItems = items
-      .filter(
-        (item) =>
-          item.name.trim() &&
-          Number(item.quantity) > 0 &&
-           String(item.unitPrice).trim() !== "" && Number.isFinite(parsePrice(item.unitPrice)) && parsePrice(item.unitPrice) >= 0,
-      )
-      .map((item) => ({
-        ...item,
-        name: item.name.trim(),
-        quantity: Number(item.quantity),
-         unitPrice: parsePrice(item.unitPrice),
-      }));
+          .filter(
+            (item) =>
+              item.name.trim() &&
+              Number(item.quantity) > 0 &&
+               String(item.unitPrice).trim() !== "" && Number.isFinite(parsePrice(item.unitPrice)) && parsePrice(item.unitPrice) >= 0,
+          )
+          .map((item) => ({
+            ...item,
+            name: item.name.trim(),
+            quantity: Number(item.quantity),
+             unitPrice: parsePrice(item.unitPrice),
+          }));
     if (validItems.length === 0) return;
     const orderTotal = validItems.reduce(
-      (sum, item) => sum + item.quantity * item.unitPrice,
-      0,
-    );
+          (sum, item) => sum + item.quantity * item.unitPrice,
+          0,
+        );
     const current = editingId
-      ? pedidos.find((order) => order.id === editingId)
-      : undefined;
+          ? pedidos.find((order) => order.id === editingId)
+          : undefined;
     const payload = {
-      clientId,
-      employeeId,
-       items: validItems.map(({ addToCatalog, ...item }) => {
-         if (!addToCatalog || item.catalogItemId) return item;
-         const catalogItemId = addCatalogItem({
-           name: item.name,
-           kind: "produto",
-           unitPrice: item.unitPrice,
-           unit: "un",
-           controlStock: false,
-           needsReview: true,
-         });
-         return { ...item, catalogItemId };
-       }),
-      total: orderTotal,
-      status: "concluido" as const,
-      date: current?.date ?? todayLabel(),
-      createdAt: current?.createdAt ?? new Date().toISOString(),
-    };
+          clientId,
+          employeeId,
+           items: validItems.map(({ addToCatalog, ...item }) => {
+             if (!addToCatalog || item.catalogItemId) return item;
+             const catalogItemId = addCatalogItem({
+               name: item.name,
+               kind: "produto",
+               unitPrice: item.unitPrice,
+               unit: "un",
+               controlStock: false,
+               needsReview: true,
+             });
+             return { ...item, catalogItemId };
+           }),
+          total: orderTotal,
+          status: "concluido" as const,
+          date: current?.date ?? todayLabel(),
+          createdAt: current?.createdAt ?? new Date().toISOString(),
+        };
     const saved = editingId
-      ? (updatePedido(editingId, payload) ? editingId : null)
-      : addVenda(payload);
+          ? (updatePedido(editingId, payload) ? editingId : null)
+          : addVenda(payload);
     if (!saved) {
-      AppAlert.alert(
-        "Venda não registrada",
-        "A quantidade disponível no estoque controlado não é suficiente.", undefined, { variant: 'warning' }
-      );
-      return;
-    }
+          AppAlert.alert(
+            "Venda não registrada",
+            "A quantidade disponível no estoque controlado não é suficiente.", undefined, { variant: 'warning' }
+          );
+          return;
+        }
+    return () => {
     clearRelationDraft("sales");
     setModalVisible(false);
-  };
-  const cancel = (id: string) => {
-    if (!updatePedido(id, { status: "cancelado" }))
-      AppAlert.alert("Não foi possível cancelar a venda.", undefined, undefined, { variant: 'warning' });
-  };
+    };
+    });
+    };
+  const cancel = (id: string) => { void confirmAction("vendas.tsx:cancel:229" + ':' + id, () => {
+  if (!updatePedido(id, { status: "cancelado" }))
+        AppAlert.alert("Não foi possível cancelar a venda.", undefined, undefined, { variant: 'warning' });
+  return () => {  };
+  }); };
   const clientName = (id?: string) =>
     id ? clienteItems.find((client) => client.id === id)?.name : undefined;
   const statusLabel: Record<OrderStatus, string> = {
@@ -249,10 +257,10 @@ export default function VendasScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("vendas", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("vendas.tsx:action:258" + ':' + String("vendas"), () => {
+                  setPluginActivation("vendas", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -273,7 +281,7 @@ export default function VendasScreen() {
           onChangeText={setQuery}
           placeholder="Buscar venda ou item"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(saveOrderConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -289,7 +297,10 @@ export default function VendasScreen() {
           <SwipeableActions
             key={order.id}
             onEdit={() => openEdit(order)}
-            onDelete={() => { if (!removePedido(order.id)) AppAlert.alert('Venda vinculada', 'Há entregas ou comissões pagas vinculadas. O histórico foi preservado.', undefined, { variant: 'warning' }); }}
+            onDelete={() => { void confirmAction("vendas.tsx:action:298" + ':' + String(order.id), () => {
+            if (!removePedido(order.id)) AppAlert.alert('Venda vinculada', 'Há entregas ou comissões pagas vinculadas. O histórico foi preservado.', undefined, { variant: 'warning' });
+            return () => {  };
+            }); }}
           >
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -409,7 +420,7 @@ export default function VendasScreen() {
                         }
                         placeholder="Qtd."
                         placeholderTextColor={Colors.placeholder}
-                        keyboardType="decimal-pad"
+                        keyboardType="decimal-pad" editable={!(saveOrderConfirmation.locked)}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -426,7 +437,7 @@ export default function VendasScreen() {
                         }
                         placeholder="Preço"
                         placeholderTextColor={Colors.placeholder}
-                        keyboardType="decimal-pad"
+                        keyboardType="decimal-pad" editable={!(saveOrderConfirmation.locked)}
                       />
                     </View>
                   </View>
@@ -452,7 +463,7 @@ export default function VendasScreen() {
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button">
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button" disabled={saveOrderConfirmation.saving}>
                   <Text style={styles.modalConfirmText}>Salvar</Text>
                 </TouchableOpacity>
               </View>

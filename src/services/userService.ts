@@ -60,16 +60,6 @@ export const userService = {
         updated_at: new Date().toISOString(),
       };
       let { data, error } = await supabase!.from('profiles').update(profileUpdates).eq('id', userId).select('id, name, email, photo, role, phone, onboarding_completed, created_at').single();
-      if (error && /column .* does not exist|could not find the .* column .* schema cache/i.test(error.message)) {
-        const fallbackUpdates = {
-          ...(updates.name !== undefined ? { name: updates.name.trim() } : {}),
-          ...(updates.email !== undefined ? { email: updates.email } : {}),
-          updated_at: new Date().toISOString(),
-        };
-        const fallbackResult = await supabase!.from('profiles').update(fallbackUpdates).eq('id', userId).select('id, name, email, photo, onboarding_completed, created_at').single();
-        data = fallbackResult.data as typeof data;
-        error = fallbackResult.error;
-      }
       if (error) throw new Error(error.message);
       if (!data) throw new AuthError('USER_NOT_FOUND');
       return { id: data.id, name: data.name, email: data.email, photo: data.photo ? await photoService.signedUrl() : null, role: data.role ?? '', phone: data.phone ?? '', onboardingCompleted: data.onboarding_completed, createdAt: data.created_at };

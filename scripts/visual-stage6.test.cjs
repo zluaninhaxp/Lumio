@@ -42,12 +42,10 @@ test('empty state keeps full text, omits absent descriptions and preserves consu
   for (const text of all.filter(node => node.type === 'Text')) assert.equal(text.props.numberOfLines, undefined);
   assert.equal(all.find(node => node.type === 'Action'), action);
 });
-test('calendar text reserves the FAB strip and keeps filtered/unfiltered messages', () => {
+test('calendar empty state stays centered and keeps filtered/unfiltered messages', () => {
   const app = fixture('app/components/Calendar/EmptyState.tsx', 'EmptyState', {});
   let tree = app.render(); assert.equal(tree.props.title, 'Seu dia está livre!'); assert.ok(tree.props.description);
-  const rightPadding = flatten(tree.props.style).paddingRight;
-  assert.equal(rightPadding, 92);
-  for (const width of [320, 360, 390]) assert.ok(width - rightPadding < width - 20 - 56);
+  assert.equal(tree.props.style, undefined, 'asymmetric FAB clearance was shifting the centered copy');
   tree = app.render({ filter: 'task' }); assert.equal(tree.props.title, 'Nenhuma tarefa neste dia.'); assert.equal(tree.props.description, undefined);
   tree = app.render({ filter: 'event' }); assert.equal(tree.props.title, 'Nenhum evento neste dia.');
   const source = fs.readFileSync('app/(tabs)/calendario.tsx', 'utf8');

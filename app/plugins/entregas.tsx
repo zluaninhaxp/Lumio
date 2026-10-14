@@ -26,6 +26,8 @@ import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles, Typog
 import { DeliveryStatus, Entrega, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const statusLabels: Record<DeliveryStatus, string> = {
   "a caminho": "A caminho",
@@ -148,44 +150,49 @@ export default function EntregasScreen() {
     setCreateExpense(false);
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     if (
-      !selectedOrderId ||
-      !address.trim() ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(estimatedDate)
-    )
-      return;
+          !selectedOrderId ||
+          !address.trim() ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(estimatedDate)
+        )
+          return;
     const value = Number(freightValue.replace(",", ".")) || 0;
     if (editingId)
-      updateEntrega(editingId, {
-        employeeId,
-        address: address.trim(),
-        estimatedDate,
-        freightValue: value || undefined,
-      });
-    else if (
-      !addEntrega(
-        {
-          orderId: selectedOrderId,
-          employeeId,
-          address: address.trim(),
-          estimatedDate,
-          status: "a caminho",
-          freightValue: value || undefined,
-          createdAt: new Date().toISOString(),
-        },
-        createExpense,
-      )
-    ) {
-      AppAlert.alert(
-        "Entrega não criada",
-        "Este pedido já possui uma entrega ativa.", undefined, { variant: 'warning' }
-      );
-      return;
-    }
+          updateEntrega(editingId, {
+            employeeId,
+            address: address.trim(),
+            estimatedDate,
+            freightValue: value || undefined,
+          });
+        else if (
+          !addEntrega(
+            {
+              orderId: selectedOrderId,
+              employeeId,
+              address: address.trim(),
+              estimatedDate,
+              status: "a caminho",
+              freightValue: value || undefined,
+              createdAt: new Date().toISOString(),
+            },
+            createExpense,
+          )
+        ) {
+          AppAlert.alert(
+            "Entrega não criada",
+            "Este pedido já possui uma entrega ativa.", undefined, { variant: 'warning' }
+          );
+          return;
+        }
+    return () => {
     clearRelationDraft("deliveries");
     setModalVisible(false);
-  };
+    };
+    });
+    };
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
@@ -200,10 +207,10 @@ export default function EntregasScreen() {
               {
                 text: "Desativar",
                 style: "destructive",
-                onPress: () => {
-                  setPluginActivation("entregas", false);
-                  router.back();
-                },
+                onPress: () => { void confirmAction("entregas.tsx:action:209" + ':' + String("entregas"), () => {
+                setPluginActivation("entregas", false);
+                return () => { router.back(); };
+                }); },
               },
             ])
           }
@@ -223,7 +230,7 @@ export default function EntregasScreen() {
           onChangeText={setQuery}
           placeholder="Buscar entrega ou pedido"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -237,7 +244,10 @@ export default function EntregasScreen() {
           <SwipeableActions
             key={delivery.id}
             onEdit={() => openEdit(delivery)}
-            onDelete={() => removeEntrega(delivery.id)}
+            onDelete={() => { void confirmAction("entregas.tsx:action:246" + ':' + String(delivery.id), () => {
+            removeEntrega(delivery.id);
+            return () => {  };
+            }); }}
           >
           <View style={styles.card}>
             <View style={styles.cardTop}>
@@ -280,7 +290,10 @@ export default function EntregasScreen() {
               {delivery.status === "a caminho" && (
                 <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   onPress={() =>
-                    updateEntrega(delivery.id, { status: "entregue" })
+                    { void confirmAction("entregas.tsx:action:288" + ':' + String(delivery.id), () => {
+                      updateEntrega(delivery.id, { status: "entregue" });
+                      return () => {  };
+                      }); }
                   }
                 >
                   <Text style={styles.conclude}>Marcar entregue</Text>
@@ -289,7 +302,10 @@ export default function EntregasScreen() {
               {delivery.status === "a caminho" && (
                 <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   onPress={() =>
-                    updateEntrega(delivery.id, { status: "cancelada" })
+                    { void confirmAction("entregas.tsx:action:297" + ':' + String(delivery.id), () => {
+                      updateEntrega(delivery.id, { status: "cancelada" });
+                      return () => {  };
+                      }); }
                   }
                 >
                   <Text style={styles.cancel}>Cancelar</Text>
@@ -323,7 +339,7 @@ export default function EntregasScreen() {
                 value={address}
                 onChangeText={setAddress}
                 placeholder="Rua, número, complemento"
-                placeholderTextColor={Colors.placeholder}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
               <RequiredLabel>Prazo estimado (AAAA-MM-DD)</RequiredLabel>
               <FormTextInput
@@ -331,7 +347,7 @@ export default function EntregasScreen() {
                 value={estimatedDate}
                 onChangeText={setEstimatedDate}
                 placeholder="2026-08-12"
-                placeholderTextColor={Colors.placeholder}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
               <View style={styles.peopleSpacing}>
                 <TaskPeopleSelector
@@ -349,7 +365,7 @@ export default function EntregasScreen() {
                 onChangeText={setFreightValue}
                 keyboardType="decimal-pad"
                 placeholder="Valor"
-                placeholderTextColor={Colors.placeholder}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
               {!editingId && Number(freightValue.replace(",", ".")) > 0 && (
                 <TouchableOpacity activeOpacity={ControlOpacity.pressed}
@@ -371,7 +387,7 @@ export default function EntregasScreen() {
               <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button">
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button">
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
                 <Text style={styles.saveText}>Salvar entrega</Text>
               </TouchableOpacity>
             </View>

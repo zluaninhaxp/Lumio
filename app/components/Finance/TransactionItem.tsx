@@ -84,6 +84,8 @@ export function TransactionItem({
 
   return (
     <Swipeable
+      containerStyle={SurfaceStyles.swipeContainer}
+      childrenContainerStyle={SurfaceStyles.swipeContainer}
       ref={swipeableRef}
       renderRightActions={renderRightActions}
       renderLeftActions={renderLeftActions}
@@ -150,8 +152,6 @@ const styles = StyleSheet.create({
   },
   cardSelected: {
     backgroundColor: Colors.accentLight,
-    borderWidth: 1,
-    borderColor: Colors.accentIcon,
   },
   selectCircle: {
     width: 22,

@@ -1,3 +1,5 @@
+import type { OnboardingDraft } from '../types/onboardingDraft';
+import type { ChatHistoryMessage } from '../types/chat';
 import { create } from 'zustand';
 import {
   guessBusinessTypeFallback,
@@ -356,6 +358,7 @@ export interface AppStore {
   onboardingCompleted: boolean;
   businessName: string;
   businessType: string;
+  onboardingDraft: OnboardingDraft | null;
   openAnswers: Record<string, string>;
   /** DTO único, pronto para a futura integração com IA (ver src/ai/). */
   onboardingContext: OnboardingContextDTO | null;
@@ -574,6 +577,10 @@ employeeItems: EmployeeItem[];
   removeEvent: (id: string) => void;
   updateEvent: (id: string, updates: Partial<Omit<CalendarEvent, 'id'>>) => void;
 
+  dismissedTaskSuggestionIds: string[];
+  dismissTaskSuggestion: (id: string) => void;
+  chatHistory: ChatHistoryMessage[];
+  setChatHistory: (messages: ChatHistoryMessage[]) => void;
   messages: ChatMessage[];
   addMessage: (m: Omit<ChatMessage, 'id' | 'timestamp'>) => void;
   clearMessages: () => void;
@@ -697,6 +704,7 @@ export const useAppStore = create<AppStore>((set) => ({
   onboardingCompleted: false,
   businessName: '',
   businessType: '',
+  onboardingDraft: null,
   openAnswers: {},
   onboardingContext: null,
 
@@ -1346,6 +1354,7 @@ export const useAppStore = create<AppStore>((set) => ({
 
   resetOnboardingState: () =>
     set({
+      onboardingDraft: null,
       onboardingCompleted: false,
       businessName: '',
       businessType: '',
@@ -1366,6 +1375,7 @@ export const useAppStore = create<AppStore>((set) => ({
       activatedPlugins: [],
       pluginOrder: [],
       dismissedPluginSuggestions: [],
+      dismissedTaskSuggestionIds: [],
     }),
 
   transactions: [],
@@ -1587,6 +1597,10 @@ export const useAppStore = create<AppStore>((set) => ({
       };
     }),
 
+  dismissedTaskSuggestionIds: [],
+  dismissTaskSuggestion: (id) => set(state => ({ dismissedTaskSuggestionIds: [...new Set([...state.dismissedTaskSuggestionIds, id])] })),
+  chatHistory: [],
+  setChatHistory: (chatHistory) => set({ chatHistory }),
   messages: [],
   addMessage: (m) =>
     set((s) => ({

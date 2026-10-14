@@ -1,3 +1,7 @@
+import { businessStateService } from './businessStateService';
+import { useAppStore } from '../store';
+import type { OnboardingContextDTO } from '../ai/onboardingContext';
+import type { OnboardingExtractionResult } from '../ai/types';
 import { onboardingRepository, OnboardingRecord } from '../repositories/onboardingRepository';
 import { userService } from './userService';
 import { PublicUser } from '../types/user';
@@ -30,8 +34,23 @@ export const onboardingService = {
     structuredProfile?: unknown,
     activatedPlugins: string[] = []
   ): Promise<{ record: OnboardingRecord; user: PublicUser }> {
-    const record = await onboardingRepository.save(userId, { responses, context, structuredProfile, activatedPlugins });
-    const user = await userService.markOnboardingCompleted(userId, true);
+    if (!businessStateService.isStarted(userId)) throw new Error('Aguarde o carregamento da conta.');
+    businessStateService.holdChanges();
+    try {
+      const state = useAppStore.getState();
+      const pendingReport = state.pendingOnboardingExtraction;
+      const pendingSimulation = state.pendingOnboardingExtractionIsSimulation;
+      state.hydrateOnboarding({ responses: responses as Record<string, string>, context: (context ?? null) as OnboardingContextDTO | null,
+        structuredProfile: (structuredProfile ?? state.onboardingExtraction) as OnboardingExtractionResult | null,
+        activatedPlugins: activatedPlugins.length ? activatedPlugins : state.activatedPlugins, pluginOrder: state.pluginOrder });
+      useAppStore.setState({ pendingOnboardingExtraction: pendingReport, pendingOnboardingExtractionIsSimulation: pendingSimulation });
+      useAppStore.setState({ onboardingDraft: null });
+      businessStateService.stageOnboarding({ responses, context: context ?? null, structuredProfile: structuredProfile ?? state.onboardingExtraction });
+      await businessStateService.commit();
+    } finally { businessStateService.releaseChanges(); }
+    const record = await onboardingRepository.get(userId);
+    const user = await userService.getById(userId);
+    if (!record || !user?.onboardingCompleted) throw new Error('A conclusão não foi confirmada. Tente novamente.');
     return { record, user };
   },
 
@@ -46,6 +65,11 @@ export const onboardingService = {
 
   /** Salva preferências da aba Apps sem substituir os dados do onboarding. */
   async savePluginPreferences(userId: string, activatedPlugins: string[], pluginOrder: string[]): Promise<OnboardingRecord> {
-    return onboardingRepository.save(userId, { activatedPlugins, pluginOrder });
+    if (!businessStateService.isStarted(userId)) throw new Error('Aguarde o carregamento da conta.');
+    useAppStore.setState({ activatedPlugins: activatedPlugins as import('../plugins/registry').PluginId[], pluginOrder: pluginOrder as import('../plugins/registry').PluginId[] });
+    await businessStateService.commit();
+    const record = await onboardingRepository.get(userId);
+    if (!record) throw new Error('Configuração inicial não encontrada.');
+    return record;
   },
 };

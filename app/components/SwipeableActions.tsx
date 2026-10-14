@@ -2,7 +2,7 @@ import { useCallback, useRef, type ReactNode } from "react";
 import { Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
-import { ControlOpacity, Colors, Radius, Spacing } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Radius, Spacing, SurfaceStyles } from "../../src/constants/theme";
 
 let openSwipeable: Swipeable | null = null;
 
@@ -27,6 +27,8 @@ export function SwipeableActions({ children, onEdit, onDelete }: SwipeableAction
 
   return (
     <Swipeable
+      containerStyle={SurfaceStyles.swipeContainer}
+      childrenContainerStyle={SurfaceStyles.swipeContainer}
       ref={swipeableRef}
       renderLeftActions={onEdit ? () => (
         <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.editAction} onPress={() => { close(); onEdit(); }}>

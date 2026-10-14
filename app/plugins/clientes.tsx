@@ -22,6 +22,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { useAppStore, ClienteItem } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const EMPTY_FORM = { name: "", contact: "", notes: "" };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -73,66 +75,71 @@ export default function ClientesScreen() {
     setForm({ name: item.name, contact: item.contact, notes: item.notes });
     setModalVisible(true);
   };
-  const handleSave = () => {
+  const handleSaveConfirmation = useConfirmedSave();
+    const handleSave = () => {
+     void handleSaveConfirmation.run(() => {
     if (!form.name.trim()) return;
     const payload = {
-      name: form.name.trim(),
-      contact: form.contact.trim(),
-      notes: form.notes.trim(),
-      createdAt: editingId
-        ? (clienteItems.find((item) => item.id === editingId)?.createdAt ??
-          new Date().toISOString())
-        : new Date().toISOString(),
-    };
+          name: form.name.trim(),
+          contact: form.contact.trim(),
+          notes: form.notes.trim(),
+          createdAt: editingId
+            ? (clienteItems.find((item) => item.id === editingId)?.createdAt ??
+              new Date().toISOString())
+            : new Date().toISOString(),
+        };
     let createdId: string | null = null;
     if (editingId) {
-      if (!updateClienteItem(editingId, payload)) {
-        AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
-        return;
-      }
-    } else {
-      createdId = addClienteItem(payload);
-      if (!createdId) {
-        AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
-        return;
-      }
-    }
+          if (!updateClienteItem(editingId, payload)) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        } else {
+          createdId = addClienteItem(payload);
+          if (!createdId) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        }
+    return () => {
     setModalVisible(false);
     if (
-      !editingId &&
-      createdId &&
-      returnToFinance === "1" &&
-      relation === "client"
-    ) {
-      router.dismissTo({
-        pathname: "/(tabs)/financeiro",
-        params: { returnToFinance: "1", createdId, relation: "client" },
-      });
-    } else if (
-      !editingId &&
-      createdId &&
-      (returnToTasks === "1" || returnToCalendar === "1") &&
-      relation === "client"
-    ) {
-      router.dismissTo({
-        pathname:
-          returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
-        params: {
-          [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
-          createdId,
-          relation: "client",
-        },
-      });
-    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "client" } });
-    } else if (!editingId && createdId && returnToContracts === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "client" } });
-    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "client" } });
-    } else if (!editingId && createdId && returnToSales === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "client" } });
-    }
-  };
+          !editingId &&
+          createdId &&
+          returnToFinance === "1" &&
+          relation === "client"
+        ) {
+          router.dismissTo({
+            pathname: "/(tabs)/financeiro",
+            params: { returnToFinance: "1", createdId, relation: "client" },
+          });
+        } else if (
+          !editingId &&
+          createdId &&
+          (returnToTasks === "1" || returnToCalendar === "1") &&
+          relation === "client"
+        ) {
+          router.dismissTo({
+            pathname:
+              returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
+            params: {
+              [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
+              createdId,
+              relation: "client",
+            },
+          });
+        } else if (!editingId && createdId && returnToQuotes === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "client" } });
+        } else if (!editingId && createdId && returnToContracts === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "client" } });
+        } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "client" } });
+        } else if (!editingId && createdId && returnToSales === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "client" } });
+        }
+    };
+    });
+    };
   const handleDelete = (id: string) =>
     AppAlert.alert(
       "Excluir cliente",
@@ -142,7 +149,10 @@ export default function ClientesScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => removeClienteItem(id),
+          onPress: () => { void confirmAction("clientes.tsx:action:151" + ':' + String(id), () => {
+          removeClienteItem(id);
+          return () => {  };
+          }); },
         },
       ],
     );
@@ -155,10 +165,10 @@ export default function ClientesScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation("clientes", false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("clientes.tsx:action:164" + ':' + String("clientes"), () => {
+          setPluginActivation("clientes", false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -185,7 +195,7 @@ export default function ClientesScreen() {
           onChangeText={setQuery}
           placeholder="Buscar cliente"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(handleSaveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -311,7 +321,7 @@ export default function ClientesScreen() {
               placeholderTextColor={Colors.placeholder}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-              autoFocus
+              autoFocus editable={!(handleSaveConfirmation.locked)}
             />
             <FormLabel>Contato (opcional)</FormLabel>
             <FormTextInput
@@ -319,7 +329,7 @@ export default function ClientesScreen() {
               placeholder="Contato (telefone ou e-mail)"
               placeholderTextColor={Colors.placeholder}
               value={form.contact}
-              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))} editable={!(handleSaveConfirmation.locked)}
             />
             <FormLabel>Observações (opcional)</FormLabel>
             <FormTextInput
@@ -328,7 +338,7 @@ export default function ClientesScreen() {
               placeholderTextColor={Colors.placeholder}
               value={form.notes}
               onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
-              multiline
+              multiline editable={!(handleSaveConfirmation.locked)}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
@@ -339,7 +349,7 @@ export default function ClientesScreen() {
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
-                onPress={handleSave} accessibilityRole="button"
+                onPress={handleSave} accessibilityRole="button" disabled={handleSaveConfirmation.saving}
               >
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>

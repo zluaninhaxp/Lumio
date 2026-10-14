@@ -24,6 +24,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import type { EventFormData } from '../components/Calendar/EventForm';
 import type { Relation } from '../components/Tasks/TaskPeopleSelector';
 import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 export default function CalendarioScreen() {
   const router = useRouter();
@@ -109,23 +111,24 @@ export default function CalendarioScreen() {
     };
   }, [calendarEvents, selectedDate]);
 
-  const handleToggleCalendarEvent = useCallback((id: string) => {
-    if (id.startsWith('supplier-due:')) {
-      markSupplierTransactionPaid(id.replace('supplier-due:', ''), true);
-      return;
-    }
-    if (id.startsWith('contract-due:')) {
-      const [, contractId, expectedDate] = id.split(':');
-      const transaction = useAppStore.getState().transactions.find((item) => item.contractId === contractId && item.expectedDate === expectedDate);
-      if (transaction) markTransactionReceived(transaction.id, true);
-      return;
-    }
-    if (id.startsWith('appointment:')) {
-      concludeAtendimento(id.replace('appointment:', ''));
-      return;
-    }
-    toggleEvent(id);
-  }, [markSupplierTransactionPaid, markTransactionReceived, concludeAtendimento, toggleEvent]);
+  const handleToggleCalendarEvent = useCallback((id: string) => { void confirmAction("calendario.tsx:handleToggleCalendarEvent:113" + ':' + id, () => {
+  if (id.startsWith('supplier-due:')) {
+        markSupplierTransactionPaid(id.replace('supplier-due:', ''), true);
+        return;
+      }
+  if (id.startsWith('contract-due:')) {
+        const [, contractId, expectedDate] = id.split(':');
+        const transaction = useAppStore.getState().transactions.find((item) => item.contractId === contractId && item.expectedDate === expectedDate);
+        if (transaction) markTransactionReceived(transaction.id, true);
+        return;
+      }
+  if (id.startsWith('appointment:')) {
+        concludeAtendimento(id.replace('appointment:', ''));
+        return;
+      }
+  toggleEvent(id);
+  return () => {  };
+  }); }, [markSupplierTransactionPaid, markTransactionReceived, concludeAtendimento, toggleEvent]);
 
   const handleMonthChange = useCallback(
     (direction: -1 | 1) => {
@@ -148,48 +151,51 @@ export default function CalendarioScreen() {
     [selectDay]
   );
 
-  const handleSave = useCallback(
-    (data: Omit<CalendarEvent, 'id' | 'done'>) => {
-      if (data.type === 'task') {
-        const taskId = addTask({
-          description: data.description,
-          done: false,
-          dueDate: data.date,
-          dueDateLabel: null,
-          priority: 'media',
-          subtasks: [],
-          tags: [],
-          clientId: data.clientId,
-          supplierId: data.supplierId,
-          employeeId: data.employeeId,
-          createdAt: new Date().toISOString(),
-        });
-        calendarizeTask(taskId, {
-          date: data.date,
-          time: data.time,
-          eventType: data.eventType,
-          clientId: data.clientId,
-          supplierId: data.supplierId,
-          employeeId: data.employeeId,
-        });
-      } else {
-        addEvent(data);
-      }
-      clearRelationDraft('calendar');
-      setPendingEventDraft(null);
-      setSheetVisible(false);
-    },
-    [addEvent, addTask, calendarizeTask]
-  );
+  const handleSaveConfirmation = useConfirmedSave();
+    const handleSave = useCallback(
+        (data: Omit<CalendarEvent, 'id' | 'done'>) => { return handleSaveConfirmation.run(() => {
+          if (data.type === 'task') {
+                  const taskId = addTask({
+                    description: data.description,
+                    done: false,
+                    dueDate: data.date,
+                    dueDateLabel: null,
+                    priority: 'media',
+                    subtasks: [],
+                    tags: [],
+                    clientId: data.clientId,
+                    supplierId: data.supplierId,
+                    employeeId: data.employeeId,
+                    createdAt: new Date().toISOString(),
+                  });
+                  calendarizeTask(taskId, {
+                    date: data.date,
+                    time: data.time,
+                    eventType: data.eventType,
+                    clientId: data.clientId,
+                    supplierId: data.supplierId,
+                    employeeId: data.employeeId,
+                  });
+                } else {
+                  addEvent(data);
+                }
+          return () => {
+          clearRelationDraft('calendar');
+          setPendingEventDraft(null);
+          setSheetVisible(false);
+          };
+          }); },
+        [addEvent, addTask, calendarizeTask]
+      );
 
-  const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => {
-    if (addAtendimento(data)) setAppointmentSheetVisible(false);
-  }, [addAtendimento]);
+  const handleSaveAppointmentConfirmation = useConfirmedSave();
+    const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => { return handleSaveAppointmentConfirmation.run(() => { if (!addAtendimento(data)) return; return () => setAppointmentSheetVisible(false); }); }, [addAtendimento]);
 
-  const handleDeleteCalendarItem = useCallback((id: string) => {
-    if (id.startsWith('appointment:')) removeAtendimento(id.replace('appointment:', ''));
-    else removeEvent(id);
-  }, [removeAtendimento, removeEvent]);
+  const handleDeleteCalendarItem = useCallback((id: string) => { void confirmAction("calendario.tsx:handleDeleteCalendarItem:192" + ':' + id, () => {
+  if (id.startsWith('appointment:')) removeAtendimento(id.replace('appointment:', ''));
+      else removeEvent(id);
+  return () => {  };
+  }); }, [removeAtendimento, removeEvent]);
 
   const handleCancelCalendarItem = useCallback((id: string) => {
     if (id.startsWith('appointment:')) updateAtendimento(id.replace('appointment:', ''), { status: 'cancelado' });
@@ -314,11 +320,11 @@ export default function CalendarioScreen() {
                 : `/plugins/store?highlight=${pluginId}`;
               router.push(`${route}${route.includes('?') ? '&' : '?'}returnToCalendar=1&relation=${relation}` as any);
             }, 240);
-          }}
+          }} locked={handleSaveConfirmation.locked}
         />
       </BottomSheet>
       <BottomSheet visible={appointmentSheetVisible} onClose={() => setAppointmentSheetVisible(false)}>
-        <AppointmentForm initialDate={selectedDate} clients={clienteItems} quotes={activatedPlugins.includes('orcamentos') ? orcamentos : []} onSave={handleSaveAppointment} onCancel={() => setAppointmentSheetVisible(false)} />
+        <AppointmentForm initialDate={selectedDate} clients={clienteItems} quotes={activatedPlugins.includes('orcamentos') ? orcamentos : []} onSave={handleSaveAppointment} onCancel={() => setAppointmentSheetVisible(false)} locked={handleSaveAppointmentConfirmation.locked} />
       </BottomSheet>
       <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>

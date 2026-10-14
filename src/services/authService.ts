@@ -1,3 +1,4 @@
+import { isInvalidSession } from './sessionErrors';
 import { AuthError } from '../types/errors';
 import type { AuthResult, PublicUser, Session } from '../types/user';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
@@ -14,7 +15,7 @@ function session(accessToken: string, userId: string): Session {
 }
 async function profile(userId: string, fallback?: { name?: string; email?: string }): Promise<PublicUser> {
   const { data, error } = await client().from('profiles').select('id,name,email,photo,role,phone,onboarding_completed,created_at').eq('id', userId).maybeSingle();
-  if (error) throw new Error('Não foi possível carregar seu perfil.');
+  if (error || !data) throw new Error('Não foi possível carregar seu perfil. Tente novamente.');
   return {
     id: userId, name: data?.name ?? fallback?.name ?? '', email: data?.email ?? fallback?.email ?? '',
     photo: data?.photo ? await photoService.signedUrl() : null, role: data?.role ?? '', phone: data?.phone ?? '',
@@ -70,10 +71,21 @@ export const authService = {
   },
   async restoreSession(): Promise<AuthResult | null> {
     const api = client();
+    const saved = await api.auth.getSession();
+    if (saved.error) { if (isInvalidSession(saved.error)) return null; throw saved.error; }
+    if (!saved.data.session) return null;
     const { data, error } = await api.auth.getUser();
-    if (error || !data.user) return null;
+    if (error) {
+      if (isInvalidSession(error)) return null;
+      throw new Error('Não foi possível verificar sua sessão. Confira a internet e tente novamente.');
+    }
+    if (!data.user) return null;
     const { data: sessionData, error: sessionError } = await api.auth.getSession();
-    if (sessionError || !sessionData.session) return null;
+    if (sessionError) {
+      if (isInvalidSession(sessionError)) return null;
+      throw new Error('Não foi possível renovar sua sessão. Tente novamente.');
+    }
+    if (!sessionData.session) return null;
     return { user: await profile(data.user.id, { name: data.user.user_metadata?.name, email: data.user.email }), session: session(sessionData.session.access_token, data.user.id) };
   },
 };

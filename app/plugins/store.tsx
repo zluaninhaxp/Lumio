@@ -17,6 +17,7 @@ import {
   PluginId,
 } from "../../src/plugins/registry";
 import { AppAlert } from "@/src/services/appAlert";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 export default function PluginStoreScreen() {
   const router = useRouter();
@@ -50,36 +51,38 @@ export default function PluginStoreScreen() {
     return Number(bActive) - Number(aActive);
   });
 
-  const tryActivate = (pluginId: PluginId) => {
-    const check = canActivatePlugin(pluginId, activatedPlugins);
-    if (!check.ok) {
-      const labels = check.missing.map(
-        (id) => getPluginDefinition(id)?.label ?? id,
-      );
-      AppAlert.alert(
-        "Dependência necessária",
-        `Para ativar Comissões você precisa ter ${labels.join(" e ")} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
-        [{ text: "Entendi" }], { variant: 'warning' }
-      );
-      return;
-    }
-    setPluginActivation(pluginId, true);
-    const route = getPluginDefinition(pluginId)?.route;
-    if (route) {
-      const returnParams =
-        ((relation &&
-        (returnToFinance === "1" ||
-          returnToTasks === "1" ||
-          returnToCalendar === "1" ||
-          returnToQuotes === "1" ||
-          returnToContracts === "1" ||
-          returnToDeliveries === "1" ||
-          returnToSales === "1")) || returnToStock === "1")
-          ? `?${returnToFinance === "1" ? "returnToFinance" : returnToTasks === "1" ? "returnToTasks" : returnToCalendar === "1" ? "returnToCalendar" : returnToQuotes === "1" ? "returnToQuotes" : returnToContracts === "1" ? "returnToContracts" : returnToDeliveries === "1" ? "returnToDeliveries" : returnToSales === "1" ? "returnToSales" : "returnToStock"}=1${relation ? `&relation=${relation}` : ""}`
-          : "";
-      router.push(`${route}${returnParams}` as any);
-    }
+  const tryActivate = (pluginId: PluginId) => { void confirmAction("store.tsx:tryActivate:53" + ':' + pluginId, () => {
+  const check = canActivatePlugin(pluginId, activatedPlugins);
+  if (!check.ok) {
+          const labels = check.missing.map(
+            (id) => getPluginDefinition(id)?.label ?? id,
+          );
+          AppAlert.alert(
+            "Dependência necessária",
+            `Para ativar Comissões você precisa ter ${labels.join(" e ")} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
+            [{ text: "Entendi" }], { variant: 'warning' }
+          );
+          return;
+        }
+  setPluginActivation(pluginId, true);
+  return () => {
+  const route = getPluginDefinition(pluginId)?.route;
+  if (route) {
+          const returnParams =
+            ((relation &&
+            (returnToFinance === "1" ||
+              returnToTasks === "1" ||
+              returnToCalendar === "1" ||
+              returnToQuotes === "1" ||
+              returnToContracts === "1" ||
+              returnToDeliveries === "1" ||
+              returnToSales === "1")) || returnToStock === "1")
+              ? `?${returnToFinance === "1" ? "returnToFinance" : returnToTasks === "1" ? "returnToTasks" : returnToCalendar === "1" ? "returnToCalendar" : returnToQuotes === "1" ? "returnToQuotes" : returnToContracts === "1" ? "returnToContracts" : returnToDeliveries === "1" ? "returnToDeliveries" : returnToSales === "1" ? "returnToSales" : "returnToStock"}=1${relation ? `&relation=${relation}` : ""}`
+              : "";
+          router.push(`${route}${returnParams}` as any);
+        }
   };
+  }); };
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
@@ -194,8 +197,6 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm
   },
   cardHighlighted: {
-    borderWidth: 2,
-    borderColor: Colors.accentIcon,
     backgroundColor: Colors.accentLight,
   },
   cardIcon: {

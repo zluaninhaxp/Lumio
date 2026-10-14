@@ -24,6 +24,8 @@ import { EstoqueItem, useAppStore } from "../../src/store";
 import { CatalogItemSelector } from "../components/CatalogItemSelector";
 import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../src/utils/relationDraft";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const EMPTY_FORM = { catalogItemId: "", quantity: "", minAlert: "" };
 const EMPTY_MOVEMENT = { amount: "", reason: "" };
@@ -99,17 +101,22 @@ export default function EstoqueScreen() {
     setFormVisible(true);
   };
 
-  const saveItem = () => {
+  const saveItemConfirmation = useConfirmedSave();
+    const saveItem = () => {
+     void saveItemConfirmation.run(() => {
     const quantity = Math.max(0, Number(form.quantity) || 0);
     const minAlert = Math.max(0, Number(form.minAlert) || 0);
     if (!form.catalogItemId) return;
     if (editingId) {
-      const current = estoqueItems.find((item) => item.id === editingId);
-      if (!current) return;
-      updateEstoqueItem(editingId, { ...current, quantity, minAlert });
-    } else if (!addEstoqueItemFromCatalog(form.catalogItemId, quantity, minAlert)) return;
+          const current = estoqueItems.find((item) => item.id === editingId);
+          if (!current) return;
+          updateEstoqueItem(editingId, { ...current, quantity, minAlert });
+        } else if (!addEstoqueItemFromCatalog(form.catalogItemId, quantity, minAlert)) return;
+    return () => {
     setFormVisible(false);
-  };
+    };
+    });
+    };
 
   const openMovement = (item: EstoqueItem, type: "entrada" | "saida") => {
     setMovementItem(item);
@@ -118,20 +125,25 @@ export default function EstoqueScreen() {
     setMovementVisible(true);
   };
 
-  const saveMovement = () => {
+  const saveMovementConfirmation = useConfirmedSave();
+    const saveMovement = () => {
+     void saveMovementConfirmation.run(() => {
     if (!movementItem) return;
     const amount = Number(movement.amount.replace(",", "."));
     if (!Number.isFinite(amount) || amount <= 0) return;
     const delta = movementType === "entrada" ? amount : -amount;
     if (!moveEstoqueItem(movementItem.id, delta, movement.reason)) {
-      AppAlert.alert(
-        "Movimento não realizado",
-        "A saída não pode deixar o estoque negativo.", undefined, { variant: 'warning' }
-      );
-      return;
-    }
+          AppAlert.alert(
+            "Movimento não realizado",
+            "A saída não pode deixar o estoque negativo.", undefined, { variant: 'warning' }
+          );
+          return;
+        }
+    return () => {
     setMovementVisible(false);
-  };
+    };
+    });
+    };
 
   const deleteItem = (id: string) =>
     AppAlert.alert("Excluir item", "Tem certeza?", [
@@ -139,7 +151,10 @@ export default function EstoqueScreen() {
       {
         text: "Excluir",
         style: "destructive",
-        onPress: () => { if (!removeEstoqueItem(id)) AppAlert.alert('Item vinculado', 'Pedidos ou movimentos dependem deste item. O histórico foi preservado.', undefined, { variant: 'warning' }); },
+        onPress: () => { void confirmAction("estoque.tsx:action:153" + ':' + String(id), () => {
+        if (!removeEstoqueItem(id)) AppAlert.alert('Item vinculado', 'Pedidos ou movimentos dependem deste item. O histórico foi preservado.', undefined, { variant: 'warning' });
+        return () => {  };
+        }); },
       },
     ]);
 
@@ -152,10 +167,10 @@ export default function EstoqueScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation("estoque", false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("estoque.tsx:action:166" + ':' + String("estoque"), () => {
+          setPluginActivation("estoque", false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -186,7 +201,7 @@ export default function EstoqueScreen() {
           onChangeText={setQuery}
           placeholder="Buscar item"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(saveItemConfirmation.locked || saveMovementConfirmation.locked)}
         />
       </View>
 
@@ -211,7 +226,7 @@ export default function EstoqueScreen() {
               onEdit={() => openEdit(item)}
               onDelete={() => deleteItem(item.id)}
             >
-            <View style={[styles.card, isLow && styles.cardLow]}>
+            <View style={styles.card}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cardHeader}
                 onPress={() => openEdit(item)}
@@ -306,7 +321,7 @@ export default function EstoqueScreen() {
               onChangeText={(quantity) =>
                 setForm((current) => ({ ...current, quantity }))
               }
-              keyboardType="decimal-pad"
+              keyboardType="decimal-pad" editable={!(saveItemConfirmation.locked || saveMovementConfirmation.locked)}
             />
             <FormLabel>Quantidade mínima para alerta (opcional)</FormLabel>
             <FormTextInput
@@ -317,7 +332,7 @@ export default function EstoqueScreen() {
               onChangeText={(minAlert) =>
                 setForm((current) => ({ ...current, minAlert }))
               }
-              keyboardType="decimal-pad"
+              keyboardType="decimal-pad" editable={!(saveItemConfirmation.locked || saveMovementConfirmation.locked)}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
@@ -326,7 +341,7 @@ export default function EstoqueScreen() {
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button">
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button" disabled={saveItemConfirmation.saving}>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>
@@ -356,7 +371,7 @@ export default function EstoqueScreen() {
                 setMovement((current) => ({ ...current, amount }))
               }
               keyboardType="decimal-pad"
-              autoFocus focusStyle={{ color: Colors.accentText }}
+              autoFocus focusStyle={{ color: Colors.accentText }} editable={!(saveItemConfirmation.locked || saveMovementConfirmation.locked)}
             />
             <FormTextInput
               style={styles.input}
@@ -365,7 +380,7 @@ export default function EstoqueScreen() {
               value={movement.reason}
               onChangeText={(reason) =>
                 setMovement((current) => ({ ...current, reason }))
-              }
+              } editable={!(saveItemConfirmation.locked || saveMovementConfirmation.locked)}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
@@ -379,7 +394,7 @@ export default function EstoqueScreen() {
                   styles.modalConfirm,
                   movementType === "saida" && styles.exitConfirm,
                 ]}
-                onPress={saveMovement} accessibilityRole="button"
+                onPress={saveMovement} accessibilityRole="button" disabled={saveMovementConfirmation.saving}
               >
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
               </TouchableOpacity>
@@ -419,7 +434,6 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
   },
-  cardLow: { borderWidth: 1, borderColor: "#F2B8B8" },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   iconCircle: {
     width: 38,

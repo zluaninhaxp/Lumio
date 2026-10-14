@@ -25,6 +25,8 @@ import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles, Typog
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const periodLabels: Record<ContractPeriod, string> = {
   mensal: "Mensal",
@@ -137,38 +139,43 @@ export default function ContratosScreen() {
     setStartDate(contract.startDate);
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     const numericValue = Number(value.replace(",", "."));
     if (
-      !clientId ||
-      numericValue <= 0 ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
-    )
-      return;
+          !clientId ||
+          numericValue <= 0 ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
+        )
+          return;
     if (editingId)
-      updateContrato(editingId, {
-        clientId,
-        value: numericValue,
-        period,
-        startDate,
-      });
-    else if (
-      !addContrato({
-        clientId,
-        value: numericValue,
-        period,
-        startDate,
-        status: "ativo",
-        createdAt: new Date().toISOString(),
-      })
-    ) {
-      AppAlert.alert("Contrato não criado", "Selecione um cliente válido.", undefined, { variant: 'warning' });
-      return;
-    }
+          updateContrato(editingId, {
+            clientId,
+            value: numericValue,
+            period,
+            startDate,
+          });
+        else if (
+          !addContrato({
+            clientId,
+            value: numericValue,
+            period,
+            startDate,
+            status: "ativo",
+            createdAt: new Date().toISOString(),
+          })
+        ) {
+          AppAlert.alert("Contrato não criado", "Selecione um cliente válido.", undefined, { variant: 'warning' });
+          return;
+        }
     refreshContratos();
+    return () => {
     clearRelationDraft("contracts");
     setModalVisible(false);
-  };
+    };
+    });
+    };
   const clientName = (id: string) =>
     clienteItems.find((client) => client.id === id)?.name ??
     "Cliente não encontrado";
@@ -195,10 +202,10 @@ export default function ContratosScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("contratos", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("contratos.tsx:action:204" + ':' + String("contratos"), () => {
+                  setPluginActivation("contratos", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -219,7 +226,7 @@ export default function ContratosScreen() {
           onChangeText={setQuery}
           placeholder="Buscar contrato ou cliente"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -246,7 +253,10 @@ export default function ContratosScreen() {
                     {
                       text: "Excluir",
                       style: "destructive",
-                      onPress: () => removeContrato(contract.id),
+                      onPress: () => { void confirmAction("contratos.tsx:action:255" + ':' + String(contract.id), () => {
+                      removeContrato(contract.id);
+                      return () => {  };
+                      }); },
                     },
                   ],
                 )
@@ -303,7 +313,10 @@ export default function ContratosScreen() {
                       </Text>
                       <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         onPress={() =>
-                          markTransactionReceived(transaction.id, true)
+                          { void confirmAction("contratos.tsx:action:311" + ':' + String(transaction.id), () => {
+                            markTransactionReceived(transaction.id, true);
+                            return () => {  };
+                            }); }
                         }
                       >
                         <Text style={styles.receiveText}>Marcar recebida</Text>
@@ -316,7 +329,10 @@ export default function ContratosScreen() {
                 {contract.status === "ativo" && (
                   <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={() =>
-                      updateContrato(contract.id, { status: "cancelado" })
+                      { void confirmAction("contratos.tsx:action:324" + ':' + String(contract.id), () => {
+                        updateContrato(contract.id, { status: "cancelado" });
+                        return () => {  };
+                        }); }
                     }
                   >
                     <Text style={styles.cancel}>Cancelar</Text>
@@ -354,7 +370,7 @@ export default function ContratosScreen() {
                 onChangeText={setValue}
                 keyboardType="decimal-pad"
                 placeholder="R$ 0,00"
-                placeholderTextColor={Colors.placeholder}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
               <Text style={styles.label}>Periodicidade</Text>
               <View style={styles.periodRow}>
@@ -381,14 +397,14 @@ export default function ContratosScreen() {
                 value={startDate}
                 onChangeText={setStartDate}
                 placeholder="2026-08-11"
-                placeholderTextColor={Colors.placeholder}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
             </View>
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button">
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button">
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
                 <Text style={styles.saveText}>Salvar contrato</Text>
               </TouchableOpacity>
             </View>

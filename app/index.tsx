@@ -22,7 +22,7 @@ export default function Index() {
   useEffect(() => {
     if (!splashDone || loading) return;
     if (!isAuthenticated) router.replace('/welcome');
-    else if (!currentUser?.onboardingCompleted) router.replace('/onboarding');
+    else if (!currentUser?.onboardingCompleted) router.replace(useAppStore.getState().pendingOnboardingExtraction ? '/onboarding-summary' : '/onboarding');
     else router.replace('/(tabs)/chat');
   }, [splashDone, loading, isAuthenticated, currentUser, router]);
 

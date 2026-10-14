@@ -82,12 +82,16 @@ test('semantic text roles include approved family, size, line-height and color; 
     assert.equal(native.fontSize, style.fontSize); assert.equal(native.fontFamily, style.fontFamily); assert.equal(native.color, style.color);
   }
 });
-test('Stage 5 baseline properties remain unchanged except explicit Stage 6 empty/header replacements', () => {
+test('baseline preserves layouts with approved empty/header and shared surface changes', () => {
   const replacements = require('./visual-stage6-replaced-styles.json');
   let checked = 0;
   for (const [file, expected] of Object.entries(baseline)) {
     const current = evaluate(file).styles;
     for (const [key, digest] of Object.entries(expected)) {
+      // Low stock now uses the existing icon/badge, without outlining its card.
+      if (file === 'app/plugins/estoque.tsx' && key === 'cardLow') {
+        assert.equal(current[key], undefined); checked++; continue;
+      }
       if (replacements[file]?.includes(key)) {
         assert.equal(current[key], undefined, `${file}: replaced local style ${key} returned`);
         checked++; continue;

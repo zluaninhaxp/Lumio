@@ -22,6 +22,8 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const EMPTY = { name: "", role: "", contact: "", commissionRate: "" };
 
@@ -77,68 +79,73 @@ export default function EquipeScreen() {
     });
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     if (!form.name.trim() || !form.role.trim()) return;
     const rate = Number(form.commissionRate.replace(",", ".")) || 0;
     const payload = {
-      name: form.name.trim(),
-      role: form.role.trim(),
-      contact: form.contact.trim(),
-      commissionRate: rate,
-      createdAt: editingId
-        ? (employeeItems.find((item) => item.id === editingId)?.createdAt ??
-          new Date().toISOString())
-        : new Date().toISOString(),
-    };
+          name: form.name.trim(),
+          role: form.role.trim(),
+          contact: form.contact.trim(),
+          commissionRate: rate,
+          createdAt: editingId
+            ? (employeeItems.find((item) => item.id === editingId)?.createdAt ??
+              new Date().toISOString())
+            : new Date().toISOString(),
+        };
     let createdId: string | null = null;
     if (editingId) {
-      if (!updateEmployeeItem(editingId, payload)) {
-        AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
-        return;
-      }
-    } else {
-      createdId = addEmployeeItem(payload);
-      if (!createdId) {
-        AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
-        return;
-      }
-    }
+          if (!updateEmployeeItem(editingId, payload)) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        } else {
+          createdId = addEmployeeItem(payload);
+          if (!createdId) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        }
+    return () => {
     setModalVisible(false);
     if (
-      !editingId &&
-      createdId &&
-      returnToFinance === "1" &&
-      relation === "employee"
-    ) {
-      router.dismissTo({
-        pathname: "/(tabs)/financeiro",
-        params: { returnToFinance: "1", createdId, relation: "employee" },
-      });
-    } else if (
-      !editingId &&
-      createdId &&
-      (returnToTasks === "1" || returnToCalendar === "1") &&
-      relation === "employee"
-    ) {
-      router.dismissTo({
-        pathname:
-          returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
-        params: {
-          [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
-          createdId,
-          relation: "employee",
-        },
-      });
-    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "employee" } });
-    } else if (!editingId && createdId && returnToContracts === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "employee" } });
-    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "employee" } });
-    } else if (!editingId && createdId && returnToSales === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "employee" } });
-    }
-  };
+          !editingId &&
+          createdId &&
+          returnToFinance === "1" &&
+          relation === "employee"
+        ) {
+          router.dismissTo({
+            pathname: "/(tabs)/financeiro",
+            params: { returnToFinance: "1", createdId, relation: "employee" },
+          });
+        } else if (
+          !editingId &&
+          createdId &&
+          (returnToTasks === "1" || returnToCalendar === "1") &&
+          relation === "employee"
+        ) {
+          router.dismissTo({
+            pathname:
+              returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
+            params: {
+              [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
+              createdId,
+              relation: "employee",
+            },
+          });
+        } else if (!editingId && createdId && returnToQuotes === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "employee" } });
+        } else if (!editingId && createdId && returnToContracts === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "employee" } });
+        } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "employee" } });
+        } else if (!editingId && createdId && returnToSales === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "employee" } });
+        }
+    };
+    });
+    };
   const remove = (id: string) =>
     AppAlert.alert(
       "Excluir funcionário",
@@ -148,7 +155,10 @@ export default function EquipeScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => { if (!removeEmployeeItem(id)) AppAlert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.', undefined, { variant: 'warning' }); },
+          onPress: () => { void confirmAction("equipe.tsx:action:157" + ':' + String(id), () => {
+          if (!removeEmployeeItem(id)) AppAlert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.', undefined, { variant: 'warning' });
+          return () => {  };
+          }); },
         },
       ],
     );
@@ -166,10 +176,10 @@ export default function EquipeScreen() {
               {
                 text: "Desativar",
                 style: "destructive",
-                onPress: () => {
-                  setPluginActivation("equipe", false);
-                  router.back();
-                },
+                onPress: () => { void confirmAction("equipe.tsx:action:175" + ':' + String("equipe"), () => {
+                setPluginActivation("equipe", false);
+                return () => { router.back(); };
+                }); },
               },
             ])
           }
@@ -189,7 +199,7 @@ export default function EquipeScreen() {
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar funcionário"
-          placeholderTextColor={Colors.placeholder}
+          placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
@@ -246,7 +256,7 @@ export default function EquipeScreen() {
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
               placeholder="Nome"
               placeholderTextColor={Colors.placeholder}
-              autoFocus
+              autoFocus editable={!(saveConfirmation.locked)}
             />
             <RequiredLabel>Função</RequiredLabel>
             <FormTextInput
@@ -254,7 +264,7 @@ export default function EquipeScreen() {
               value={form.role}
               onChangeText={(v) => setForm((f) => ({ ...f, role: v }))}
               placeholder="Função"
-              placeholderTextColor={Colors.placeholder}
+              placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Contato (opcional)</FormLabel>
             <FormTextInput
@@ -262,7 +272,7 @@ export default function EquipeScreen() {
               value={form.contact}
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
               placeholder="Contato"
-              placeholderTextColor={Colors.placeholder}
+              placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Comissão (opcional)</FormLabel>
             <FormTextInput
@@ -273,7 +283,7 @@ export default function EquipeScreen() {
               }
               placeholder="Comissão (%)"
               placeholderTextColor={Colors.placeholder}
-              keyboardType="decimal-pad"
+              keyboardType="decimal-pad" editable={!(saveConfirmation.locked)}
             />
             <View style={styles.actions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
@@ -282,7 +292,7 @@ export default function EquipeScreen() {
               >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button">
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
                 <Text style={styles.confirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>

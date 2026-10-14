@@ -23,6 +23,8 @@ import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typog
 import { FornecedorItem, useAppStore } from "../../src/store";
 import { suggestedDueDate } from "../../src/utils/supplier";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const EMPTY_FORM = { name: "", contact: "", paymentTerm: "", notes: "" };
 const money = (value: number) =>
@@ -88,63 +90,68 @@ export default function FornecedoresScreen() {
     });
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     if (!form.name.trim()) return;
     const payload = {
-      name: form.name.trim(),
-      contact: form.contact.trim(),
-      paymentTerm: form.paymentTerm.trim(),
-      notes: form.notes.trim(),
-    };
+          name: form.name.trim(),
+          contact: form.contact.trim(),
+          paymentTerm: form.paymentTerm.trim(),
+          notes: form.notes.trim(),
+        };
     let createdId: string | null = null;
     if (editingId) {
-      if (!updateFornecedorItem(editingId, payload)) {
-        AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
-        return;
-      }
-    } else {
-      createdId = addFornecedorItem(payload);
-      if (!createdId) {
-        AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
-        return;
-      }
-    }
+          if (!updateFornecedorItem(editingId, payload)) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        } else {
+          createdId = addFornecedorItem(payload);
+          if (!createdId) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        }
+    return () => {
     setModalVisible(false);
     if (
-      !editingId &&
-      createdId &&
-      returnToFinance === "1" &&
-      relation === "supplier"
-    ) {
-      router.dismissTo({
-        pathname: "/(tabs)/financeiro",
-        params: { returnToFinance: "1", createdId, relation: "supplier" },
-      });
-    } else if (
-      !editingId &&
-      createdId &&
-      (returnToTasks === "1" || returnToCalendar === "1") &&
-      relation === "supplier"
-    ) {
-      router.dismissTo({
-        pathname:
-          returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
-        params: {
-          [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
-          createdId,
-          relation: "supplier",
-        },
-      });
-    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "supplier" } });
-    } else if (!editingId && createdId && returnToContracts === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "supplier" } });
-    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "supplier" } });
-    } else if (!editingId && createdId && returnToSales === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "supplier" } });
-    }
-  };
+          !editingId &&
+          createdId &&
+          returnToFinance === "1" &&
+          relation === "supplier"
+        ) {
+          router.dismissTo({
+            pathname: "/(tabs)/financeiro",
+            params: { returnToFinance: "1", createdId, relation: "supplier" },
+          });
+        } else if (
+          !editingId &&
+          createdId &&
+          (returnToTasks === "1" || returnToCalendar === "1") &&
+          relation === "supplier"
+        ) {
+          router.dismissTo({
+            pathname:
+              returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
+            params: {
+              [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
+              createdId,
+              relation: "supplier",
+            },
+          });
+        } else if (!editingId && createdId && returnToQuotes === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "supplier" } });
+        } else if (!editingId && createdId && returnToContracts === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "supplier" } });
+        } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "supplier" } });
+        } else if (!editingId && createdId && returnToSales === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "supplier" } });
+        }
+    };
+    });
+    };
   const deleteSupplier = (id: string) =>
     AppAlert.alert(
       "Excluir fornecedor",
@@ -154,7 +161,10 @@ export default function FornecedoresScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => removeFornecedorItem(id),
+          onPress: () => { void confirmAction("fornecedores.tsx:action:163" + ':' + String(id), () => {
+          removeFornecedorItem(id);
+          return () => {  };
+          }); },
         },
       ],
     );
@@ -188,10 +198,10 @@ export default function FornecedoresScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("fornecedores", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("fornecedores.tsx:action:197" + ':' + String("fornecedores"), () => {
+                  setPluginActivation("fornecedores", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -212,7 +222,7 @@ export default function FornecedoresScreen() {
           onChangeText={setQuery}
           placeholder="Buscar fornecedor"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -352,7 +362,7 @@ export default function FornecedoresScreen() {
               placeholderTextColor={Colors.placeholder}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-              autoFocus
+              autoFocus editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Contato (opcional)</FormLabel>
             <FormTextInput
@@ -360,7 +370,7 @@ export default function FornecedoresScreen() {
               placeholder="Contato (opcional)"
               placeholderTextColor={Colors.placeholder}
               value={form.contact}
-              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Prazo padrão (opcional)</FormLabel>
             <FormTextInput
@@ -368,7 +378,7 @@ export default function FornecedoresScreen() {
               placeholder="Prazo padrão (ex.: 30 dias)"
               placeholderTextColor={Colors.placeholder}
               value={form.paymentTerm}
-              onChangeText={(v) => setForm((f) => ({ ...f, paymentTerm: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, paymentTerm: v }))} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Observações (opcional)</FormLabel>
             <FormTextInput
@@ -377,7 +387,7 @@ export default function FornecedoresScreen() {
               placeholderTextColor={Colors.placeholder}
               value={form.notes}
               onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
-              multiline
+              multiline editable={!(saveConfirmation.locked)}
             />
             <View style={styles.modalActions}>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
@@ -386,7 +396,7 @@ export default function FornecedoresScreen() {
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button">
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>
             </View>

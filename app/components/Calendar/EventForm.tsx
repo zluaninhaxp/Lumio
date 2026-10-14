@@ -16,18 +16,20 @@ import { TagSelector } from '../TagSelector';
 import { taskFormStyles } from '../Tasks/taskFormStyles';
 import { TaskDateSelector } from '../Tasks/TaskDateSelector';
 import { TaskPeopleSelector, type Relation } from '../Tasks/TaskPeopleSelector';
+import { useRef } from "react";
 
 export type EventFormData = Omit<CalendarEvent, 'id' | 'done'>;
 
 interface EventFormProps {
   initialDate: string;
-  onSave: (data: EventFormData) => void;
+  onSave: (data: EventFormData) => void | Promise<void>;
   onCancel: () => void;
   initialData?: Partial<EventFormData>;
   onBeforeNavigate?: (relation: Relation, data: EventFormData) => void;
+    locked?: boolean;
 }
 
-export function EventForm({ initialDate, onSave, onCancel, initialData, onBeforeNavigate }: EventFormProps) {
+export function EventForm({ initialDate, onSave, onCancel, initialData, onBeforeNavigate , locked = false }: EventFormProps) {
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [type, setType] = useState<'event' | 'task'>(initialData?.type ?? 'event');
   const [eventType, setEventType] = useState<string>(initialData?.type === 'event' ? initialData.eventType ?? '' : '');
@@ -68,17 +70,21 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
     return Number(match[1]) <= 23 && Number(match[2]) <= 59;
   };
 
-  const handleSave = () => {
-    if (!description.trim() || (time && !isValidTime(time))) return;
-    onSave({
-      date,
-      time: time || '00:00',
-      description: description.trim(),
-      type,
-      eventType: type === 'event' ? (eventType || undefined) : (taskTag || undefined),
-      ...people,
-    });
-  };
+  const saveBusy = useRef(false);
+    const [saving, setSaving] = useState(false);
+    const handleSave = async () => { if (saveBusy.current) return; saveBusy.current = true; setSaving(true); try {
+
+          if (!description.trim() || (time && !isValidTime(time))) return;
+          await onSave({
+            date,
+            time: time || '00:00',
+            description: description.trim(),
+            type,
+            eventType: type === 'event' ? (eventType || undefined) : (taskTag || undefined),
+            ...people,
+          });
+
+      } finally { saveBusy.current = false; setSaving(false); } };
 
   const handleSelectType = (next: 'event' | 'task') => {
     setType(next);
@@ -97,7 +103,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
         value={description}
         onChangeText={setDescription}
         placeholder="Descreva o item..."
-        placeholderTextColor={Colors.placeholder}
+        placeholderTextColor={Colors.placeholder} editable={!locked && !saving}
       />
 
       <Text style={styles.label}>Tipo</Text>
@@ -157,7 +163,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
         placeholder="00:00"
         placeholderTextColor={Colors.placeholder}
         keyboardType="numbers-and-punctuation"
-        maxLength={5}
+        maxLength={5} editable={!locked && !saving}
       />
 
       <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.detailsToggle} onPress={() => setDetailsVisible((visible) => !visible)}>
@@ -187,7 +193,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !description.trim() && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={!description.trim()} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
+          disabled={saving || (!description.trim())} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
             <Text style={styles.saveBtnText}>Adicionar</Text>
         </TouchableOpacity>

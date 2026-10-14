@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 const MONTH_NAMES = [
@@ -81,7 +82,10 @@ export default function ComissoesScreen() {
         { text: "Cancelar", style: "cancel" },
         {
           text: "Concluir",
-          onPress: () => closeEmployeeCommission(employeeId),
+          onPress: () => { void confirmAction("comissoes.tsx:action:84" + ':' + String(employeeId), () => {
+          closeEmployeeCommission(employeeId);
+          return () => {  };
+          }); },
         },
       ],
     );
@@ -95,10 +99,10 @@ export default function ComissoesScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation("comissoes", false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("comissoes.tsx:action:98" + ':' + String("comissoes"), () => {
+          setPluginActivation("comissoes", false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -208,7 +212,7 @@ const styles = StyleSheet.create({
   iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
   summaryCard: {
-    backgroundColor: Colors.accentLight,
+    ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,

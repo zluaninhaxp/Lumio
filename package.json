@@ -9,6 +9,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
+    "test:surfaces": "node scripts/card-surfaces.test.cjs",
+    "test:task-suggestions": "node scripts/task-suggestions.test.cjs",
     "test:voice": "node scripts/voice-recognition.test.cjs",
     "test:visual-stage3": "node scripts/visual-stage3.test.cjs",
     "test:bottom-sheet": "node scripts/bottom-sheet-layout.test.cjs && node scripts/bottom-sheet-dismissal.test.cjs",
@@ -24,7 +26,8 @@
     "expand-dictionaries": "tsx scripts/expand-dictionaries.ts",
     "test:visual-stage4": "node scripts/visual-stage4.test.cjs",
     "test:visual-stage5": "node scripts/visual-stage5.test.cjs",
-    "test:visual-stage6": "node scripts/visual-stage6.test.cjs"
+    "test:visual-stage6": "node scripts/visual-stage6.test.cjs",
+    "test:persistence": "node scripts/persistence.test.cjs && node scripts/persistence-auth.test.cjs && node scripts/persistence-sql.test.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
@@ -62,6 +65,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",
+    "@electric-sql/pglite": "^0.5.9",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.12",
     "ts-morph": "^26.0.0",

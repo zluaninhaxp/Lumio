@@ -1,3 +1,4 @@
+import { businessStateService } from '../src/services/businessStateService';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
@@ -102,10 +103,11 @@ export default function CelebrationScreen() {
    * aviso apropriado (instrução 3.2).
    */
   const applyResult = useCallback(
-    (result: OnboardingExtractionResult, isSimulation: boolean) => {
+    async (result: OnboardingExtractionResult, isSimulation: boolean) => {
       if (disposedRef.current) return;
       setPendingOnboardingExtraction(result, isSimulation);
-      router.replace('/onboarding-report-intro');
+      await businessStateService.commit();
+      if (!disposedRef.current) router.replace('/onboarding-report-intro');
     },
     [setPendingOnboardingExtraction, router],
   );
@@ -122,7 +124,7 @@ export default function CelebrationScreen() {
   const useSimulationFallback = useCallback(
     () => {
       const mockResult = buildMockExtractionResult(openAnswers);
-      applyResult(mockResult, true);
+      void applyResult(mockResult, true).catch(() => { setPhase('error'); setError({ message: 'Não foi possível salvar o relatório. Tente novamente com internet.', kind: 'provider' }); });
     },
     [openAnswers, applyResult],
   );
@@ -148,8 +150,9 @@ export default function CelebrationScreen() {
     (async () => {
       try {
         if (!onboardingContext) throw new AIProviderError('invalid-input');
-        const result = await extractBusinessProfile(onboardingContext);
-        applyResult(result, false);
+        const saved = useAppStore.getState().pendingOnboardingExtraction;
+        const result = saved ?? await extractBusinessProfile(onboardingContext);
+        await applyResult(result, false);
       } catch (e) {
         if (disposedRef.current) return;
 

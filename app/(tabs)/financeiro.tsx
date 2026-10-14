@@ -134,7 +134,6 @@ export default function FinanceiroScreen() {
       } else {
         transactionId = addTransaction(data);
       }
-      closeSheet();
       return transactionId;
     },
     [editingItem, addTransaction, updateTransaction, closeSheet]
@@ -332,6 +331,7 @@ export default function FinanceiroScreen() {
         <BottomSheet visible={sheetVisible} onClose={closeSheet}>
           <QuickAddForm
             onSave={handleSaveTransaction}
+            onSaved={closeSheet}
             onCancel={closeSheet}
             editData={editingItem}
             categories={quickAddCategories}

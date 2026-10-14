@@ -1,3 +1,6 @@
+import { ModuleSuggestions, type ModuleSuggestion } from '../components/Tasks/ModuleSuggestions';
+import { useDismissedTaskSuggestions } from '../../src/hooks/use-dismissed-task-suggestions';
+import { useSystemReducedMotion } from '../../src/hooks/use-system-reduced-motion';
 import { HorizontalOptions } from '../../src/components/horizontal-options';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModalKeyboardViewport } from '../../src/components/modal-keyboard-viewport';
@@ -6,7 +9,8 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   Modal, LayoutAnimation, Platform, UIManager, ActivityIndicator,
-  Pressable, ScrollView, KeyboardAvoidingView,
+  Pressable, ScrollView, KeyboardAvoidingView, Keyboard,
+  type NativeMethods,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
@@ -27,6 +31,8 @@ import { BottomFade } from '../components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -94,6 +100,10 @@ function formatDueDate(dateStr: string | null): string {
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
 }
 
+function daysSince(dateStr: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)));
+}
+
 function isToday(dateStr: string | null): boolean {
   if (!dateStr) return false;
   const d = new Date(dateStr + 'T00:00:00');
@@ -130,6 +140,17 @@ export default function TarefasScreen() {
   }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
+  const { dismissedIds, dismiss: dismissSuggestion, ready: suggestionsReady } = useDismissedTaskSuggestions(currentUser?.id);
+  const reducedMotion = useSystemReducedMotion();
+  const taskListRef = useRef<FlatList<Task>>(null);
+  const emptyListRef = useRef<ScrollView>(null);
+  const suggestionsHeight = useRef(0);
+  const contentHeight = useRef(0);
+  const anchorRequested = useRef(false);
+  const suggestionsAnchorRef = useRef<View>(null);
+  const scrollOffset = useRef(0);
+  const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (anchorTimer.current) clearTimeout(anchorTimer.current); }, []);
   const { tasks, addTask, updateTask, toggleTask, removeTask, taskTags, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,36 +191,40 @@ export default function TarefasScreen() {
     return [{ transaction, supplier, days }];
   }), [transactions, fornecedorItems, tasks]);
 
-  const confirmSupplierSuggestion = useCallback((suggestion: (typeof supplierSuggestions)[number]) => {
-    addTask({
-      description: `Confirmar pagamento para ${suggestion.supplier.name}: ${suggestion.transaction.description}`,
-      done: false,
-      dueDate: suggestion.transaction.supplierDueDate ?? null,
-      dueDateLabel: suggestion.days === 0 ? 'Hoje' : suggestion.days === 1 ? 'Amanhã' : undefined,
-      priority: suggestion.days === 0 ? 'alta' : 'media',
-      subtasks: [],
-      tags: ['Fornecedor', 'Financeiro'],
-      createdAt: new Date().toISOString(),
-    });
-  }, [addTask]);
+  const confirmSupplierSuggestion = useCallback((suggestion: (typeof supplierSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmSupplierSuggestion:193", () => {
+  addTask({
+        description: `Confirmar pagamento para ${suggestion.supplier.name}: ${suggestion.transaction.description}`,
+        done: false,
+        dueDate: suggestion.transaction.supplierDueDate ?? null,
+        dueDateLabel: suggestion.days === 0 ? 'Hoje' : suggestion.days === 1 ? 'Amanhã' : undefined,
+        priority: suggestion.days === 0 ? 'alta' : 'media',
+        subtasks: [],
+        tags: ['Fornecedor', 'Financeiro'],
+        createdAt: new Date().toISOString(),
+      });
+  return () => {  };
+  }); }, [addTask]);
 
   const stockSuggestions = useMemo(() => estoqueItems.filter((item) => item.quantity < item.minAlert && !tasks.some((task) => task.description.toLowerCase().includes(item.name.toLowerCase()) && !task.done)), [estoqueItems, tasks]);
 
-  const confirmStockSuggestion = useCallback((item: (typeof stockSuggestions)[number]) => {
-    addTask({ description: `Comprar ${item.name}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Estoque'], createdAt: new Date().toISOString() });
-  }, [addTask]);
+  const confirmStockSuggestion = useCallback((item: (typeof stockSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmStockSuggestion:208", () => {
+  addTask({ description: `Comprar ${item.name}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Estoque'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask]);
 
   const orderFollowUpSuggestions = useMemo(() => pedidos.filter((order) => order.status === 'aberto' && (Date.now() - new Date(order.createdAt).getTime()) >= 3 * 24 * 60 * 60 * 1000 && !tasks.some((task) => task.description.includes(order.id) && !task.done)), [pedidos, tasks]);
-  const confirmOrderFollowUp = useCallback((order: (typeof orderFollowUpSuggestions)[number]) => {
-    const client = clienteItems.find((item) => item.id === order.clientId);
-    addTask({ description: `Fazer follow-up do pedido ${order.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
-  }, [addTask, clienteItems]);
+  const confirmOrderFollowUp = useCallback((order: (typeof orderFollowUpSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmOrderFollowUp:213", () => {
+  const client = clienteItems.find((item) => item.id === order.clientId);
+  addTask({ description: `Fazer follow-up do pedido ${order.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask, clienteItems]);
 
   const quoteFollowUpSuggestions = useMemo(() => orcamentos.filter((quote) => quote.status === 'pendente' && (Date.now() - new Date(quote.createdAt).getTime()) >= 3 * 24 * 60 * 60 * 1000 && !tasks.some((task) => task.description.includes(quote.id) && !task.done)), [orcamentos, tasks]);
-  const confirmQuoteFollowUp = useCallback((quote: (typeof quoteFollowUpSuggestions)[number]) => {
-    const client = clienteItems.find((item) => item.id === quote.clientId);
-    addTask({ description: `Fazer follow-up do orçamento ${quote.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
-  }, [addTask, clienteItems]);
+  const confirmQuoteFollowUp = useCallback((quote: (typeof quoteFollowUpSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmQuoteFollowUp:219", () => {
+  const client = clienteItems.find((item) => item.id === quote.clientId);
+  addTask({ description: `Fazer follow-up do orçamento ${quote.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask, clienteItems]);
 
   const showCommissionSuggestion = useMemo(() => {
     if (!activatedPlugins.includes('comissoes')) return false;
@@ -209,9 +234,10 @@ export default function TarefasScreen() {
     if (!hasPending) return false;
     return !tasks.some((task) => /fechar\s+comiss/i.test(task.description) && !task.done);
   }, [activatedPlugins, commissions, tasks]);
-  const confirmCommissionSuggestion = useCallback(() => {
-    addTask({ description: 'Fechar comissões do mês anterior', done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Financeiro'], createdAt: new Date().toISOString() });
-  }, [addTask]);
+  const confirmCommissionSuggestion = useCallback(() => { void confirmAction("tarefas.tsx:confirmCommissionSuggestion:232", () => {
+  addTask({ description: 'Fechar comissões do mês anterior', done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Financeiro'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask]);
 
   const contractSuggestions = useMemo(() => transactions.flatMap((transaction) => {
     if (!transaction.contractId || transaction.amount <= 0 || transaction.confirmed !== false || !transaction.expectedDate) return [];
@@ -220,9 +246,16 @@ export default function TarefasScreen() {
     const client = clienteItems.find((item) => item.id === transaction.clientId);
     return [{ transaction, client, days }];
   }), [transactions, clienteItems, tasks]);
-  const confirmContractSuggestion = useCallback((suggestion: (typeof contractSuggestions)[number]) => {
-    addTask({ description: `Cobrar assinatura ${suggestion.client?.name ?? 'do cliente'} (${suggestion.transaction.id})`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: suggestion.days < 0 ? 'Em atraso' : 'Hoje', priority: 'alta', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
-  }, [addTask]);
+  const confirmContractSuggestion = useCallback((suggestion: (typeof contractSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmContractSuggestion:243", () => {
+  addTask({ description: `Cobrar assinatura ${suggestion.client?.name ?? 'do cliente'} (${suggestion.transaction.id})`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: suggestion.days < 0 ? 'Em atraso' : 'Hoje', priority: 'alta', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask]);
+
+  const pendingCommissionMonths = new Set(
+    commissions
+      .filter(item => !item.paid && item.month < new Date().toISOString().slice(0, 7))
+      .map(item => item.month),
+  ).size;
 
   const deliverySuggestions = useMemo(() => entregas.flatMap((delivery) => {
     if (delivery.status !== 'a caminho') return [];
@@ -230,9 +263,10 @@ export default function TarefasScreen() {
     if (days < 0 || days > 2 || tasks.some((task) => task.description.includes(delivery.id) && !task.done)) return [];
     return [{ delivery, days }];
   }), [entregas, tasks]);
-  const confirmDeliverySuggestion = useCallback((delivery: (typeof deliverySuggestions)[number]['delivery']) => {
-    addTask({ description: `Acompanhar entrega ${delivery.id.slice(-6)} do pedido ${delivery.orderId.slice(-6)}`, done: false, dueDate: delivery.estimatedDate, dueDateLabel: 'Prazo próximo', priority: 'alta', subtasks: [], tags: ['Entregas'], createdAt: new Date().toISOString(), employeeId: delivery.employeeId });
-  }, [addTask]);
+  const confirmDeliverySuggestion = useCallback((delivery: (typeof deliverySuggestions)[number]['delivery']) => { void confirmAction("tarefas.tsx:confirmDeliverySuggestion:259", () => {
+  addTask({ description: `Acompanhar entrega ${delivery.id.slice(-6)} do pedido ${delivery.orderId.slice(-6)}`, done: false, dueDate: delivery.estimatedDate, dueDateLabel: 'Prazo próximo', priority: 'alta', subtasks: [], tags: ['Entregas'], createdAt: new Date().toISOString(), employeeId: delivery.employeeId });
+  return () => {  };
+  }); }, [addTask]);
 
   const appointmentSuggestions = useMemo(() => atendimentos.flatMap((appointment) => {
     if (appointment.status !== 'confirmado') return [];
@@ -240,10 +274,68 @@ export default function TarefasScreen() {
     if (days < 0 || days > 2 || tasks.some((task) => task.description.includes(appointment.id) && !task.done)) return [];
     return [{ appointment, days }];
   }), [atendimentos, tasks]);
-  const confirmAppointmentSuggestion = useCallback((appointment: (typeof appointmentSuggestions)[number]['appointment']) => {
-    const client = clienteItems.find((item) => item.id === appointment.clientId);
-    addTask({ description: `Confirmar atendimento ${appointment.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: appointment.date, dueDateLabel: 'Próximo', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
-  }, [addTask, clienteItems]);
+  const confirmAppointmentSuggestion = useCallback((appointment: (typeof appointmentSuggestions)[number]['appointment']) => { void confirmAction("tarefas.tsx:confirmAppointmentSuggestion:269", () => {
+  const client = clienteItems.find((item) => item.id === appointment.clientId);
+  addTask({ description: `Confirmar atendimento ${appointment.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: appointment.date, dueDateLabel: 'Próximo', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask, clienteItems]);
+
+  // Keep the existing eligibility rules and creation callbacks; adapt only presentation.
+  const moduleSuggestions = useMemo<ModuleSuggestion[]>(() => [
+    ...contractSuggestions.map(suggestion => ({
+      id: `contract:${suggestion.transaction.id}:${suggestion.transaction.expectedDate}`,
+      icon: 'repeat-outline' as const, label: suggestion.days < 0 ? 'Cobrança atrasada' : 'Cobrança hoje',
+      title: suggestion.client?.name ?? `Assinatura #${suggestion.transaction.contractId?.slice(-6)}`,
+      description: suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje',
+      tone: 'warning' as const, onCreate: () => confirmContractSuggestion(suggestion),
+    })),
+    ...appointmentSuggestions.map(({ appointment, days }) => ({
+      id: `appointment:${appointment.id}:${appointment.date}:${appointment.time}`,
+      icon: 'calendar-outline' as const, label: 'Atendimento próximo', title: appointment.service,
+      description: `${days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : 'Em ' + days + ' dias'} às ${appointment.time}`,
+      tone: 'neutral' as const, onCreate: () => confirmAppointmentSuggestion(appointment),
+    })),
+    ...deliverySuggestions.map(({ delivery, days }) => ({
+      id: `delivery:${delivery.id}:${delivery.estimatedDate}`,
+      icon: 'bicycle-outline' as const, label: 'Entrega perto do prazo', title: `Pedido #${delivery.orderId.slice(-6)}`,
+      description: days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`,
+      tone: 'warning' as const, onCreate: () => confirmDeliverySuggestion(delivery),
+    })),
+    ...supplierSuggestions.map(suggestion => ({
+      id: `supplier:${suggestion.transaction.id}:${suggestion.transaction.supplierDueDate}`,
+      icon: 'briefcase-outline' as const, label: 'Pagamento próximo', title: suggestion.supplier.name,
+      description: suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`,
+      tone: 'warning' as const, onCreate: () => confirmSupplierSuggestion(suggestion),
+    })),
+    ...stockSuggestions.map(item => ({
+      id: `stock:${item.id}:${item.quantity}:${item.minAlert}`,
+      icon: 'cube-outline' as const, label: 'Estoque baixo', title: item.name,
+      description: `${item.quantity} unidades (mínimo ${item.minAlert})`,
+      tone: 'danger' as const, onCreate: () => confirmStockSuggestion(item),
+    })),
+    ...orderFollowUpSuggestions.map(order => ({
+      id: `order:${order.id}:${order.createdAt}`,
+      icon: 'receipt-outline' as const, label: 'Pedido sem conclusão',
+      title: `Pedido #${order.id.slice(-6)} · ${clienteItems.find(client => client.id === order.clientId)?.name ?? 'Cliente não informado'}`,
+      description: `Aberto há ${daysSince(order.createdAt)} dias`,
+      tone: 'warning' as const, onCreate: () => confirmOrderFollowUp(order),
+    })),
+    ...quoteFollowUpSuggestions.map(quote => ({
+      id: `quote:${quote.id}:${quote.createdAt}`,
+      icon: 'document-text-outline' as const, label: 'Orçamento sem resposta',
+      title: `Orçamento #${quote.id.slice(-6)} · ${clienteItems.find(client => client.id === quote.clientId)?.name ?? 'Cliente não informado'}`,
+      description: `Sem resposta há ${daysSince(quote.createdAt)} dias`,
+      tone: 'warning' as const, onCreate: () => confirmQuoteFollowUp(quote),
+    })),
+    ...(showCommissionSuggestion ? [{
+      id: `commissions:${commissions.filter(item => !item.paid).map(item => item.id + ':' + item.month).sort().join(',')}`,
+      icon: 'cash-outline' as const, label: 'Comissões pendentes', title: 'Fechamento de comissões',
+      description: `${pendingCommissionMonths} ${pendingCommissionMonths === 1 ? 'mês pendente' : 'meses pendentes'}`,
+      tone: 'warning' as const, onCreate: confirmCommissionSuggestion,
+    }] : []),
+  ], [contractSuggestions, appointmentSuggestions, deliverySuggestions, supplierSuggestions, stockSuggestions, orderFollowUpSuggestions, quoteFollowUpSuggestions, showCommissionSuggestion, commissions, clienteItems, confirmContractSuggestion, confirmAppointmentSuggestion, confirmDeliverySuggestion, confirmSupplierSuggestion, confirmStockSuggestion, confirmOrderFollowUp, confirmQuoteFollowUp, confirmCommissionSuggestion]);
+  const visibleSuggestions = suggestionsReady ? moduleSuggestions.filter(item => !dismissedIds.has(item.id)) : [];
+  const hasModuleSuggestions = visibleSuggestions.length > 0;
 
   useEffect(() => {
     refreshOrcamentos();
@@ -294,6 +386,7 @@ export default function TarefasScreen() {
   }, [tasks, searchQuery, activeFilter, activeTagFilters]);
 
   const hasNoTasksAtAll = tasks.length === 0;
+  useEffect(() => { anchorRequested.current = false; }, [activeFilter, activeTagFilters, searchQuery]);
   const taskBeingAssigned = employeePicker ? tasks.find((task) => task.id === employeePicker) : null;
 
   const handleAddTask = useCallback((data: TaskFormData) => {
@@ -310,39 +403,33 @@ export default function TarefasScreen() {
       createdAt: new Date().toISOString(),
       employeeId: data.employeeId,
     });
-    setSheetVisible(false);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, [addTask]);
 
-  const handleSaveTask = useCallback((data: TaskFormData) => {
-    if (editingTask) {
-      updateTask(editingTask.id, data);
-      setEditingTask(null);
-      clearRelationDraft('task');
-      setPendingTaskDraft(null);
-      setSheetVisible(false);
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      return;
-    }
-    clearRelationDraft('task');
-    setPendingTaskDraft(null);
-    handleAddTask(data);
-  }, [editingTask, handleAddTask, updateTask]);
+  const taskSave = useConfirmedSave();
+    const handleSaveTask = useCallback((data: TaskFormData) => {
+       return taskSave.run(() => {
+       if (editingTask) updateTask(editingTask.id, data);
+       else handleAddTask(data);
+       return () => { setEditingTask(null); clearRelationDraft('task'); setPendingTaskDraft(null); setSheetVisible(false); LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); };
+       });
+      }, [editingTask, handleAddTask, updateTask]);
 
   const handleToggle = useCallback(
-    (id: string) => {
+    (id: string) => { void confirmAction("tarefas.tsx:handleToggle:409" + ':' + id, () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       toggleTask(id);
-    },
+      return () => {  };
+      }); },
     [toggleTask],
   );
 
   const handleDelete = useCallback(
-    (id: string) => {
+    (id: string) => { void confirmAction("tarefas.tsx:handleDelete:417" + ':' + id, () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       removeTask(id);
       if (expandedTaskId === id) setExpandedTaskId(null);
-    },
+      return () => {  };
+      }); },
     [removeTask, expandedTaskId],
   );
 
@@ -353,22 +440,22 @@ export default function TarefasScreen() {
   }, []);
 
   const handleSetPriority = useCallback(
-    (taskId: string | undefined, priority: Priority) => {
+    (taskId: string | undefined, priority: Priority) => { void confirmAction("tarefas.tsx:handleSetPriority:432" + ':' + taskId, () => {
       if (taskId) {
-        updateTask(taskId, { priority });
-      }
-      setPriorityPicker(null);
-    },
+              updateTask(taskId, { priority });
+            }
+      return () => { setPriorityPicker(null); };
+      }); },
     [updateTask],
   );
 
   const handleSetDueDate = useCallback(
-    (taskId: string | undefined, dueDate: string | null, label?: string | null) => {
+    (taskId: string | undefined, dueDate: string | null, label?: string | null) => { void confirmAction("tarefas.tsx:handleSetDueDate:442" + ':' + taskId, () => {
       if (taskId) {
-        updateTask(taskId, { dueDate, dueDateLabel: label ?? null });
-      }
-      setDatePicker(null);
-    },
+              updateTask(taskId, { dueDate, dueDateLabel: label ?? null });
+            }
+      return () => { setDatePicker(null); };
+      }); },
     [updateTask],
   );
 
@@ -378,35 +465,37 @@ export default function TarefasScreen() {
   }, []);
 
   const handleToggleSubtask = useCallback(
-    (taskId: string, subtaskId: string) => {
+    (taskId: string, subtaskId: string) => { void confirmAction("tarefas.tsx:handleToggleSubtask:457" + ':' + taskId, () => {
       const subtasks = getFreshSubtasks(taskId);
       const updated = subtasks.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s));
       updateTask(taskId, { subtasks: updated });
-    },
+      return () => {  };
+      }); },
     [updateTask, getFreshSubtasks],
   );
 
   const handleRemoveSubtask = useCallback(
-    (taskId: string, subtaskId: string) => {
+    (taskId: string, subtaskId: string) => { void confirmAction("tarefas.tsx:handleRemoveSubtask:466" + ':' + taskId, () => {
       const subtasks = getFreshSubtasks(taskId);
       updateTask(taskId, { subtasks: subtasks.filter((s) => s.id !== subtaskId) });
-    },
+      return () => {  };
+      }); },
     [updateTask, getFreshSubtasks],
   );
 
   const handleAddSubtask = useCallback(
-    (taskId: string) => {
+    (taskId: string) => { void confirmAction("tarefas.tsx:handleAddSubtask:474" + ':' + taskId, () => {
       const text = (newSubtaskTexts[taskId] ?? '').trim();
       if (!text) return;
       const subtasks = getFreshSubtasks(taskId);
       const newSub: Subtask = { id: Date.now().toString(), text, done: false };
       updateTask(taskId, { subtasks: [...subtasks, newSub] });
-      setNewSubtaskTexts((prev) => {
-        const copy = { ...prev };
-        delete copy[taskId];
-        return copy;
-      });
-    },
+      return () => { setNewSubtaskTexts((prev) => {
+              const copy = { ...prev };
+              delete copy[taskId];
+              return copy;
+            }); };
+      }); },
     [newSubtaskTexts, updateTask, getFreshSubtasks],
   );
 
@@ -426,44 +515,46 @@ export default function TarefasScreen() {
   );
 
   const handleToggleTag = useCallback(
-    (taskId: string, tag: string) => {
+    (taskId: string, tag: string) => { void confirmAction("tarefas.tsx:handleToggleTag:505" + ':' + taskId, () => {
       const task = useAppStore.getState().tasks.find((t) => t.id === taskId);
       if (!task) return;
       const hasTag = task.tags.includes(tag);
       updateTask(taskId, {
-        tags: hasTag ? task.tags.filter((t) => t !== tag) : [...task.tags, tag],
-      });
+              tags: hasTag ? task.tags.filter((t) => t !== tag) : [...task.tags, tag],
+            });
       setTagManager((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          current: hasTag ? prev.current.filter((t) => t !== tag) : [...prev.current, tag],
-        };
-      });
-    },
+              if (!prev) return null;
+              return {
+                ...prev,
+                current: hasTag ? prev.current.filter((t) => t !== tag) : [...prev.current, tag],
+              };
+            });
+      return () => {  };
+      }); },
     [updateTask],
   );
 
-  const handleCreateTag = useCallback(() => {
-    const name = newTagName.trim();
-    if (!name || allTaskTags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return;
-    addCustomTaskTag(name);
-    if (tagManager) {
-      updateTask(tagManager.taskId, { tags: [...tagManager.current, name] });
-      setTagManager((prev) => (prev ? { ...prev, current: [...prev.current, name] } : null));
-    }
-    setNewTagName('');
-  }, [newTagName, allTaskTags, addCustomTaskTag, updateTask, tagManager]);
+  const handleCreateTag = useCallback(() => { void confirmAction("tarefas.tsx:handleCreateTag:523" + ':' + String(name), () => {
+  const name = newTagName.trim();
+  if (!name || allTaskTags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return;
+  addCustomTaskTag(name);
+  if (tagManager) {
+        updateTask(tagManager.taskId, { tags: [...tagManager.current, name] });
+        setTagManager((prev) => (prev ? { ...prev, current: [...prev.current, name] } : null));
+      }
+  return () => { setNewTagName(''); };
+  }); }, [newTagName, allTaskTags, addCustomTaskTag, updateTask, tagManager]);
 
   const handleRemoveGlobalTag = useCallback(
-    (tag: string) => {
+    (tag: string) => { void confirmAction("tarefas.tsx:handleRemoveGlobalTag:535" + ':' + String(tag), () => {
       removeCustomTaskTag(tag);
       if (tagManager) {
-        setTagManager((prev) =>
-          prev ? { ...prev, current: prev.current.filter((t) => t !== tag) } : null,
-        );
-      }
-    },
+              setTagManager((prev) =>
+                prev ? { ...prev, current: prev.current.filter((t) => t !== tag) } : null,
+              );
+            }
+      return () => {  };
+      }); },
     [removeCustomTaskTag, tagManager],
   );
 
@@ -522,6 +613,8 @@ export default function TarefasScreen() {
 
     return (
       <Swipeable
+        containerStyle={SurfaceStyles.swipeContainer}
+        childrenContainerStyle={SurfaceStyles.swipeContainer}
         ref={(ref) => {
           if (ref) swipeableRefs.current.set(item.id, ref);
           else swipeableRefs.current.delete(item.id);
@@ -881,18 +974,53 @@ export default function TarefasScreen() {
     </Modal>
   );
 
-  const hasModuleSuggestions = contractSuggestions.length > 0 || appointmentSuggestions.length > 0 || deliverySuggestions.length > 0 || supplierSuggestions.length > 0 || stockSuggestions.length > 0 || orderFollowUpSuggestions.length > 0 || quoteFollowUpSuggestions.length > 0 || showCommissionSuggestion;
+  const scrollToSuggestionAnchor = () => {
+    if (filteredTasks.length > 0) {
+      taskListRef.current?.scrollToIndex({ index: filteredTasks.length - 1, viewPosition: 0, animated: !reducedMotion });
+    }
+    else emptyListRef.current?.scrollToEnd({ animated: !reducedMotion });
+  };
+  const handleSuggestionsShortcut = () => {
+    Keyboard.dismiss();
+    closeOpenSwipeable();
+    anchorRequested.current = true;
+    scrollToSuggestionAnchor();
+    queueAnchorCheck();
+  };
+  const queueAnchorCheck = () => {
+    if (anchorTimer.current !== null) return;
+    anchorTimer.current = setTimeout(() => {
+      anchorTimer.current = null;
+      handleAnchorScrollEnd();
+    }, 350);
+  };
+  const handleContentSizeChange = (_width: number, height: number) => {
+    contentHeight.current = height;
+    // Virtualized rows can revise their estimated height while scrolling to the footer.
+    if (anchorRequested.current) queueAnchorCheck();
+  };
+  const handleAnchorScrollEnd = () => {
+    if (!anchorRequested.current) return;
+    const viewport = (filteredTasks.length > 0 ? taskListRef.current?.getNativeScrollRef() : emptyListRef.current?.getNativeScrollRef()) as NativeMethods | null | undefined;
+    viewport?.measureInWindow((_x, top, _width, height) => {
+      suggestionsAnchorRef.current?.measureInWindow((_sx, sectionTop, sectionWidth) => {
+        if (!anchorRequested.current) return;
+        if (sectionWidth > 0 && sectionTop >= top - 1 && sectionTop < top + height - 40) {
+          anchorRequested.current = false;
+        } else {
+          const offset = Math.max(0, scrollOffset.current + sectionTop - top);
+          if (filteredTasks.length > 0) {
+            if (sectionWidth > 0) taskListRef.current?.scrollToOffset({ offset, animated: !reducedMotion });
+            else taskListRef.current?.scrollToEnd({ animated: !reducedMotion });
+          } else emptyListRef.current?.scrollTo({ y: offset, animated: !reducedMotion });
+          queueAnchorCheck();
+        }
+      });
+    });
+  };
   const renderModuleSuggestions = () => hasModuleSuggestions ? (
-    <View style={styles.suggestionsFooter}>
-      <Text style={styles.suggestionsHeading}>Sugestões dos módulos</Text>
-          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={14} color={Colors.dangerIcon} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={14} color={Colors.warningIcon} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
+    <View ref={suggestionsAnchorRef} collapsable={false} onLayout={event => { suggestionsHeight.current = event.nativeEvent.layout.height; }}>
+      <ModuleSuggestions suggestions={visibleSuggestions} onDismiss={dismissSuggestion} />
     </View>
   ) : null;
 
@@ -948,12 +1076,13 @@ export default function TarefasScreen() {
             )}
           </View>
 
-          {!hasNoTasksAtAll && (
+          {(!hasNoTasksAtAll || hasModuleSuggestions) && (
             <HorizontalOptions
               contentContainerStyle={styles.filterRow}
               hintStyle={styles.filterHint}
               keyboardShouldPersistTaps="handled"
             >
+              {!hasNoTasksAtAll && <>
               {FILTERS.slice(0, 3).map((f) => {
                 const isActive = activeFilter === f.key;
                 let chipCount = 0;
@@ -1055,6 +1184,17 @@ export default function TarefasScreen() {
                   </TouchableOpacity>
                 );
               })}
+              </>}
+              {hasModuleSuggestions && <TouchableOpacity
+                activeOpacity={ControlOpacity.pressed}
+                style={styles.filterChip}
+                accessibilityRole="button"
+                accessibilityLabel="Ir para sugestões dos módulos"
+                onPress={handleSuggestionsShortcut}
+              >
+                <Ionicons name="sparkles-outline" size={14} color={Colors.accentIcon} />
+                <Text style={styles.filterChipText}>Sugestões</Text>
+              </TouchableOpacity>}
             </HorizontalOptions>
           )}
 
@@ -1066,7 +1206,13 @@ export default function TarefasScreen() {
         >
           {filteredTasks.length === 0 ? (
             <ScrollView
-              contentContainerStyle={{ flexGrow: 1, paddingHorizontal: CONTENT_H }}
+              ref={emptyListRef}
+              onContentSizeChange={handleContentSizeChange}
+              onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+              onScrollBeginDrag={() => { anchorRequested.current = false; }}
+              onMomentumScrollEnd={handleAnchorScrollEnd}
+              contentContainerStyle={{ flexGrow: 1, paddingHorizontal: CONTENT_H, paddingBottom: hasModuleSuggestions ? 120 : 0 }}
               keyboardShouldPersistTaps="handled"
             >
               {renderEmptyState()}
@@ -1074,6 +1220,11 @@ export default function TarefasScreen() {
             </ScrollView>
           ) : (
             <FlatList
+              ref={taskListRef}
+              onContentSizeChange={handleContentSizeChange}
+              onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={handleAnchorScrollEnd}
               data={filteredTasks}
               renderItem={renderTaskCard}
               ListFooterComponent={renderModuleSuggestions()}
@@ -1081,7 +1232,7 @@ export default function TarefasScreen() {
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              onScrollBeginDrag={closeOpenSwipeable}
+              onScrollBeginDrag={() => { anchorRequested.current = false; closeOpenSwipeable(); }}
             />
           )}
 
@@ -1112,7 +1263,7 @@ export default function TarefasScreen() {
                     : `/plugins/store?highlight=${pluginId}`;
                   router.push(`${route}${route.includes('?') ? '&' : '?'}returnToTasks=1&relation=${relation}` as any);
                 }, 240);
-              }}
+              }} locked={taskSave.locked}
             />
           </BottomSheet>
         </KeyboardAvoidingView>
@@ -1130,7 +1281,10 @@ export default function TarefasScreen() {
                   clientId={taskBeingAssigned.clientId}
                   supplierId={taskBeingAssigned.supplierId}
                   employeeId={taskBeingAssigned.employeeId}
-                  onChange={(relation, id) => updateTask(taskBeingAssigned.id, { [`${relation}Id`]: id })}
+                  onChange={(relation, id) => { void confirmAction("tarefas.tsx:action:1269" + ':' + id, () => {
+                  updateTask(taskBeingAssigned.id, { [`${relation}Id`]: id });
+                  return () => {  };
+                  }); }}
                 />
               )}
             </Pressable>
@@ -1190,14 +1344,6 @@ export default function TarefasScreen() {
   );
 }
 
-const suggestionSectionStyle = {
-  ...SurfaceStyles.card,
-  borderWidth: 0,
-  borderRadius: Radius.md,
-  padding: Spacing.sm,
-  marginBottom: Spacing.sm,
-};
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.appBackground },
 
@@ -1205,20 +1351,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.appBackground,
     zIndex: 1,
   },
-  suggestionsFooter: { paddingTop: Spacing.md, paddingBottom: Spacing.sm },
-  suggestionsHeading: { fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
-  supplierSuggestion: suggestionSectionStyle,
-  stockSuggestion: suggestionSectionStyle,
-  orderSuggestion: suggestionSectionStyle,
-  quoteSuggestion: suggestionSectionStyle,
-  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 },
-  suggestionTitle: { fontFamily: 'PlusJakartaSans_500Medium', color: Colors.textSecondary, fontSize: FontSize.xs, flexShrink: 1 },
-  suggestionRow: { gap: Spacing.xs, paddingTop: Spacing.xs },
-  suggestionBody: { minWidth: 0 },
-  suggestionText: { fontFamily: 'PlusJakartaSans_400Regular', color: Colors.textSecondary, fontSize: FontSize.xs },
-  suggestionMeta: { fontFamily: 'PlusJakartaSans_400Regular', color: Colors.textMuted, fontSize: FontSize.xs, marginTop: 2 },
-  suggestionButton: { alignSelf: 'flex-end', backgroundColor: Colors.accentLight, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs, justifyContent: 'center' },
-  suggestionButtonText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_500Medium', fontSize: FontSize.xs },
+
 
   // Header
   header: {

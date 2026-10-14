@@ -1,6 +1,7 @@
 import { CategoryColors } from '../constants/theme';
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useAppStore, Transaction } from '../store';
+import { confirmAction } from "../services/confirmedAction";
 
 export type FinanceFilter = 'Todos' | 'Entradas' | 'Saídas' | string;
 
@@ -253,31 +254,22 @@ export function useFinanceState() {
   }, []);
 
   const deleteWithUndo = useCallback(
-    (ids: string[]) => {
-      deletedSnapshotRef.current = transactions.filter((t) =>
-        ids.includes(t.id)
-      );
-      removeTransactions(ids);
-      snackbarRef.current?.show(ids);
-      exitSelectionMode();
-    },
+    (ids: string[]) => { void confirmAction('finance-delete:' + [...ids].sort().join(','), () => {
+       const snapshot = useAppStore.getState().transactions.filter(t => ids.includes(t.id));
+       removeTransactions(ids);
+       return () => { deletedSnapshotRef.current = snapshot; snackbarRef.current?.show(ids); exitSelectionMode(); };
+      }); },
     [transactions, removeTransactions, exitSelectionMode]
   );
 
-  const handleUndo = useCallback(() => {
-    const items = deletedSnapshotRef.current;
-    if (items.length > 0) {
-      items.forEach((item) => addTransaction(item));
-      deletedSnapshotRef.current = [];
-    }
-    snackbarRef.current?.dismiss();
-  }, [addTransaction]);
+  const handleUndo = useCallback(() => { void confirmAction('finance-undo', () => {
+   const items = deletedSnapshotRef.current;
+   useAppStore.setState(state => ({ transactions: [...items.filter(item => !state.transactions.some(existing => existing.id === item.id)), ...state.transactions] }));
+   return () => { deletedSnapshotRef.current = []; snackbarRef.current?.dismiss(); };
+  }); }, [addTransaction]);
 
   const bulkCategorize = useCallback(
-    (ids: string[], category: string) => {
-      ids.forEach((id) => updateTransaction(id, { category }));
-      exitSelectionMode();
-    },
+    (ids: string[], category: string) => { void confirmAction('finance-categorize:' + [...ids].sort().join(','), () => { ids.forEach(id => updateTransaction(id, { category })); return exitSelectionMode; }); },
     [updateTransaction, exitSelectionMode]
   );
 

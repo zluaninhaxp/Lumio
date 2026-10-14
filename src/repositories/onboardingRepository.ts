@@ -51,7 +51,10 @@ export const onboardingRepository = {
     if (isSupabaseConfigured) {
       const { data, error } = await supabase!.from('onboarding_records').select('user_id, responses, context, structured_profile, activated_plugins, updated_at').eq('user_id', userId).maybeSingle();
       if (error) throw new Error(error.message);
-      return data ? { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: data.activated_plugins ?? [], pluginOrder: readPluginOrder(data.responses), updatedAt: data.updated_at } : null;
+      const preferences = await supabase!.from('business_preferences').select('data').eq('owner_id', userId).maybeSingle();
+      if (preferences.error) throw new Error(preferences.error.message);
+      const prefs = preferences.data?.data as { activatedPlugins?: string[]; pluginOrder?: string[] } | undefined;
+      return data ? { userId: data.user_id, responses: data.responses, context: data.context, structuredProfile: data.structured_profile, activatedPlugins: prefs?.activatedPlugins ?? data.activated_plugins ?? [], pluginOrder: prefs?.pluginOrder ?? readPluginOrder(data.responses), updatedAt: data.updated_at } : null;
     }
     throw new Error('Supabase não configurado.');
   },

@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: Spacing.xl,
     paddingTop: Spacing.sm + 2,
-    paddingBottom: Spacing.xs,
+    paddingBottom: Spacing.lg,
     gap: Spacing.sm,
   },
   chip: { ...SurfaceStyles.filter,

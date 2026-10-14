@@ -26,6 +26,8 @@ import {
   isValidPluginId,
 } from "../../src/plugins/registry";
 import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 /**
  * Tela mínima genérica para os plugins ainda sem CRUD completo
@@ -69,11 +71,16 @@ export default function GenericPluginScreen() {
     setModalVisible(true);
   };
 
-  const handleSave = () => {
+  const handleSaveConfirmation = useConfirmedSave();
+    const handleSave = () => {
+     void handleSaveConfirmation.run(() => {
     if (primaryField && !form[primaryField.key]?.trim()) return;
     addGenericPluginItem(def.id, form);
+    return () => {
     setModalVisible(false);
-  };
+    };
+    });
+    };
 
   const handleDelete = (itemId: string) => {
     AppAlert.alert(`Excluir ${def.itemLabel}`, "Tem certeza?", [
@@ -95,10 +102,10 @@ export default function GenericPluginScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation(def.id, false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("[id].tsx:action:104" + ':' + String(def.id), () => {
+          setPluginActivation(def.id, false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -212,7 +219,7 @@ export default function GenericPluginScreen() {
                       }
                       keyboardType={
                         field.type === "number" ? "numeric" : "default"
-                      }
+                      } editable={!(handleSaveConfirmation.locked)}
                     />
                   )}
                 </View>
@@ -227,7 +234,7 @@ export default function GenericPluginScreen() {
               </TouchableOpacity>
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
-                onPress={handleSave} accessibilityRole="button"
+                onPress={handleSave} accessibilityRole="button" disabled={handleSaveConfirmation.saving}
               >
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </TouchableOpacity>

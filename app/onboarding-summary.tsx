@@ -1,3 +1,4 @@
+import { businessStateService } from '../src/services/businessStateService';
 import { useEffect, useCallback, useRef } from 'react';
 import { } from 'react-native';
 import { Stack, useNavigation, useRouter } from 'expo-router';
@@ -69,8 +70,9 @@ export default function OnboardingSummaryScreen() {
     onFinish={handleFinish}
     onSave={async (next: OnboardingExtractionResult) => {
       if (!currentUser) throw new Error('Usuário não disponível');
-      await onboardingService.saveStructuredProfile(currentUser.id, next);
+
       setPendingOnboardingExtraction(next, isSimulation);
+      await businessStateService.commit();
     }}
     onPluginActivation={setPluginActivation}
     onConfigureAi={() => router.push('/ai-settings')}

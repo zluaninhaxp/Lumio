@@ -34,6 +34,8 @@ import {
 } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 import { AppFeedback } from '@/src/components/app-feedback';
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 type DraftItem = OrderItem;
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -160,50 +162,47 @@ export default function OrcamentosScreen() {
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...updates } : item)),
     );
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     const validItems = items
-      .filter((item) => item.name.trim() && item.quantity > 0)
-      .map((item) => ({ ...item, name: item.name.trim() }));
+          .filter((item) => item.name.trim() && item.quantity > 0)
+          .map((item) => ({ ...item, name: item.name.trim() }));
     if (!validItems.length || !validUntil.trim()) return;
     const current = editingId
-      ? orcamentos.find((quote) => quote.id === editingId)
-      : undefined;
+          ? orcamentos.find((quote) => quote.id === editingId)
+          : undefined;
     if (current && current.status !== "pendente") {
-      AppAlert.alert(
-        "Orçamento encerrado",
-        "Orçamentos aprovados, recusados ou expirados não podem ser editados.", undefined, { variant: 'warning' }
-      );
-      return;
-    }
+          AppAlert.alert(
+            "Orçamento encerrado",
+            "Orçamentos aprovados, recusados ou expirados não podem ser editados.", undefined, { variant: 'warning' }
+          );
+          return;
+        }
     const payload = {
-      clientId,
-      items: validItems,
-      total: validItems.reduce(
-        (sum, item) => sum + item.quantity * item.unitPrice,
-        0,
-      ),
-      validUntil: validUntil.trim(),
-      status: current?.status ?? ("pendente" as QuoteStatus),
-      createdAt: current?.createdAt ?? new Date().toISOString(),
-    };
+          clientId,
+          items: validItems,
+          total: validItems.reduce(
+            (sum, item) => sum + item.quantity * item.unitPrice,
+            0,
+          ),
+          validUntil: validUntil.trim(),
+          status: current?.status ?? ("pendente" as QuoteStatus),
+          createdAt: current?.createdAt ?? new Date().toISOString(),
+        };
     if (editingId) updateOrcamento(editingId, payload);
-    else addOrcamento(payload);
+        else addOrcamento(payload);
+    return () => {
     clearRelationDraft("quotes");
     setModalVisible(false);
-  };
-  const approve = (id: string) => {
-    const orderId = approveOrcamento(id);
-    if (!orderId)
-      AppAlert.alert(
-        "Orçamento não aprovado",
-        "Ele pode já ter sido convertido, estar expirado ou não estar pendente.", undefined, { variant: 'warning' }
-      );
-    else
-      AppFeedback.show(
-        "Orçamento aprovado",
-        `Pedido ${orderId.slice(-6)} criado. Conclua o pedido em Pedidos / Vendas para gerar a receita.`,
-      );
-  };
+    };
+    });
+    };
+  const approve = (id: string) => { void confirmAction('quote-approve:' + id, () => {
+   const orderId = approveOrcamento(id);
+   if (!orderId) { AppAlert.alert('Orçamento não aprovado', 'Ele pode já ter sido convertido, estar expirado ou não estar pendente.', undefined, { variant: 'warning' }); return; }
+   return () => AppFeedback.show('Orçamento aprovado', 'Pedido ' + orderId.slice(-6) + ' criado. Conclua o pedido em Pedidos / Vendas para gerar a receita.');
+  }); };
   const clientName = (id?: string) =>
     id ? clienteItems.find((client) => client.id === id)?.name : undefined;
   return (
@@ -223,10 +222,10 @@ export default function OrcamentosScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("orcamentos", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("orcamentos.tsx:action:232" + ':' + String("orcamentos"), () => {
+                  setPluginActivation("orcamentos", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -247,7 +246,7 @@ export default function OrcamentosScreen() {
           onChangeText={setQuery}
           placeholder="Buscar orçamento"
           placeholderTextColor={Colors.placeholder}
-          style={styles.searchInput}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
@@ -260,7 +259,10 @@ export default function OrcamentosScreen() {
           <SwipeableActions
             key={quote.id}
             onEdit={() => openEdit(quote)}
-            onDelete={() => removeOrcamento(quote.id)}
+            onDelete={() => { void confirmAction("orcamentos.tsx:action:269" + ':' + String(quote.id), () => {
+            removeOrcamento(quote.id);
+            return () => {  };
+            }); }}
           >
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -358,7 +360,7 @@ export default function OrcamentosScreen() {
                 value={validUntil}
                 onChangeText={setValidUntil}
                 placeholder="AAAA-MM-DD"
-                placeholderTextColor={Colors.placeholder}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
                 <Text style={styles.label}>Itens propostos</Text>
                 {items.map((item, index) => (
@@ -376,7 +378,7 @@ export default function OrcamentosScreen() {
                         }
                         placeholder="Qtd."
                         placeholderTextColor={Colors.placeholder}
-                        keyboardType="decimal-pad"
+                        keyboardType="decimal-pad" editable={!(saveConfirmation.locked)}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
@@ -391,7 +393,7 @@ export default function OrcamentosScreen() {
                         }
                         placeholder="Valor"
                         placeholderTextColor={Colors.placeholder}
-                        keyboardType="decimal-pad"
+                        keyboardType="decimal-pad" editable={!(saveConfirmation.locked)}
                       />
                     </View>
                   </View>
@@ -416,7 +418,7 @@ export default function OrcamentosScreen() {
                 >
                   <Text style={styles.cancelLabel}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button">
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
                   <Text style={styles.confirmLabel}>Salvar</Text>
                 </TouchableOpacity>
               </View>

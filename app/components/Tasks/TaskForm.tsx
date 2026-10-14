@@ -14,6 +14,7 @@ import { TagSelector } from '../TagSelector';
 import { TaskDateSelector } from './TaskDateSelector';
 import { taskFormStyles } from './taskFormStyles';
 import { TaskPeopleSelector, type Relation } from './TaskPeopleSelector';
+import { useRef } from "react";
 
 export type TaskPriority = 'alta' | 'media' | 'baixa';
 
@@ -29,10 +30,11 @@ export interface TaskFormData {
 }
 
 interface TaskFormProps {
-  onSave: (data: TaskFormData) => void;
+  onSave: (data: TaskFormData) => void | Promise<void>;
   onCancel: () => void;
   initialData?: Partial<TaskFormData>;
   onBeforeNavigate?: (relation: Relation, data: TaskFormData) => void;
+    locked?: boolean;
 }
 
 const PRIORITY_OPTIONS: { key: TaskPriority; label: string; color: string; activeBackground: string; icon: any }[] = [
@@ -41,7 +43,7 @@ const PRIORITY_OPTIONS: { key: TaskPriority; label: string; color: string; activ
   { key: 'alta', label: 'Alta', color: Colors.dangerText, activeBackground: Colors.dangerActionBackground, icon: 'flag' },
 ];
 
-export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: TaskFormProps) {
+export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate , locked = false }: TaskFormProps) {
   const { taskTags, customTaskTags, addCustomTaskTag } = useAppStore();
   const [description, setDescription] = useState(initialData?.description ?? '');
   const [priority, setPriority] = useState<TaskPriority>(initialData?.priority ?? 'baixa');
@@ -68,17 +70,21 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
       : [...current, tag]);
   };
 
-  const handleSave = () => {
-    if (!description.trim()) return;
-    onSave({
-      description: description.trim(),
-      priority,
-      dueDate,
-      dueDateLabel,
-      tags: selectedTags,
-      ...people,
-    });
-  };
+  const saveBusy = useRef(false);
+    const [saving, setSaving] = useState(false);
+    const handleSave = async () => { if (saveBusy.current) return; saveBusy.current = true; setSaving(true); try {
+
+          if (!description.trim()) return;
+          await onSave({
+            description: description.trim(),
+            priority,
+            dueDate,
+            dueDateLabel,
+            tags: selectedTags,
+            ...people,
+          });
+
+      } finally { saveBusy.current = false; setSaving(false); } };
 
   return (
     <View style={styles.container}>
@@ -92,7 +98,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
         placeholder="O que você precisa fazer?"
         placeholderTextColor={Colors.placeholder}
         onSubmitEditing={handleSave}
-        returnKeyType="done"
+        returnKeyType="done" editable={!locked && !saving}
       />
 
       <Text style={styles.label}>Prioridade</Text>
@@ -160,7 +166,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate }: Ta
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !description.trim() && styles.saveBtnDisabled]}
           onPress={handleSave}
-          disabled={!description.trim()} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
+          disabled={saving || (!description.trim())} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
            <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>
         </TouchableOpacity>

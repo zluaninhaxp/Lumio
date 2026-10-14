@@ -1,3 +1,4 @@
+import { businessStateService } from '../src/services/businessStateService';
 import { AppDialog } from '../src/components/app-dialog';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
@@ -86,23 +87,27 @@ export default function OnboardingScreen() {
     if (!isFocused) return;
     if (!loading && !isAuthenticated) {
       router.replace('/login');
+    } else if (!loading && useAppStore.getState().pendingOnboardingExtraction && !currentUser?.onboardingCompleted) {
+      router.replace('/onboarding-summary');
     } else if (!loading && currentUser?.onboardingCompleted) {
       router.replace('/(tabs)/chat');
     }
   }, [loading, isAuthenticated, currentUser, isFocused, router]);
 
-  const blockIndexRef = useRef(0);
+  const initialDraft = useRef(useAppStore.getState().onboardingDraft).current;
+  const answerBusy = useRef(false);
+  const blockIndexRef = useRef(initialDraft?.blockIndex ?? 0);
   const answersRef = useRef<OpenOnboardingAnswers>({ ...useAppStore.getState().openAnswers });
-  const followUpUsedRef = useRef<Record<string, boolean>>({});
-  const attemptCountRef = useRef<Record<string, number>>({});
+  const followUpUsedRef = useRef<Record<string, boolean>>(initialDraft?.followUpUsed ?? {});
+  const attemptCountRef = useRef<Record<string, number>>(initialDraft?.attemptCount ?? {});
   const queueTokenRef = useRef(0);
   const scrollRef = useRef<ScrollView>(null);
 
-  const [blockIndex, setBlockIndex] = useState(0);
-  const [showIntro, setShowIntro] = useState(() => !useAppStore.getState().onboardingContext);
+  const [blockIndex, setBlockIndex] = useState(initialDraft?.blockIndex ?? 0);
+  const [showIntro, setShowIntro] = useState(() => initialDraft?.showIntro ?? !useAppStore.getState().onboardingContext);
   const [introFinished, setIntroFinished] = useState(false);
   const [restartConfirmationVisible, setRestartConfirmationVisible] = useState(false);
-  const [showAiTransition, setShowAiTransition] = useState(() => !!useAppStore.getState().onboardingContext);
+  const [showAiTransition, setShowAiTransition] = useState(() => initialDraft?.showAiTransition ?? !!useAppStore.getState().onboardingContext);
   const conversationBottomPadding = Math.max(showAiTransition ? 150 : 100, composerHeight + 8);
   const preferredHeroHeight = Math.min(Math.max(height * 0.46, 260), 480);
   const fittedHeroHeight = !messageHeight
@@ -175,6 +180,8 @@ export default function OnboardingScreen() {
       expression: 'feliz',
     });
     setIntroFinished(true);
+    if (initialDraft && !initialDraft.showIntro && !initialDraft.showAiTransition) enterBlock(initialDraft.blockIndex);
+    if (initialDraft?.showAiTransition && !useAppStore.getState().onboardingContext) applyOpenOnboardingConfig(initialDraft.responses);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -211,6 +218,7 @@ export default function OnboardingScreen() {
     queueTokenRef.current += 1;
     answersRef.current = {};
     useAppStore.getState().resetOnboardingState();
+    useAppStore.setState({ onboardingDraft: { responses: {}, blockIndex: 0, showIntro: true, showAiTransition: false, followUpUsed: {}, attemptCount: {} } });
     followUpUsedRef.current = {};
     attemptCountRef.current = {};
     blockIndexRef.current = 0;
@@ -248,43 +256,40 @@ export default function OnboardingScreen() {
     }
   }, [enterBlock, applyOpenOnboardingConfig]);
 
-  const submitAnswer = useCallback((text: string, isVoice: boolean) => {
+  const submitAnswer = useCallback(async (text: string, isVoice: boolean, skipped = false) => {
+    if (answerBusy.current || !currentUser) return;
+    answerBusy.current = true; setSaving(true); setSaveError(null);
     const currentIndex = blockIndexRef.current;
     const block = OPEN_QUESTIONS[currentIndex];
     const attempt = (attemptCountRef.current[block.id] ?? 0) + 1;
-    attemptCountRef.current[block.id] = attempt;
-
-    setLastUserReply({ text, isVoice });
-    setInputValue('');
-
     const newAnswers = { ...answersRef.current, [block.id]: text };
-    answersRef.current = newAnswers;
-
-    const isShort = text.length < block.minLengthForFollowUp;
-    const alreadyFollowedUp = followUpUsedRef.current[block.id];
-
-    if (isShort && !alreadyFollowedUp) {
-      followUpUsedRef.current[block.id] = true;
-      queueLines([{
-        key: `${block.id}-followup-${attempt}`,
-        text: block.followUp,
-        expression: INTERACTION_MASCOT.followUp,
-      }]);
-      return;
-    }
-
-    advanceFromBlock(currentIndex);
-  }, [advanceFromBlock, queueLines]);
+    const followUp = !skipped && text.length < block.minLengthForFollowUp && !followUpUsedRef.current[block.id];
+    const next = followUp ? currentIndex : currentIndex + 1;
+    const draft = { responses: newAnswers, blockIndex: Math.min(next, BLOCK_COUNT - 1), showIntro: false, showAiTransition: next >= BLOCK_COUNT,
+      followUpUsed: { ...followUpUsedRef.current, ...(followUp ? { [block.id]: true } : {}) }, attemptCount: { ...attemptCountRef.current, [block.id]: attempt } };
+    businessStateService.holdChanges();
+    try {
+      useAppStore.setState({ onboardingDraft: draft, openAnswers: newAnswers });
+      if (next >= BLOCK_COUNT) applyOpenOnboardingConfig(newAnswers);
+      await businessStateService.commit();
+      answersRef.current = newAnswers; followUpUsedRef.current = draft.followUpUsed; attemptCountRef.current = draft.attemptCount;
+      setLastUserReply({ text, isVoice }); setInputValue('');
+      if (followUp) queueLines([{ key: block.id + '-followup-' + attempt, text: block.followUp, expression: INTERACTION_MASCOT.followUp }]);
+      else advanceFromBlock(currentIndex);
+    } catch {
+      setSaveError('Não consegui confirmar esta resposta. Seu texto foi preservado. Tente novamente com internet.');
+    } finally { businessStateService.releaseChanges(); answerBusy.current = false; setSaving(false); }
+  }, [advanceFromBlock, applyOpenOnboardingConfig, currentUser, queueLines]);
 
   const handleSubmit = useCallback(() => {
     const text = inputValue.trim();
     if (!text) return;
     Keyboard.dismiss();
-    submitAnswer(text, false);
+    void submitAnswer(text, false);
   }, [inputValue, submitAnswer]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
-    if (!transcript.trim()) return;
+    if (answerBusy.current || !transcript.trim()) return;
     setInputValue(transcript.trim());
   }, []);
 
@@ -293,10 +298,8 @@ export default function OnboardingScreen() {
     const block = OPEN_QUESTIONS[currentIndex];
     if (!block?.optional) return;
 
-    setLastUserReply({ text: '(pulou esta pergunta)' });
-    setInputValue('');
-    advanceFromBlock(currentIndex);
-  }, [advanceFromBlock]);
+    void submitAnswer('(pulou esta pergunta)', false, true);
+  }, [submitAnswer]);
 
   const saveCollectedAnswers = useCallback(async () => {
     if (!currentUser) throw new Error('Entre na sua conta para salvar suas respostas.');
@@ -411,7 +414,7 @@ export default function OnboardingScreen() {
             <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirmationSecondary} disabled={saving} onPress={() => setSkipAiConfirmationVisible(true)}><Text style={styles.confirmationSecondaryText}>Continuar sem IA</Text></TouchableOpacity>
           </View> : showIntro ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={ControlOpacity.pressed}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color={Colors.onAction} /></TouchableOpacity></View>
           : currentBlock?.options ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(composerBottomInset, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={ControlOpacity.pressed}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>
-          : currentBlock ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}><MessageComposer value={inputValue} onChangeText={setInputValue} onFocus={() => setInputFocused(true)} placeholder="Você pode escrever ou falar ..." onSubmit={handleSubmit} submitLabel="Enviar resposta" voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping} appearance="onboarding" />} />{currentBlock.optional && !inputValue.trim() && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.skipBtn} onPress={handleSkip}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
+          : currentBlock ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 16) }]}>{!!saveError && <Text style={styles.confirmationMessage}>{saveError}</Text>}<MessageComposer value={inputValue} onChangeText={setInputValue} onFocus={() => setInputFocused(true)} placeholder="Você pode escrever ou falar ..." onSubmit={handleSubmit} loading={saving} submitLabel="Enviar resposta" voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInputValue} disabled={isTyping || saving} appearance="onboarding" />} />{currentBlock.optional && !inputValue.trim() && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.skipBtn} onPress={handleSkip} disabled={saving}><Text style={styles.skipBtnText}>Pular esta pergunta</Text></TouchableOpacity>}</View> : null}
         </View>
       </KeyboardAvoidingView>
       <AppDialog

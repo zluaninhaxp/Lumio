@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, processLock } from '@supabase/supabase-js';
 import Constants from 'expo-constants';
 import { authFetch } from './authFetch';
 
@@ -12,13 +12,18 @@ const embeddedSupabase = Constants.expoConfig?.extra?.supabase as
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL ?? embeddedSupabase?.url;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? embeddedSupabase?.anonKey;
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey && !supabaseUrl.includes('seu-projeto'));
+let configuredUrl: URL | null = null;
+try { if (supabaseUrl) configuredUrl = new URL(supabaseUrl); } catch { /* Show a recoverable configuration error through AuthProvider. */ }
+export const supabaseProjectScope = configuredUrl?.hostname ?? 'unconfigured';
+
+export const isSupabaseConfigured = Boolean(configuredUrl && ['https:', 'http:'].includes(configuredUrl.protocol) && supabaseAnonKey && !supabaseUrl?.includes('seu-projeto'));
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseAnonKey!, {
       global: { fetch: authFetch },
       auth: {
         storage: AsyncStorage,
+        lock: processLock,
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: false,

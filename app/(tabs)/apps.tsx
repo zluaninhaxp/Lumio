@@ -11,6 +11,7 @@ import { onboardingService } from '../../src/services/onboardingService';
 import { UserAvatar } from '../components/account/UserAvatar';
 import { AccountSheet } from '../components/account/AccountSheet';
 import { AppAlert } from "@/src/services/appAlert";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 export default function AppsScreen() {
   const router = useRouter();
@@ -26,19 +27,20 @@ export default function AppsScreen() {
     dismissPluginSuggestion,
   } = useAppStore();
 
-  const tryActivate = (pluginId: PluginId) => {
-    const check = canActivatePlugin(pluginId, activatedPlugins);
-    if (!check.ok) {
-      const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
-      AppAlert.alert(
-        'Dependência necessária',
-        `Para ativar ${getPluginDefinition(pluginId)?.label ?? pluginId}, você precisa ter ${labels.join(' e ')} ativados primeiro.`,
-        [{ text: 'Entendi' }], { variant: 'warning' }
-      );
-      return;
-    }
-    setPluginActivation(pluginId, true);
-  };
+  const tryActivate = (pluginId: PluginId) => { void confirmAction("apps.tsx:tryActivate:29" + ':' + pluginId, () => {
+  const check = canActivatePlugin(pluginId, activatedPlugins);
+  if (!check.ok) {
+        const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
+        AppAlert.alert(
+          'Dependência necessária',
+          `Para ativar ${getPluginDefinition(pluginId)?.label ?? pluginId}, você precisa ter ${labels.join(' e ')} ativados primeiro.`,
+          [{ text: 'Entendi' }], { variant: 'warning' }
+        );
+        return;
+      }
+  setPluginActivation(pluginId, true);
+  return () => {  };
+  }); };
 
   const orderedPluginIds = useMemo(() => {
     const active = new Set(activatedPlugins);
@@ -198,7 +200,10 @@ export default function AppsScreen() {
                         <Text style={styles.suggestionActivateText}>Ativar</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={() => dismissPluginSuggestion(def.id)}
+                        onPress={() => { void confirmAction("apps.tsx:action:201" + ':' + String(def.id), () => {
+                                  dismissPluginSuggestion(def.id);
+                                  return () => {  };
+                                  }); }}
                         activeOpacity={ControlOpacity.pressed}
                       >
                         <Text style={styles.suggestionDismissText}>Dispensar</Text>
