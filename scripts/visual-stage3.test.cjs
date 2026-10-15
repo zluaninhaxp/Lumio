@@ -70,20 +70,10 @@ function financeFixture(viewportHeight) { return fixture('src/components/Finance
 function measureFinance(app, card, filters, row) { let r = app.render(); const text = r.nodes.find(n => n.props?.children === 'Entradas'); const summary = r.nodes.find(n => n.props?.onLayout && nodes(n).includes(text)); summary.props.onLayout({ nativeEvent: { layout: { height: card } } }); r.nodes.find(n => n.props?.onLayout && nodes(n).some(p => p.type === 'FinanceFilterChips')).props.onLayout({ nativeEvent: { layout: { height: filters } } }); r.nodes.find(n => n.props?.onLayout && nodes(n).some(p => p.props?.children === 'Saldo')).props.onLayout({ nativeEvent: { layout: { height: row } } }); return app.render(); }
 test('normal financial summaries keep their natural height and do not add a scroll view', () => { const app = financeFixture(600); const r = measureFinance(app, 200, 54, 20); assert.equal(r.tree.props.style[1].height, 270); assert.ok(!r.nodes.some(n => n.type === 'ScrollView')); });
 test('large financial content and filters use measured heights without hiding the collapsed balance', () => { const app = financeFixture(420); const r = measureFinance(app, 500, 80, 48); const scroll = r.nodes.find(n => n.type === 'ScrollView'); assert.ok(scroll); assert.equal(scroll.props.style.maxHeight, 192); assert.equal(r.tree.props.style[1].height, 288); assert.ok(r.tree.props.style[1].height <= 420); });
-test('expanding a historical card cancels queued autoscroll; a new message resumes following', () => {
-  const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8'), ast = ts.createSourceFile('chat.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const queue = [], calls = [];
-  const context = { scrollFrame: { current: null }, requestAnimationFrame: fn => { queue.push(fn); return queue.length; }, followContentResize: { current: true }, flatListRef: { current: { scrollToEnd: () => calls.push('end') } }, setTimeout: fn => queue.push(fn) };
-  function walk(n) { if (ts.isVariableDeclaration(n) && ['scrollToBottom', 'preserveCardReading', 'handleContentResize'].includes(n.name.getText(ast)))
-    context[n.name.getText(ast)] = vm.runInNewContext('(' + n.initializer.arguments[0].getText(ast) + ')', context); ts.forEachChild(n, walk); }
-  walk(ast);
-  context.handleContentResize();
-  context.preserveCardReading();
-  queue.splice(0).forEach(fn => fn());
-  assert.equal(calls.length, 0);
-  context.handleContentResize();
-  assert.equal(queue.length, 0);
-  context.scrollToBottom();
-  queue.splice(0).forEach(fn => fn());
-  assert.equal(calls.length, 1);
+test('expanding a historical card cancels queued autoscroll; own send resumes following', () => {
+  const f = require('./helpers/chat-scroll-fixture.cjs')();
+  f.handleContentResize(); f.paintFrame(); f.preserveCardReading(); f.paint();
+  assert.equal(f.metrics.calls, 0);
+  f.handleContentResize(); assert.equal(f.frames.size, 0);
+  f.scrollToBottom(); f.paint(); assert.equal(f.metrics.calls, 1);
 });

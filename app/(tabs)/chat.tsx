@@ -631,15 +631,30 @@ return date.toISOString().split('T')[0];
 
   const scrollToBottom = useCallback(() => {
     followContentResize.current = true;
-    if (scrollFrame.current !== null) return;
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    // Each layout change restarts the frame barrier. Allow the native content
+    // layout (including wrapping suggestions/cards and keyboard resize) to commit.
     scrollFrame.current = requestAnimationFrame(() => {
-      scrollFrame.current = null;
-      if (followContentResize.current) flatListRef.current?.scrollToEnd({ animated: false });
+      scrollFrame.current = requestAnimationFrame(() => {
+        scrollFrame.current = null;
+        if (!followContentResize.current || dragging.current) return;
+        // VirtualizedList.scrollToEnd uses an approximate last-cell frame and
+        // omits contentContainer paddingBottom. The native ScrollView command
+        // reaches exactly the same full content boundary as a manual scroll.
+        const scrollView = flatListRef.current?.getNativeScrollRef();
+        if (scrollView && 'scrollToEnd' in scrollView && typeof scrollView.scrollToEnd === 'function') {
+          scrollView.scrollToEnd({ animated: false });
+        }
+      });
     });
   }, []);
-  const preserveCardReading = useCallback(() => { followContentResize.current = false; }, []);
+  const preserveCardReading = useCallback(() => {
+    followContentResize.current = false;
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+    scrollFrame.current = null;
+  }, []);
   const handleContentResize = useCallback(() => {
-    if (followContentResize.current) scrollToBottom();
+    if (followContentResize.current && !dragging.current) scrollToBottom();
   }, [scrollToBottom]);
   useEffect(() => () => {
     if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
@@ -1187,8 +1202,10 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     const hide = Keyboard.addListener('keyboardDidHide', () => {
       setKeyboardVisible(false);
       setCommandMenuDismissed(true);
+      handleContentResize();
     });
-    return () => { show.remove(); hide.remove(); };
+    const changeFrame = Keyboard.addListener('keyboardDidChangeFrame', handleContentResize);
+    return () => { show.remove(); hide.remove(); changeFrame.remove(); };
   }, [handleContentResize]);
   useEffect(() => {
     if (!isCommandMenuOpen) return;
@@ -1328,13 +1345,15 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
           removeClippedSubviews={false}
           onScrollBeginDrag={() => { dragging.current = true; preserveCardReading(); }}
-          onScrollEndDrag={() => { dragging.current = false; }}
+          onScrollEndDrag={() => { dragging.current = false; handleContentResize(); }}
           onMomentumScrollBegin={() => { dragging.current = true; }}
-          onMomentumScrollEnd={() => { dragging.current = false; }}
+          onMomentumScrollEnd={() => { dragging.current = false; handleContentResize(); }}
           onScroll={event => {
             const { contentSize, contentOffset, layoutMeasurement } = event.nativeEvent;
             if (!dragging.current) return;
-            followContentResize.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 72;
+            // Resume following only at the real bottom (allow pixel rounding).
+            // Being partway through the last message is still reading history.
+            followContentResize.current = contentSize.height - contentOffset.y - layoutMeasurement.height <= StyleSheet.hairlineWidth;
           }}
           scrollEventThrottle={16}
           onLayout={handleContentResize}

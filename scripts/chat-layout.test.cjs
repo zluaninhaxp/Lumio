@@ -34,19 +34,7 @@ test('surface reports the measured decorative overlap without changing its appea
   assert.equal(surface(false).changes.at(-1), 0, 'command panel removes the edge clearance');
 });
 
-function scrollFixture() {
-  const frames = [];
-  const metrics = { viewport: 0, content: 0, offset: 0, calls: 0 };
-  const context = {
-    useCallback: fn => fn, followContentResize: { current: true }, scrollFrame: { current: null },
-    requestAnimationFrame: fn => { frames.push(fn); return frames.length; },
-    flatListRef: { current: { scrollToEnd() { metrics.offset = Math.max(0, metrics.content - metrics.viewport); metrics.calls++; } } },
-  };
-  const names = ['scrollToBottom', 'preserveCardReading', 'handleContentResize'];
-  const declarations = names.map(name => screen.body.statements.find(n => ts.isVariableStatement(n) && n.declarationList.declarations.some(d => d.name.getText(ast) === name)).getText(ast)).join('\n');
-  vm.runInNewContext(compile(declarations + '\nglobalThis.handlers = {scrollToBottom, preserveCardReading, handleContentResize};'), context);
-  return { ...context.handlers, metrics, frames, paint() { frames.splice(0).forEach(fn => fn()); } };
-}
+const scrollFixture = require('./helpers/chat-scroll-fixture.cjs');
 
 test('short/long messages and cards end above the measured edge across keyboard and Android inset changes', () => {
   const styleDeclaration = ast.statements.find(n => ts.isVariableStatement(n) && n.declarationList.declarations.some(d => d.name.getText(ast) === 'styles')).getText(ast);
@@ -66,7 +54,7 @@ test('short/long messages and cards end above the measured edge across keyboard 
     const padding = edge + gap;
     f.metrics.content = 1200 + messageHeight + padding;
     f.handleContentResize(); f.handleContentResize();
-    assert.equal(f.frames.length, 1, 'layout changes coalesce in the next frame');
+    assert.equal(f.frames.size, 1, 'layout changes coalesce in the next frame');
     f.paint();
     const messageBottom = f.metrics.content - padding - f.metrics.offset;
     assert.equal(f.metrics.viewport - edge - messageBottom, gap);
@@ -86,4 +74,99 @@ test('reading history cancels pending follow; growth and keyboard changes do not
   assert.match(source, /measureInWindow\([\s\S]*?setKeyboardVerticalOffset\(y \+ height\)/);
   assert.match(source, /onContentSizeChange=\{handleContentResize\}/);
   assert.match(source, /onLayout=\{handleContentResize\}/);
+});
+
+test('regression: installed VirtualizedList stops before trailing padding even with a measured last cell', () => {
+  const installed = fs.readFileSync('node_modules/react-native/node_modules/@react-native/virtualized-lists/Lists/VirtualizedList.js', 'utf8');
+  const start = installed.indexOf('    const animated = params ? params.animated : true;', installed.indexOf('// scrollToEnd'));
+  assert.ok(start >= 0);
+  const body = installed.slice(start, installed.indexOf('\n  }', start));
+  const oldScroll = vm.runInNewContext('(function(params) {\n' + body + '\n})');
+  let oldOffset;
+  oldScroll.call({
+    props: { data: ['last'], getItemCount: data => data.length },
+    _listMetrics: { getCellMetricsApprox: () => ({ offset: 500, length: 1000 }) },
+    _footerLength: 0, _scrollMetrics: { visibleLength: 600 },
+    scrollToOffset: options => { oldOffset = options.offset; },
+  }, { animated: false });
+  const f = scrollFixture();
+  f.metrics.content = 1540; f.metrics.viewport = 600;
+  f.handleContentResize(); f.paint();
+  assert.equal(oldOffset, 900);
+  assert.equal(f.metrics.offset, 940, 'same boundary as manual/native scroll, including the existing 40px clearance');
+});
+
+test('late wrapping suggestions and long card layouts invalidate pending scroll until the final layout frame', () => {
+  const f = scrollFixture();
+  f.scrollToBottom(); assert.equal(f.metrics.calls, 0);
+  f.paintFrame(); assert.equal(f.metrics.calls, 0);
+  for (const height of [900, 1140, 1248, 2600]) {
+    f.metrics.content = height;
+    f.handleContentResize(); f.paintFrame();
+    assert.equal(f.metrics.calls, 0, 'layout changes restart the native frame barrier');
+  }
+  f.paintFrame();
+  assert.equal(f.metrics.calls, 1);
+  assert.equal(f.metrics.offset, 2000);
+  assert.equal(f.frames.size, 0, 'no ongoing polling or fixed-delay scroll loop');
+  f.metrics.content = 90;
+  f.handleContentResize(); f.paint();
+  assert.equal(f.metrics.offset, 0, 'short content cannot create an overscroll gap');
+});
+
+test('actual keyboard handlers follow the final resized viewport on show/hide/frame changes, but preserve history', () => {
+  const effect = screen.body.statements.find(n => ts.isExpressionStatement(n) && ts.isCallExpression(n.expression) && n.expression.expression.getText(ast) === 'useEffect' && n.expression.arguments[0].getText(ast).includes("'keyboardDidShow'"));
+  const callbacks = new Map();
+  const f = scrollFixture();
+  const cleanup = f.evaluate('(' + effect.expression.arguments[0].getText(ast) + ')();', {
+    Keyboard: { addListener(name, fn) { callbacks.set(name, fn); return { remove: () => callbacks.delete(name) }; } },
+    setKeyboardVisible() {}, setCommandMenuDismissed() {},
+  });
+  callbacks.get('keyboardDidShow')(); f.paintFrame();
+  f.metrics.viewport = 280; f.handleContentResize(); f.paint();
+  assert.equal(f.metrics.offset, 2120);
+  callbacks.get('keyboardDidChangeFrame')();
+  f.metrics.viewport = 320; f.handleContentResize(); f.paint();
+  assert.equal(f.metrics.offset, 2080);
+  callbacks.get('keyboardDidHide')(); f.paintFrame();
+  f.metrics.viewport = 600; f.handleContentResize(); f.paint();
+  assert.equal(f.metrics.offset, 1800);
+  f.preserveCardReading(); f.metrics.offset = 500;
+  callbacks.get('keyboardDidShow')(); f.metrics.viewport = 280; f.handleContentResize(); f.paint();
+  assert.equal(f.metrics.offset, 500);
+  cleanup(); assert.equal(callbacks.size, 0);
+});
+
+test('reader drag interrupts a pending native scroll; rapid own sends resume once layout settles', () => {
+  const f = scrollFixture();
+  f.handleContentResize(); f.paintFrame();
+  f.context.dragging.current = true; f.preserveCardReading(); f.paint();
+  f.handleContentResize(); assert.equal(f.frames.size, 0);
+  assert.equal(f.metrics.calls, 0);
+  f.context.dragging.current = false;
+  for (let i = 0; i < 4; i++) { f.metrics.content += 120; f.scrollToBottom(); }
+  f.paint();
+  assert.equal(f.metrics.calls, 1);
+  assert.equal(f.metrics.offset, f.metrics.content - f.metrics.viewport);
+});
+
+test('reading even a small distance above the bottom does not get snapped back by new content', () => {
+  let onScroll;
+  function walk(node) {
+    if (ts.isJsxAttribute(node) && node.name.getText(ast) === 'onScroll') onScroll = node.initializer.expression.getText(ast);
+    ts.forEachChild(node, walk);
+  }
+  walk(screen); assert.ok(onScroll);
+  const f = scrollFixture(); f.context.dragging.current = true;
+  f.evaluate('(' + onScroll + ')(event);', {
+    StyleSheet: { hairlineWidth: 0.5 },
+    event: { nativeEvent: { contentSize: { height: 2400 }, contentOffset: { y: 1760 }, layoutMeasurement: { height: 600 } } },
+  });
+  f.context.dragging.current = false;
+  f.metrics.offset = 1760; f.metrics.content += 400;
+  f.handleContentResize(); f.paint();
+  assert.equal(f.metrics.calls, 0);
+  assert.equal(f.metrics.offset, 1760);
+  f.scrollToBottom(); f.paint();
+  assert.equal(f.metrics.offset, 2200);
 });
