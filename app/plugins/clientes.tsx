@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,19 +9,22 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
-import { SwipeableActions } from "../components/SwipeableActions";
-import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
-import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { FAB } from "../../src/components/Calendar/FAB";
+import { BottomSheet, type BottomSheetHandle } from "../../src/components/Calendar/BottomSheet";
+import { SwipeableActions } from "../../src/components/SwipeableActions";
+import { FormLabel, RequiredLabel } from "../../src/components/RequiredLabel";
+import { pluginFormStyles } from "../../src/components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { useAppStore, ClienteItem } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const EMPTY_FORM = { name: "", contact: "", notes: "" };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -45,6 +51,7 @@ export default function ClientesScreen() {
     setPluginActivation,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,68 +76,73 @@ export default function ClientesScreen() {
     setForm({ name: item.name, contact: item.contact, notes: item.notes });
     setModalVisible(true);
   };
-  const handleSave = () => {
+  const handleSaveConfirmation = useConfirmedSave();
+    const handleSave = () => {
+     void handleSaveConfirmation.run(() => {
     if (!form.name.trim()) return;
     const payload = {
-      name: form.name.trim(),
-      contact: form.contact.trim(),
-      notes: form.notes.trim(),
-      createdAt: editingId
-        ? (clienteItems.find((item) => item.id === editingId)?.createdAt ??
-          new Date().toISOString())
-        : new Date().toISOString(),
-    };
+          name: form.name.trim(),
+          contact: form.contact.trim(),
+          notes: form.notes.trim(),
+          createdAt: editingId
+            ? (clienteItems.find((item) => item.id === editingId)?.createdAt ??
+              new Date().toISOString())
+            : new Date().toISOString(),
+        };
     let createdId: string | null = null;
     if (editingId) {
-      if (!updateClienteItem(editingId, payload)) {
-        Alert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.");
-        return;
-      }
-    } else {
-      createdId = addClienteItem(payload);
-      if (!createdId) {
-        Alert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.");
-        return;
-      }
-    }
+          if (!updateClienteItem(editingId, payload)) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        } else {
+          createdId = addClienteItem(payload);
+          if (!createdId) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um cliente com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        }
+    return () => {
     setModalVisible(false);
     if (
-      !editingId &&
-      createdId &&
-      returnToFinance === "1" &&
-      relation === "client"
-    ) {
-      router.dismissTo({
-        pathname: "/(tabs)/financeiro",
-        params: { returnToFinance: "1", createdId, relation: "client" },
-      });
-    } else if (
-      !editingId &&
-      createdId &&
-      (returnToTasks === "1" || returnToCalendar === "1") &&
-      relation === "client"
-    ) {
-      router.dismissTo({
-        pathname:
-          returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
-        params: {
-          [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
-          createdId,
-          relation: "client",
-        },
-      });
-    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "client" } });
-    } else if (!editingId && createdId && returnToContracts === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "client" } });
-    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "client" } });
-    } else if (!editingId && createdId && returnToSales === "1" && relation === "client") {
-      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "client" } });
-    }
-  };
+          !editingId &&
+          createdId &&
+          returnToFinance === "1" &&
+          relation === "client"
+        ) {
+          router.dismissTo({
+            pathname: "/(tabs)/financeiro",
+            params: { returnToFinance: "1", createdId, relation: "client" },
+          });
+        } else if (
+          !editingId &&
+          createdId &&
+          (returnToTasks === "1" || returnToCalendar === "1") &&
+          relation === "client"
+        ) {
+          router.dismissTo({
+            pathname:
+              returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
+            params: {
+              [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
+              createdId,
+              relation: "client",
+            },
+          });
+        } else if (!editingId && createdId && returnToQuotes === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "client" } });
+        } else if (!editingId && createdId && returnToContracts === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "client" } });
+        } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "client" } });
+        } else if (!editingId && createdId && returnToSales === "1" && relation === "client") {
+          router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "client" } });
+        }
+    };
+    });
+    };
   const handleDelete = (id: string) =>
-    Alert.alert(
+    AppAlert.alert(
       "Excluir cliente",
       "As receitas vinculadas ficam sem cliente, mas não são excluídas.",
       [
@@ -138,12 +150,15 @@ export default function ClientesScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => removeClienteItem(id),
+          onPress: () => { void confirmAction("clientes.tsx:action:151" + ':' + String(id), () => {
+          removeClienteItem(id);
+          return () => {  };
+          }); },
         },
       ],
     );
   const handleDeactivate = () =>
-    Alert.alert(
+    AppAlert.alert(
       "Desativar Clientes",
       "O módulo sai da aba Apps, mas os dados continuam guardados.",
       [
@@ -151,10 +166,10 @@ export default function ClientesScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation("clientes", false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("clientes.tsx:action:164" + ':' + String("clientes"), () => {
+          setPluginActivation("clientes", false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -162,11 +177,11 @@ export default function ClientesScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Clientes</Text>
-        <TouchableOpacity onPress={handleDeactivate} style={styles.iconBtn}>
+        <Text style={ModuleTextStyles.headerTitle}>Clientes</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -175,13 +190,13 @@ export default function ClientesScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar cliente"
-          placeholderTextColor={Colors.textMuted}
-          style={styles.searchInput}
+          placeholderTextColor={Colors.placeholder}
+          style={styles.searchInput} editable={!(handleSaveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -189,18 +204,9 @@ export default function ClientesScreen() {
         contentContainerStyle={styles.content}
       >
         {filteredClients.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="people-outline"
-              size={48}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.emptyText}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="people-outline" title={query
                 ? "Nenhum cliente encontrado."
-                : "Nenhum cliente cadastrado ainda."}
-            </Text>
-          </View>
+                : "Nenhum cliente cadastrado ainda."} />
         )}
         {filteredClients.map((client) => {
           const history = transactions.filter(
@@ -234,7 +240,7 @@ export default function ClientesScreen() {
               <TouchableOpacity
                 style={styles.cardHeader}
                 onPress={() => setExpandedId(expanded ? null : client.id)}
-                activeOpacity={0.7}
+                activeOpacity={ControlOpacity.pressed}
               >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>
@@ -250,7 +256,7 @@ export default function ClientesScreen() {
                 <Ionicons
                   name={expanded ? "chevron-up" : "chevron-down"}
                   size={18}
-                  color={Colors.textMuted}
+                  color={Colors.iconMuted}
                 />
               </TouchableOpacity>
               <View style={styles.summaryRow}>
@@ -298,9 +304,9 @@ export default function ClientesScreen() {
           );
         })}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -310,44 +316,44 @@ export default function ClientesScreen() {
               {editingId ? "Editar cliente" : "Novo cliente"}
             </Text>
             <RequiredLabel>Nome</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Nome"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-              autoFocus
+              autoFocus editable={!(handleSaveConfirmation.locked)}
             />
             <FormLabel>Contato (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Contato (telefone ou e-mail)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.contact}
-              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))} editable={!(handleSaveConfirmation.locked)}
             />
             <FormLabel>Observações (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={[styles.input, styles.notesInput]}
               placeholder="Observações"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.notes}
               onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
-              multiline
+              multiline editable={!(handleSaveConfirmation.locked)}
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
-                onPress={handleSave}
-              >
+                onPress={handleSave} accessibilityRole="button" disabled={handleSaveConfirmation.saving}
+              >{handleSaveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>
@@ -357,7 +363,7 @@ export default function ClientesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -365,47 +371,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
-  searchInput: {
+  searchInput: { ...ModuleTextStyles.search,
     flex: 1,
-    height: 44,
-    fontFamily: "PlusJakartaSans_400Regular",
+    minHeight: 44,
     color: Colors.primary,
   },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   cardHeader: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
   avatar: {
@@ -416,15 +403,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accent },
+  avatarText: { fontFamily: Typography.bold, color: Colors.accentText },
   cardMain: { flex: 1 },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
     color: Colors.primary,
   },
   cardSubtitle: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: Typography.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 2,
@@ -435,19 +422,19 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   summaryLabel: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: Typography.regular,
     fontSize: FontSize.xs,
     color: Colors.textMuted,
   },
   total: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   pendingText: {
-    fontFamily: "PlusJakartaSans_500Medium",
+    fontFamily: Typography.medium,
     fontSize: FontSize.xs,
-    color: Colors.warning,
+    color: Colors.warningText,
     marginTop: Spacing.xs,
   },
   details: {
@@ -456,13 +443,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
   },
-  notes: {
+  notes: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginBottom: Spacing.md,
   },
   historyTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     fontSize: FontSize.sm,
     marginBottom: Spacing.sm,
@@ -474,92 +461,36 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   historyAmount: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.accent,
+    fontFamily: Typography.semibold,
+    color: Colors.accentText,
     fontSize: FontSize.sm,
   },
-  muted: { color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
+  muted: { ...ModuleTextStyles.metadata, color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
   cardActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: Spacing.md,
   },
   actionText: {
-    color: Colors.accent,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.accentText,
+    fontFamily: Typography.semibold,
   },
   deleteText: {
-    color: Colors.danger,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.dangerText,
+    fontFamily: Typography.semibold,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  input: {
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: FontSize.md,
-    color: Colors.primary,
+    justifyContent: "center"
   },
   notesInput: { minHeight: 72, textAlignVertical: "top" },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  modalCancel: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: "#FFFFFF",
-  },
   ...pluginFormStyles,
 });

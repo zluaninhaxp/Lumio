@@ -13,7 +13,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { CalendarEvent, Task } from '../index.ts';
+import type { CalendarEvent, Task } from '../index';
 
 interface State {
   tasks: Task[];

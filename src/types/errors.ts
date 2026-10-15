@@ -16,7 +16,7 @@ const AUTH_ERROR_MESSAGES: Record<AuthErrorCode, string> = {
   EMAIL_ALREADY_REGISTERED: 'Este e-mail já está cadastrado.',
   EMAIL_CONFIRMATION_REQUIRED: 'Conta criada. Confirme seu e-mail antes de entrar.',
   USER_NOT_FOUND: 'Não encontramos uma conta com esse e-mail.',
-  INVALID_PASSWORD: 'Senha incorreta.',
+  INVALID_PASSWORD: 'E-mail ou senha não conferem. Confira seus dados ou crie uma conta.',
   STORAGE_READ_ERROR: 'Não foi possível carregar os dados salvos.',
   STORAGE_WRITE_ERROR: 'Não foi possível salvar os dados.',
 };

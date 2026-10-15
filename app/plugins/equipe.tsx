@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,19 +9,22 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
-import { SwipeableActions } from "../components/SwipeableActions";
-import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
-import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { FAB } from "../../src/components/Calendar/FAB";
+import { BottomSheet, type BottomSheetHandle } from "../../src/components/Calendar/BottomSheet";
+import { SwipeableActions } from "../../src/components/SwipeableActions";
+import { FormLabel, RequiredLabel } from "../../src/components/RequiredLabel";
+import { pluginFormStyles } from "../../src/components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { EmployeeItem, useAppStore } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const EMPTY = { name: "", role: "", contact: "", commissionRate: "" };
 
@@ -45,6 +51,7 @@ export default function EquipeScreen() {
   const [query, setQuery] = useState("");
   const [form, setForm] = useState(EMPTY);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -73,70 +80,75 @@ export default function EquipeScreen() {
     });
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     if (!form.name.trim() || !form.role.trim()) return;
     const rate = Number(form.commissionRate.replace(",", ".")) || 0;
     const payload = {
-      name: form.name.trim(),
-      role: form.role.trim(),
-      contact: form.contact.trim(),
-      commissionRate: rate,
-      createdAt: editingId
-        ? (employeeItems.find((item) => item.id === editingId)?.createdAt ??
-          new Date().toISOString())
-        : new Date().toISOString(),
-    };
+          name: form.name.trim(),
+          role: form.role.trim(),
+          contact: form.contact.trim(),
+          commissionRate: rate,
+          createdAt: editingId
+            ? (employeeItems.find((item) => item.id === editingId)?.createdAt ??
+              new Date().toISOString())
+            : new Date().toISOString(),
+        };
     let createdId: string | null = null;
     if (editingId) {
-      if (!updateEmployeeItem(editingId, payload)) {
-        Alert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.");
-        return;
-      }
-    } else {
-      createdId = addEmployeeItem(payload);
-      if (!createdId) {
-        Alert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.");
-        return;
-      }
-    }
+          if (!updateEmployeeItem(editingId, payload)) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        } else {
+          createdId = addEmployeeItem(payload);
+          if (!createdId) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um funcionário com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        }
+    return () => {
     setModalVisible(false);
     if (
-      !editingId &&
-      createdId &&
-      returnToFinance === "1" &&
-      relation === "employee"
-    ) {
-      router.dismissTo({
-        pathname: "/(tabs)/financeiro",
-        params: { returnToFinance: "1", createdId, relation: "employee" },
-      });
-    } else if (
-      !editingId &&
-      createdId &&
-      (returnToTasks === "1" || returnToCalendar === "1") &&
-      relation === "employee"
-    ) {
-      router.dismissTo({
-        pathname:
-          returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
-        params: {
-          [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
-          createdId,
-          relation: "employee",
-        },
-      });
-    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "employee" } });
-    } else if (!editingId && createdId && returnToContracts === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "employee" } });
-    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "employee" } });
-    } else if (!editingId && createdId && returnToSales === "1" && relation === "employee") {
-      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "employee" } });
-    }
-  };
+          !editingId &&
+          createdId &&
+          returnToFinance === "1" &&
+          relation === "employee"
+        ) {
+          router.dismissTo({
+            pathname: "/(tabs)/financeiro",
+            params: { returnToFinance: "1", createdId, relation: "employee" },
+          });
+        } else if (
+          !editingId &&
+          createdId &&
+          (returnToTasks === "1" || returnToCalendar === "1") &&
+          relation === "employee"
+        ) {
+          router.dismissTo({
+            pathname:
+              returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
+            params: {
+              [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
+              createdId,
+              relation: "employee",
+            },
+          });
+        } else if (!editingId && createdId && returnToQuotes === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "employee" } });
+        } else if (!editingId && createdId && returnToContracts === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "employee" } });
+        } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "employee" } });
+        } else if (!editingId && createdId && returnToSales === "1" && relation === "employee") {
+          router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "employee" } });
+        }
+    };
+    });
+    };
   const remove = (id: string) =>
-    Alert.alert(
+    AppAlert.alert(
       "Excluir funcionário",
       "As tarefas e pedidos vinculados ficarão sem funcionário.",
       [
@@ -144,28 +156,31 @@ export default function EquipeScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => { if (!removeEmployeeItem(id)) Alert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.'); },
+          onPress: () => { void confirmAction("equipe.tsx:action:157" + ':' + String(id), () => {
+          if (!removeEmployeeItem(id)) AppAlert.alert('Funcionário vinculado', 'Há comissões pagas vinculadas a este funcionário. O histórico foi preservado.', undefined, { variant: 'warning' });
+          return () => {  };
+          }); },
         },
       ],
     );
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.icon}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.icon}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Equipe</Text>
-        <TouchableOpacity
+        <Text style={ModuleTextStyles.headerTitle}>Equipe</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
-            Alert.alert("Desativar Equipe", "Os dados continuarão guardados.", [
+            AppAlert.alert("Desativar Equipe", "Os dados continuarão guardados.", [
               { text: "Cancelar", style: "cancel" },
               {
                 text: "Desativar",
                 style: "destructive",
-                onPress: () => {
-                  setPluginActivation("equipe", false);
-                  router.back();
-                },
+                onPress: () => { void confirmAction("equipe.tsx:action:175" + ':' + String("equipe"), () => {
+                setPluginActivation("equipe", false);
+                return () => { router.back(); };
+                }); },
               },
             ])
           }
@@ -179,29 +194,20 @@ export default function EquipeScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.search}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar funcionário"
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {visible.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="people-outline"
-              size={48}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.muted}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="people-outline" title={query
                 ? "Nenhum funcionário encontrado."
-                : "Nenhum funcionário cadastrado ainda."}
-            </Text>
-          </View>
+                : "Nenhum funcionário cadastrado ainda."} />
         )}
         {visible.map((employee) => (
           <SwipeableActions
@@ -209,7 +215,7 @@ export default function EquipeScreen() {
             onEdit={() => openEdit(employee)}
             onDelete={() => remove(employee.id)}
           >
-            <TouchableOpacity style={styles.card} onPress={() => openEdit(employee)}>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.card} onPress={() => openEdit(employee)}>
               <View style={styles.avatar}>
                 <Text style={styles.avatarText}>
                   {employee.name.slice(0, 1).toUpperCase()}
@@ -227,15 +233,15 @@ export default function EquipeScreen() {
               <Ionicons
                 name="chevron-forward"
                 size={18}
-                color={Colors.textMuted}
+                color={Colors.iconMuted}
               />
             </TouchableOpacity>
           </SwipeableActions>
         ))}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -245,51 +251,51 @@ export default function EquipeScreen() {
               {editingId ? "Editar funcionário" : "Novo funcionário"}
             </Text>
             <RequiredLabel>Nome</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
               placeholder="Nome"
-              placeholderTextColor={Colors.textMuted}
-              autoFocus
+              placeholderTextColor={Colors.placeholder}
+              autoFocus editable={!(saveConfirmation.locked)}
             />
             <RequiredLabel>Função</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.role}
               onChangeText={(v) => setForm((f) => ({ ...f, role: v }))}
               placeholder="Função"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Contato (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.contact}
               onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
               placeholder="Contato"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Comissão (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               value={form.commissionRate}
               onChangeText={(v) =>
                 setForm((f) => ({ ...f, commissionRate: v }))
               }
               placeholder="Comissão (%)"
-              placeholderTextColor={Colors.textMuted}
-              keyboardType="decimal-pad"
+              placeholderTextColor={Colors.placeholder}
+              keyboardType="decimal-pad" editable={!(saveConfirmation.locked)}
             />
             <View style={styles.actions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.confirm} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.confirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>
@@ -299,43 +305,31 @@ export default function EquipeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: Spacing.lg,
   },
-  icon: { padding: Spacing.xs },
-  title: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
+  icon: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   search: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  muted: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -348,69 +342,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: Colors.accent, fontFamily: "PlusJakartaSans_700Bold" },
+  avatarText: { color: Colors.accentText, fontFamily: Typography.bold },
   main: { flex: 1 },
   name: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
   },
-  detail: { color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 3 },
+  detail: { ...ModuleTextStyles.metadata, color: Colors.textSecondary, fontSize: FontSize.sm, marginTop: 3 },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     right: 24,
     bottom: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
+    justifyContent: "center"
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modal: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-  },
-  input: {
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    color: Colors.primary,
-  },
-  actions: { flexDirection: "row", gap: Spacing.md, marginTop: Spacing.sm },
-  cancel: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  cancelText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
-  confirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
-    alignItems: "center",
-  },
-  confirmText: { color: "#FFFFFF", fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
 });

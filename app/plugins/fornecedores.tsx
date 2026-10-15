@@ -1,4 +1,7 @@
-import { useMemo, useState } from "react";
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
+import { useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,20 +9,23 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
-import { SwipeableActions } from "../components/SwipeableActions";
-import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
-import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { FAB } from "../../src/components/Calendar/FAB";
+import { BottomSheet, type BottomSheetHandle } from "../../src/components/Calendar/BottomSheet";
+import { SwipeableActions } from "../../src/components/SwipeableActions";
+import { FormLabel, RequiredLabel } from "../../src/components/RequiredLabel";
+import { pluginFormStyles } from "../../src/components/Forms/pluginFormStyles";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { FornecedorItem, useAppStore } from "../../src/store";
 import { suggestedDueDate } from "../../src/utils/supplier";
+import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const EMPTY_FORM = { name: "", contact: "", paymentTerm: "", notes: "" };
 const money = (value: number) =>
@@ -49,6 +55,7 @@ export default function FornecedoresScreen() {
   } = useAppStore();
   const [query, setQuery] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -84,65 +91,70 @@ export default function FornecedoresScreen() {
     });
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     if (!form.name.trim()) return;
     const payload = {
-      name: form.name.trim(),
-      contact: form.contact.trim(),
-      paymentTerm: form.paymentTerm.trim(),
-      notes: form.notes.trim(),
-    };
+          name: form.name.trim(),
+          contact: form.contact.trim(),
+          paymentTerm: form.paymentTerm.trim(),
+          notes: form.notes.trim(),
+        };
     let createdId: string | null = null;
     if (editingId) {
-      if (!updateFornecedorItem(editingId, payload)) {
-        Alert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.");
-        return;
-      }
-    } else {
-      createdId = addFornecedorItem(payload);
-      if (!createdId) {
-        Alert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.");
-        return;
-      }
-    }
+          if (!updateFornecedorItem(editingId, payload)) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        } else {
+          createdId = addFornecedorItem(payload);
+          if (!createdId) {
+            AppAlert.alert("Nome já cadastrado", "Já existe um fornecedor com esse nome.", undefined, { variant: 'warning' });
+            return;
+          }
+        }
+    return () => {
     setModalVisible(false);
     if (
-      !editingId &&
-      createdId &&
-      returnToFinance === "1" &&
-      relation === "supplier"
-    ) {
-      router.dismissTo({
-        pathname: "/(tabs)/financeiro",
-        params: { returnToFinance: "1", createdId, relation: "supplier" },
-      });
-    } else if (
-      !editingId &&
-      createdId &&
-      (returnToTasks === "1" || returnToCalendar === "1") &&
-      relation === "supplier"
-    ) {
-      router.dismissTo({
-        pathname:
-          returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
-        params: {
-          [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
-          createdId,
-          relation: "supplier",
-        },
-      });
-    } else if (!editingId && createdId && returnToQuotes === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "supplier" } });
-    } else if (!editingId && createdId && returnToContracts === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "supplier" } });
-    } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "supplier" } });
-    } else if (!editingId && createdId && returnToSales === "1" && relation === "supplier") {
-      router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "supplier" } });
-    }
-  };
+          !editingId &&
+          createdId &&
+          returnToFinance === "1" &&
+          relation === "supplier"
+        ) {
+          router.dismissTo({
+            pathname: "/(tabs)/financeiro",
+            params: { returnToFinance: "1", createdId, relation: "supplier" },
+          });
+        } else if (
+          !editingId &&
+          createdId &&
+          (returnToTasks === "1" || returnToCalendar === "1") &&
+          relation === "supplier"
+        ) {
+          router.dismissTo({
+            pathname:
+              returnToTasks === "1" ? "/(tabs)/tarefas" : "/(tabs)/calendario",
+            params: {
+              [returnToTasks === "1" ? "returnToTasks" : "returnToCalendar"]: "1",
+              createdId,
+              relation: "supplier",
+            },
+          });
+        } else if (!editingId && createdId && returnToQuotes === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/orcamentos", params: { returnToQuotes: "1", createdId, relation: "supplier" } });
+        } else if (!editingId && createdId && returnToContracts === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/contratos", params: { returnToContracts: "1", createdId, relation: "supplier" } });
+        } else if (!editingId && createdId && returnToDeliveries === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/entregas", params: { returnToDeliveries: "1", createdId, relation: "supplier" } });
+        } else if (!editingId && createdId && returnToSales === "1" && relation === "supplier") {
+          router.dismissTo({ pathname: "/plugins/vendas", params: { returnToSales: "1", createdId, relation: "supplier" } });
+        }
+    };
+    });
+    };
   const deleteSupplier = (id: string) =>
-    Alert.alert(
+    AppAlert.alert(
       "Excluir fornecedor",
       "Despesas vinculadas ficarão sem fornecedor, mas não serão excluídas.",
       [
@@ -150,7 +162,10 @@ export default function FornecedoresScreen() {
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => removeFornecedorItem(id),
+          onPress: () => { void confirmAction("fornecedores.tsx:action:163" + ':' + String(id), () => {
+          removeFornecedorItem(id);
+          return () => {  };
+          }); },
         },
       ],
     );
@@ -170,13 +185,13 @@ export default function FornecedoresScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Fornecedores</Text>
-        <TouchableOpacity
+        <Text style={ModuleTextStyles.headerTitle}>Fornecedores</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Fornecedores",
               "O módulo sai da aba Apps, mas os dados continuam guardados.",
               [
@@ -184,10 +199,10 @@ export default function FornecedoresScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("fornecedores", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("fornecedores.tsx:action:197" + ':' + String("fornecedores"), () => {
+                  setPluginActivation("fornecedores", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -202,13 +217,13 @@ export default function FornecedoresScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar fornecedor"
-          placeholderTextColor={Colors.textMuted}
-          style={styles.searchInput}
+          placeholderTextColor={Colors.placeholder}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -216,18 +231,9 @@ export default function FornecedoresScreen() {
         showsVerticalScrollIndicator={false}
       >
         {filtered.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="briefcase-outline"
-              size={46}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.emptyText}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="briefcase-outline" title={query
                 ? "Nenhum fornecedor encontrado."
-                : "Nenhum fornecedor cadastrado ainda."}
-            </Text>
-          </View>
+                : "Nenhum fornecedor cadastrado ainda."} />
         )}
         {filtered.map((supplier) => {
           const history = transactions.filter(
@@ -248,7 +254,7 @@ export default function FornecedoresScreen() {
               onDelete={() => deleteSupplier(supplier.id)}
             >
             <View style={styles.card}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.cardHeader}
                 onPress={() => setExpandedId(expanded ? null : supplier.id)}
               >
@@ -267,7 +273,7 @@ export default function FornecedoresScreen() {
                 <Ionicons
                   name={expanded ? "chevron-up" : "chevron-down"}
                   size={18}
-                  color={Colors.textMuted}
+                  color={Colors.iconMuted}
                 />
               </TouchableOpacity>
               <View style={styles.summaryRow}>
@@ -321,7 +327,7 @@ export default function FornecedoresScreen() {
               Associe as despesas antigas da categoria Fornecedores.
             </Text>
             {unlinkedExpenses.map((transaction) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={transaction.id}
                 style={styles.migrationRow}
                 onPress={() => setUnlinkedTransactionId(transaction.id)}
@@ -333,15 +339,15 @@ export default function FornecedoresScreen() {
                   <Text style={styles.muted}>{transaction.date}</Text>
                 </View>
                 <Text style={styles.debtText}>{money(transaction.amount)}</Text>
-                <Ionicons name="link-outline" size={18} color={Colors.accent} />
+                <Ionicons name="link-outline" size={18} color={Colors.accentIcon} />
               </TouchableOpacity>
             ))}
           </View>
         )}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
@@ -351,49 +357,49 @@ export default function FornecedoresScreen() {
               {editingId ? "Editar fornecedor" : "Novo fornecedor"}
             </Text>
             <RequiredLabel>Nome</RequiredLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Nome"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.name}
               onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-              autoFocus
+              autoFocus editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Contato (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Contato (opcional)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.contact}
-              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, contact: v }))} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Prazo padrão (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={styles.input}
               placeholder="Prazo padrão (ex.: 30 dias)"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.paymentTerm}
-              onChangeText={(v) => setForm((f) => ({ ...f, paymentTerm: v }))}
+              onChangeText={(v) => setForm((f) => ({ ...f, paymentTerm: v }))} editable={!(saveConfirmation.locked)}
             />
             <FormLabel>Observações (opcional)</FormLabel>
-            <TextInput
+            <FormTextInput
               style={[styles.input, styles.notesInput]}
               placeholder="Observações"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={form.notes}
               onChangeText={(v) => setForm((f) => ({ ...f, notes: v }))}
-              multiline
+              multiline editable={!(saveConfirmation.locked)}
             />
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>
@@ -410,7 +416,7 @@ export default function FornecedoresScreen() {
               Escolha o cadastro para esta despesa.
             </Text>
             {fornecedorItems.map((supplier) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={supplier.id}
                 style={styles.linkOption}
                 onPress={() => linkOldExpense(supplier)}
@@ -421,9 +427,9 @@ export default function FornecedoresScreen() {
                 </Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.modalCancel}
-              onPress={() => setUnlinkedTransactionId(null)}
+              onPress={() => setUnlinkedTransactionId(null)} accessibilityRole="button"
             >
               <Text style={styles.modalCancelText}>Cancelar</Text>
             </TouchableOpacity>
@@ -435,7 +441,7 @@ export default function FornecedoresScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -443,33 +449,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.textSecondary,
-  },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -483,14 +477,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { color: "#D97706", fontFamily: "PlusJakartaSans_700Bold" },
+  avatarText: { color: Colors.warningText, fontFamily: Typography.bold },
   cardMain: { flex: 1 },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -500,22 +494,22 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginTop: Spacing.md,
   },
-  summaryLabel: { color: Colors.textMuted, fontSize: FontSize.xs },
+  summaryLabel: { ...ModuleTextStyles.metadata, color: Colors.textMuted, fontSize: FontSize.xs },
   total: {
-    color: Colors.danger,
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: Colors.dangerText,
+    fontFamily: Typography.bold,
     fontSize: FontSize.sm,
   },
-  paidTotal: { color: Colors.accent },
+  paidTotal: { ...ModuleTextStyles.metadata, color: Colors.accentText },
   details: {
     borderTopWidth: 1,
     borderTopColor: Colors.border,
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
   },
-  notes: { color: Colors.textSecondary, marginBottom: Spacing.md },
+  notes: { ...ModuleTextStyles.metadata, color: Colors.textSecondary, marginBottom: Spacing.md },
   historyTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     color: Colors.primary,
     marginBottom: Spacing.sm,
   },
@@ -525,21 +519,21 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     gap: Spacing.sm,
   },
-  muted: { color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
-  debtText: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
-  paidText: { color: Colors.accent, fontFamily: "PlusJakartaSans_600SemiBold" },
+  muted: { ...ModuleTextStyles.metadata, color: Colors.textMuted, fontSize: FontSize.sm, flex: 1 },
+  debtText: { color: Colors.dangerText, fontFamily: Typography.semibold },
+  paidText: { color: Colors.accentText, fontFamily: Typography.semibold },
   cardActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: Spacing.md,
   },
   actionText: {
-    color: Colors.accent,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.accentText,
+    fontFamily: Typography.semibold,
   },
   deleteText: {
-    color: Colors.danger,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.dangerText,
+    fontFamily: Typography.semibold,
   },
   migration: {
     backgroundColor: Colors.accentLight,
@@ -548,7 +542,7 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   migrationTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     color: Colors.primary,
     marginBottom: Spacing.xs,
   },
@@ -561,81 +555,29 @@ const styles = StyleSheet.create({
     borderBottomColor: "#CDEDE4",
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
+    justifyContent: "center"
   },
   linkCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     margin: Spacing.xl,
     borderRadius: Radius.xl,
     padding: Spacing.xxl,
     gap: Spacing.md,
   },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  input: {
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    color: Colors.primary,
-  },
   notesInput: { minHeight: 72, textAlignVertical: "top" },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  modalCancel: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: Colors.textSecondary,
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    color: "#FFFFFF",
-  },
   linkOption: {
     padding: Spacing.md,
     borderRadius: Radius.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
   },
   ...pluginFormStyles,
 });

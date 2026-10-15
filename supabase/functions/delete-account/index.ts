@@ -1,4 +1,3 @@
-// @ts-nocheck -- Deno Edge runtime types are checked by Supabase CLI.
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { admin, authorized, json, limited, readLimitedBody } from '../_shared/secure.ts';
 
@@ -24,13 +23,27 @@ Deno.serve(async (req) => {
     const verifier = createClient(Deno.env.get('SUPABASE_URL')!, anonKey, { auth: { persistSession: false } });
     const proof = await verifier.auth.signInWithPassword({ email: identity.user.email, password: body.password });
     if (proof.error || proof.data.user?.id !== uid) return json({ error: 'invalid_credentials' }, 403);
-    const listed = await admin.storage.from('profile-photos').list(uid, { limit: 1000 });
-    if (listed.error) throw listed.error;
-    const paths = (listed.data ?? []).filter((item) => item.name.endsWith('.webp')).map((item) => `${uid}/${item.name}`);
-    if (paths.length) {
-      const removed = await admin.storage.from('profile-photos').remove(paths);
-      if (removed.error) throw removed.error;
+    // Drain every object under this owner, including legacy formats/subfolders.
+    // Delete from the beginning each time; offsets skip rows after removal.
+    const bucket = admin.storage.from('profile-photos');
+    async function drain(prefix: string) {
+      while (true) {
+        const listed = await bucket.list(prefix, { limit: 1000 });
+        if (listed.error) throw listed.error;
+        if (!listed.data?.length) return;
+        const paths: string[] = [];
+        for (const item of listed.data) {
+          const path = `${prefix}/${item.name}`;
+          if (item.id === null) await drain(path);
+          else paths.push(path);
+        }
+        if (paths.length) {
+          const removed = await bucket.remove(paths);
+          if (removed.error) throw removed.error;
+        }
+      }
     }
+    await drain(uid);
     const deleted = await admin.auth.admin.deleteUser(uid);
     if (deleted.error) throw deleted.error;
     return json({ deleted: true });

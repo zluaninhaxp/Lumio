@@ -1,13 +1,22 @@
-﻿import { useState, useRef, useCallback } from 'react';
+import { isRejectedValidation } from '../../src/services/persistenceErrors';
+import type { Snapshot } from '../../src/services/syncMerge';
+import { localISO } from '../../src/services/financialRules';
+import { chatHistoryService } from '../../src/services/chatHistoryService';
+import { businessStateService } from '../../src/services/businessStateService';
+import type { ChatHistoryMessage as Message, ChatAmbiguity, QuickActionValue } from '../../src/types/chat';
+import { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TextInput, Image,
-  TouchableOpacity, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, FlatList, Image,
+  TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, BackHandler,
 } from 'react-native';
+import Animated, { FadeInDown, Easing, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { MessageComposer } from '../../src/components/message-composer';
+import { BottomSurface } from '../../src/components/bottom-surface';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
 import { parseTaskMessage } from '../../src/engine/taskEngine/taskParser';
 import { normalizeMessage } from '../../src/engine/taskEngine/normalize';
@@ -25,29 +34,14 @@ import { findLearnedIntentMarker, recordLearnedIntentMarker, recordLearnedTerm }
 import type { TaxonomyDomain } from '../../src/engine/taxonomy/types';
 import { onboardingService } from '../../src/services/onboardingService';
 import { learnedIntentRepository } from '../../src/repositories/learnedIntentRepository';
-import { MASCOT_IMAGES } from '../../src/data/mascotExpressions';
-import VoiceInput from '../components/onboarding/VoiceInput';
+import { ONBOARDING_MASCOTS } from '../../src/data/onboarding-messages';
+import VoiceInput from '../../src/components/onboarding/VoiceInput';
 import { useAuth } from '../../src/hooks/useAuth';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { BotMessageCard, type BotCard } from '../components/chat/BotMessageCard';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { BotMessageCard, type BotCard } from '../../src/components/chat/BotMessageCard';
 import { parseCommand, buildCommandHelp, missingCommandFields, getCommandDefinitions, type ParsedCommand } from '../../src/engine/commandEngine';
 
-interface Message {
-  id: string;
-  type: 'user' | 'bot' | 'fallback';
-  text: string;
-  actions?: string[];
-  quickActions?: { label: string; value: QuickActionValue }[];
-  ambiguity?: ChatAmbiguity;
-  fallbackSourceText?: string;
-  /** Cards visuais (substituem `text` quando presentes). */
-  cards?: BotCard[];
-  timestamp: Date;
-}
-
-type ChatAmbiguity = FinancialDirectionAmbiguity | TaskEventAmbiguity;
-type QuickActionValue = ChatAmbiguity['options'][number]['value'] | 'register_expense' | 'register_income' | 'add_task' | 'other' | 'command_add_client' | 'command_add_supplier' | 'command_add_employee' | 'command_add_stock' | 'command_add_catalog' | 'command_create_catalog_for_stock';
 type PendingCommandAction = Exclude<Extract<QuickActionValue, `command_${string}`>, 'command_create_catalog_for_stock'>;
 type PendingCommand = { action: PendingCommandAction; values: Record<string, string>; fieldIndex: number };
 
@@ -69,14 +63,29 @@ const INITIAL_MESSAGES: Message[] = [
   {
     id: '0',
     type: 'bot',
-    text: 'Olá! Pode digitar qualquer coisa aqui — gastos, tarefas, compromissos. Eu cuido do resto. 👋',
+    text: 'Oi! 👋 Me conte o que você quer organizar: gastos, tarefas ou compromissos. Vamos juntos!',
     timestamp: new Date(),
   },
 ];
 
 export default function ChatScreen() {
   const router = useRouter();
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const history = useAppStore((state) => state.chatHistory);
+  const visibleHistory = history.filter(message => message.type === 'user' || !message.pending);
+  const messages = visibleHistory.length ? visibleHistory : INITIAL_MESSAGES;
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
+  const optimisticUser = useRef<Message | null>(null);
+  const queue = useRef<{ message: Message; journal: Promise<void> }[]>([]);
+  const draining = useRef(false);
+  const submittedDraft = useRef<string | null>(null);
+  const dragging = useRef(false);
+  const [sendError, setSendError] = useState(false);
+  const retryableSendFailure = useRef(true);
+  const sendRetryDelay = useRef(5_000);
+  const pendingPair = useRef<Message[] | null>(null);
+  const pendingCompletion = useRef<(() => void) | null>(null);
+  const chosenMessage = useRef<string | null>(null);
   const [input, setInput] = useState('');
   const [pendingFinancialText, setPendingFinancialText] = useState<string | null>(null);
   const [pendingIntentMarkerPhrase, setPendingIntentMarkerPhrase] = useState<string | null>(null);
@@ -84,9 +93,22 @@ export default function ChatScreen() {
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const followContentResize = useRef(true);
+  const scrollFrame = useRef<number | null>(null);
 const { currentUser } = useAuth();
+  useEffect(() => {
+    pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
+    queue.current = []; optimisticUser.current = null; setSendError(false);
+    setInput(''); setPendingCommand(null); setPendingStockCatalogName(null); setPendingFinancialText(null); setPendingIntentMarkerPhrase(null);
+  }, [currentUser?.id]);
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
-  const isCommandMenuOpen = input.startsWith('/') && !input.includes(' ');
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
+  const [availableHeight, setAvailableHeight] = useState(0);
+  const [composerHeight, setComposerHeight] = useState(0);
+  const [composerTopOverlap, setComposerTopOverlap] = useState(0);
+  const headerRef = useRef<View>(null);
+  const [keyboardVerticalOffset, setKeyboardVerticalOffset] = useState(0);
+  const isCommandMenuOpen = !commandMenuDismissed && input.startsWith('/') && !input.includes(' ');
   const commandSuggestions = isCommandMenuOpen
     ? getCommandDefinitions().filter((item) => {
         const query = input.slice(1).toLocaleLowerCase();
@@ -94,7 +116,7 @@ const { currentUser } = useAuth();
           && !!item.pluginId
           && activatedPlugins.includes(item.pluginId)
           && (!query || item.name.includes(query) || item.label.toLocaleLowerCase().includes(query));
-      }).slice(0, 6)
+      })
     : [];
   const hasAllCommandPlugins = getCommandDefinitions()
     .filter((item) => item.menuOnly && item.pluginId)
@@ -110,12 +132,7 @@ const { currentUser } = useAuth();
     };
     recordLearnedTerm(taxonomy, domain, rawTerm);
     updateTaxonomy(taxonomy);
-    if (currentUser) {
-      const extraction = useAppStore.getState().onboardingExtraction;
-      void onboardingService.saveStructuredProfile(currentUser.id, extraction ? { ...extraction, taxonomy } : taxonomy).catch((error) => {
-        console.warn('Falha ao salvar termo aprendido:', error);
-      });
-    }
+
   }, [currentUser, updateTaxonomy]);
 
   const resolveClient = useCallback((name: string) => {
@@ -221,20 +238,10 @@ return date.toISOString().split('T')[0];
       .map((marker) => ({ ...marker }));
     if (domain === 'financial' && !isSafeFinancialLearnedMarkerPhrase(phrase)) {
       state.updateLearnedIntentMarkers(markers);
-      if (currentUser) {
-        void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
-          console.warn('Falha ao limpar intenção financeira aprendida:', error);
-        });
-      }
       return;
     }
     recordLearnedIntentMarker({ learnedIntentMarkers: markers }, domain, phrase, resolution);
     state.updateLearnedIntentMarkers(markers);
-    if (currentUser) {
-      void learnedIntentRepository.save(currentUser.id, markers).catch((error) => {
-        console.warn('Falha ao salvar intenção aprendida:', error);
-      });
-    }
   }, [currentUser]);
 
   const taskHookFromText = useCallback((text: string): string | null => {
@@ -623,21 +630,33 @@ return date.toISOString().split('T')[0];
   }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice, persistIntentMarker, taskHookFromText]);
 
   const scrollToBottom = useCallback(() => {
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    followContentResize.current = true;
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      if (followContentResize.current) flatListRef.current?.scrollToEnd({ animated: false });
+    });
+  }, []);
+  const preserveCardReading = useCallback(() => { followContentResize.current = false; }, []);
+  const handleContentResize = useCallback(() => {
+    if (followContentResize.current) scrollToBottom();
+  }, [scrollToBottom]);
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
   }, []);
 
   /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
   const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: ChatAmbiguity; fallbackSourceText?: string }) => {
     refreshOrcamentos();
     refreshContratos();
-    const userMsg: Message = {
-      id: Date.now().toString(),
+    const userMsg: Message = optimisticUser.current ?? {
+      id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
       type: 'user',
       text: userText,
       timestamp: new Date(),
     };
     const botMsg: Message = {
-      id: (Date.now() + 1).toString(),
+      id: 'bot-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
       type: outcome.botType ?? 'bot',
       text: outcome.botText ?? '',
       actions: outcome.actions,
@@ -647,84 +666,149 @@ return date.toISOString().split('T')[0];
       fallbackSourceText: outcome.fallbackSourceText,
       timestamp: new Date(),
     };
-    setMessages((prev) => [...prev, userMsg, botMsg]);
-    scrollToBottom();
+    pendingPair.current = [userMsg, botMsg];
   }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
 
+  const runChatAction = useCallback(async (prepare: () => void, finish?: () => void) => {
+    if (sendingRef.current) return;
+    sendingRef.current = true; setSending(true);
+    businessStateService.holdChanges();
+    const scope = businessStateService.scope();
+    let before: Snapshot | null = null;
+    let staged = false;
+    try {
+      if (!pendingPair.current) {
+        if (!businessStateService.isStarted()) throw new Error('Aguarde o carregamento da conta.');
+        before = businessStateService.capturePreparation();
+        prepare();
+        if (pendingPair.current) businessStateService.stageChatPreparation(before, (pendingPair.current as Message[]).filter(message => message.type !== 'user').map(message => message.id));
+        staged = true;
+        pendingCompletion.current = finish ?? null;
+      }
+      if (!pendingPair.current) return true;
+      await chatHistoryService.stage(pendingPair.current);
+      await businessStateService.commit();
+      if (scope !== businessStateService.scope()) { pendingPair.current = null; pendingCompletion.current = null; return false; }
+      if (chosenMessage.current) {
+        useAppStore.getState().setChatHistory(useAppStore.getState().chatHistory.map(message => message.id === chosenMessage.current ? { ...message, historical: true, quickActions: undefined, actions: undefined } : message));
+        chosenMessage.current = null;
+      }
+      pendingPair.current = null;
+      pendingCompletion.current?.(); pendingCompletion.current = null;
+      sendRetryDelay.current = 5_000;
+      setSendError(false);
+      return true;
+    } catch (error) {
+      if (scope !== businessStateService.scope()) return false;
+      if (before && !staged && scope === businessStateService.scope()) businessStateService.cancelRejectedPreparation(before, businessStateService.capturePreparation());
+      if (isRejectedValidation(error) || (before && !staged)) {
+        retryableSendFailure.current = false;
+        if (pendingPair.current) await chatHistoryService.reject(pendingPair.current.filter(message => message.type !== 'user').map(message => message.id));
+        pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
+      }
+      setSendError(true);
+      return false;
+    } finally {
+      businessStateService.releaseChanges();
+      sendingRef.current = false; setSending(false);
+    }
+  }, [scrollToBottom]);
+
   const handleFinancialChoice = useCallback((message: Message, value: FinancialDirectionAmbiguity['options'][number]['value']) => {
-    if (!message.ambiguity || message.ambiguity.type !== 'financial_direction') return;
-    const option = message.ambiguity.options.find((item) => item.value === value);
-    if (!option) return;
-    commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
-  }, [applyFinancialChoice, commitMessages]);
+  if (message.historical || useAppStore.getState().chatHistory.find(item => item.id === message.id)?.historical) return;
+if (sendingRef.current) return;
+if (!pendingPair.current) chosenMessage.current = message.id;
+  return runChatAction(() => {
+
+      if (!message.ambiguity || message.ambiguity.type !== 'financial_direction') return;
+      const option = message.ambiguity.options.find((item) => item.value === value);
+      if (!option) return;
+      commitMessages(option.label, applyFinancialChoice(message.ambiguity, value));
+
+  });
+  }, [applyFinancialChoice, commitMessages, runChatAction]);
 
   const handleTaskEventChoice = useCallback((message: Message, value: 'task' | 'event') => {
-    if (!message.ambiguity || message.ambiguity.type !== 'task_or_event') return;
-    const option = message.ambiguity.options.find((item) => item.value === value);
-    if (!option) return;
-    commitMessages(option.label, applyTaskEventChoice(message.ambiguity, value));
-  }, [applyTaskEventChoice, commitMessages]);
+  if (message.historical || useAppStore.getState().chatHistory.find(item => item.id === message.id)?.historical) return;
+if (sendingRef.current) return;
+if (!pendingPair.current) chosenMessage.current = message.id;
+  return runChatAction(() => {
+
+      if (!message.ambiguity || message.ambiguity.type !== 'task_or_event') return;
+      const option = message.ambiguity.options.find((item) => item.value === value);
+      if (!option) return;
+      commitMessages(option.label, applyTaskEventChoice(message.ambiguity, value));
+
+  });
+  }, [applyTaskEventChoice, commitMessages, runChatAction]);
 
   const handleGenericQuickAction = useCallback((message: Message, value: QuickActionValue) => {
-    if (value === 'command_create_catalog_for_stock') {
-      if (!pendingStockCatalogName) return;
-      setPendingCommand({ action: 'command_add_catalog', values: { nome: pendingStockCatalogName, controlaestoque: 'sim' }, fieldIndex: 1 });
-      setPendingStockCatalogName(null);
-      commitMessages('Adicionar ao Catálogo', { botText: COMMAND_FIELDS.command_add_catalog[1].prompt, botType: 'bot' });
-      return;
-    }
-    if (value.startsWith('command_')) {
-      const action = value as PendingCommandAction;
-      setPendingCommand({ action, values: {}, fieldIndex: 0 });
-      commitMessages('Cadastrar', { botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' });
-      return;
-    }
-    if (value === 'register_expense') {
-      setPendingFinancialText('gastei');
-      // O fallback genérico não é evidência suficiente para aprender direção
-      // financeira: a frase pode ser uma tarefa, como "coloque 700 da obra".
-      setPendingIntentMarkerPhrase(null);
-      commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
-    } else if (value === 'register_income') {
-      setPendingFinancialText('recebi');
-      setPendingIntentMarkerPhrase(null);
-      commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
-    } else if (value === 'add_task') {
-      const sourceText = message.fallbackSourceText?.trim();
-      if (!sourceText) {
-        commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+  if (message.historical || useAppStore.getState().chatHistory.find(item => item.id === message.id)?.historical) return;
+if (sendingRef.current) return;
+if (!pendingPair.current) chosenMessage.current = message.id;
+  return runChatAction(() => {
+
+      if (value === 'command_create_catalog_for_stock') {
+        if (!pendingStockCatalogName) return;
+        setPendingCommand({ action: 'command_add_catalog', values: { nome: pendingStockCatalogName, controlaestoque: 'sim' }, fieldIndex: 1 });
+        setPendingStockCatalogName(null);
+        commitMessages('Adicionar ao Catálogo', { botText: COMMAND_FIELDS.command_add_catalog[1].prompt, botType: 'bot' });
         return;
       }
-      const normalized = normalizeMessage(sourceText);
-      const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
-      const taskId = addTask({
-        description: sourceText,
-        source: 'chat',
-        done: false,
-        dueDate: temporal.dueDate,
-        dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
-        priority: 'media',
-        subtasks: [],
-        tags: [],
-        createdAt: new Date().toISOString(),
-      });
-      const hook = taskHookFromText(sourceText);
-      if (taskId && hook) persistIntentMarker('task', hook, 'task');
-      commitMessages('Adicionar tarefa', {
-        botText: taskId ? '' : 'Não foi possível criar a tarefa.',
-        botType: 'bot',
-        cards: taskId ? [{
-          kind: temporal.isDeadline ? 'deadline' : 'task',
-          title: sourceText,
-          date: temporal.dueDate ?? undefined,
-          dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
-          time: temporal.dueTime ?? undefined,
-        }] : undefined,
-      });
-    } else if (value === 'other') {
-      commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
-    }
-  }, [addTask, commitMessages, pendingStockCatalogName, persistIntentMarker, taskHookFromText]);
+      if (value.startsWith('command_')) {
+        const action = value as PendingCommandAction;
+        setPendingCommand({ action, values: {}, fieldIndex: 0 });
+        commitMessages('Cadastrar', { botText: COMMAND_FIELDS[action][0].prompt, botType: 'bot' });
+        return;
+      }
+      if (value === 'register_expense') {
+        setPendingFinancialText('gastei');
+        // O fallback genérico não é evidência suficiente para aprender direção
+        // financeira: a frase pode ser uma tarefa, como "coloque 700 da obra".
+        setPendingIntentMarkerPhrase(null);
+        commitMessages('Registrar gasto', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
+      } else if (value === 'register_income') {
+        setPendingFinancialText('recebi');
+        setPendingIntentMarkerPhrase(null);
+        commitMessages('Registrar entrada', { botText: 'Certo. Qual foi o valor?', botType: 'bot' });
+      } else if (value === 'add_task') {
+        const sourceText = message.fallbackSourceText?.trim();
+        if (!sourceText) {
+          commitMessages('Adicionar tarefa', { botText: 'Claro. O que você precisa fazer?', botType: 'bot' });
+          return;
+        }
+        const normalized = normalizeMessage(sourceText);
+        const temporal = resolveTemporal(normalized.tokens, new Date()).resolution;
+        const taskId = addTask({
+          description: sourceText,
+          source: 'chat',
+          done: false,
+          dueDate: temporal.dueDate,
+          dueDateLabel: humanizeDueDate(temporal.dueDate, new Date()),
+          priority: 'media',
+          subtasks: [],
+          tags: [],
+          createdAt: new Date().toISOString(),
+        });
+        const hook = taskHookFromText(sourceText);
+        if (taskId && hook) persistIntentMarker('task', hook, 'task');
+        commitMessages('Adicionar tarefa', {
+          botText: taskId ? '' : 'Não foi possível criar a tarefa.',
+          botType: 'bot',
+          cards: taskId ? [{
+            kind: temporal.isDeadline ? 'deadline' : 'task',
+            title: sourceText,
+            date: temporal.dueDate ?? undefined,
+            dateLabel: humanizeDueDate(temporal.dueDate, new Date()) ?? undefined,
+            time: temporal.dueTime ?? undefined,
+          }] : undefined,
+        });
+      } else if (value === 'other') {
+        commitMessages('Outra coisa', { botText: 'Pode me explicar um pouco melhor?', botType: 'bot' });
+      }
+
+  });
+  }, [addTask, commitMessages, pendingStockCatalogName, persistIntentMarker, taskHookFromText, runChatAction]);
 
 
   /**
@@ -846,7 +930,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           const stockMatch = estoqueItems.find((item) => item.name.trim().toLowerCase() === (parsed.entities.orderItemName || '').trim().toLowerCase());
           const quantity = parsed.entities.orderQuantity || 0;
           const unitPrice = parsed.entities.unitPrice || 0;
-          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), createdAt: new Date().toISOString() });
+          const id = addPedido({ clientId: matches[0].id, items: [{ id: `${Date.now()}`, name: parsed.entities.orderItemName || 'Item', quantity, unitPrice, stockItemId: stockMatch?.id }], total: quantity * unitPrice, status: 'aberto', date: localISO(), createdAt: new Date().toISOString() });
           botText = `✓ Pedido ${id.slice(-6)} aberto para ${matches[0].name}: ${quantity}x ${parsed.entities.orderItemName} por ${formatMoney(quantity * unitPrice)}. Conclua o pedido para gerar a receita e baixar o estoque.`;
         }
       }
@@ -1022,29 +1106,111 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     return { botText, actions, botType, cards, fallbackSourceText: parsed.intent === 'UNKNOWN' ? text : undefined };
   }, [applyCommand, applyFinancialEngine, applyTaskEngineResult, handlePluginIntent, pendingCommand]);
 
+  const processLatest = useRef(processMessage);
+  processLatest.current = processMessage;
+  const drainQueue = useCallback(async () => {
+    if (draining.current || sendingRef.current) return;
+    draining.current = true;
+    const scope = businessStateService.scope();
+    try {
+      while (queue.current.length && scope === businessStateService.scope()) {
+        const job = queue.current[0];
+        optimisticUser.current = job.message;
+        try { await job.journal; }
+        catch { setSendError(true); break; }
+        if (pendingPair.current && pendingPair.current[0].id !== job.message.id) {
+          if (!await runChatAction(() => {})) break;
+        }
+        const success = await runChatAction(() => commitMessages(job.message.text, processLatest.current(job.message.text)));
+        if (!success) break;
+        if (queue.current[0] === job) queue.current.shift();
+        optimisticUser.current = null;
+        // React can commit updated conversational state before processing the next turn.
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+    } catch { setSendError(true); }
+    finally { draining.current = false; optimisticUser.current = null; }
+  }, [commitMessages, runChatAction]);
+  const enqueueText = useCallback((text: string) => {
+    if (!text.trim()) return;
+    const message: Message = { id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), type: 'user', text: text.trim(), timestamp: new Date(), pending: true };
+    useAppStore.getState().setChatHistory([...useAppStore.getState().chatHistory, message]);
+    const journal = chatHistoryService.stage([message]);
+    // Keep a rejected journal handled while an earlier turn is still running.
+    void journal.catch(() => setSendError(true));
+    queue.current.push({ message, journal });
+    setInput(''); scrollToBottom();
+    if (!sendError) void drainQueue();
+  }, [drainQueue, scrollToBottom, sendError]);
+  const retryMessages = useCallback(async () => {
+    if (draining.current || sendingRef.current) return;
+    setSendError(false);
+    if (queue.current.length) {
+      for (const job of queue.current) {
+        job.journal = chatHistoryService.stage([job.message]);
+        void job.journal.catch(() => setSendError(true));
+      }
+      await drainQueue();
+    } else {
+      try { if (pendingPair.current) await runChatAction(() => {}); else await businessStateService.commit(); }
+      catch { setSendError(true); }
+    }
+  }, [drainQueue, runChatAction]);
+  useEffect(() => {
+    if (!sendError) return;
+    if (!retryableSendFailure.current) return;
+    const timer = setTimeout(() => {
+      sendRetryDelay.current = Math.min(sendRetryDelay.current * 2, 60_000);
+      void retryMessages();
+    }, sendRetryDelay.current);
+    return () => clearTimeout(timer);
+  }, [sendError, retryMessages]);
   const handleSend = useCallback(() => {
-    const text = input.trim();
-    if (!text) return;
-    commitMessages(text, processMessage(text));
-    setInput('');
-  }, [input, processMessage, commitMessages]);
-
-  const runCommandSuggestion = useCallback((commandName: string) => {
-    const text = `/${commandName}`;
-    commitMessages(text, processMessage(text));
-    setInput('');
-  }, [processMessage, commitMessages]);
+    if (!input.trim() || submittedDraft.current === input) return;
+    submittedDraft.current = input; enqueueText(input);
+  }, [enqueueText, input]);
+  const runCommandSuggestion = useCallback((name: string) => enqueueText(`/${name}`), [enqueueText]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
     if (!transcript.trim()) return;
-    commitMessages(transcript.trim(), processMessage(transcript.trim()));
-  }, [processMessage, commitMessages]);
+    submittedDraft.current = null;
+    setInput(transcript.trim());
+  }, []);
 
-  const renderMessage = ({ item }: { item: Message }) => {
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => {
+      setKeyboardVisible(true);
+      handleContentResize();
+      setCommandMenuDismissed(false);
+    });
+    const hide = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardVisible(false);
+      setCommandMenuDismissed(true);
+    });
+    return () => { show.remove(); hide.remove(); };
+  }, [handleContentResize]);
+  useEffect(() => {
+    if (!isCommandMenuOpen) return;
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      setCommandMenuDismissed(true);
+      return true;
+    });
+    return () => back.remove();
+  }, [isCommandMenuOpen]);
+  const showCommandPanel = isCommandMenuOpen && (commandSuggestions.length > 0 || activatedPlugins.length === 0);
+  useEffect(() => {
+    handleContentResize();
+  }, [composerHeight, composerTopOverlap, showCommandPanel, handleContentResize]);
+  // Measure inside keyboard avoidance: IME and tab changes share the composer viewport.
+  const commandPanelMaxHeight = Math.max(0, Math.min(availableHeight * 0.65, availableHeight - composerHeight - 48));
+  const changeInput = (text: string) => { submittedDraft.current = null; setCommandMenuDismissed(false); setInput(text); };
+  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
+    const grouped = index > 0 && messages[index - 1].type === item.type;
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
 
     const renderBotAvatar = (expression: 'neutro' | 'confuso' | 'piscando') => (
-      <Image source={MASCOT_IMAGES[expression]} style={styles.botAvatarImage} resizeMode="contain" />
+      <Image source={expression === 'confuso' ? ONBOARDING_MASCOTS.confused : expression === 'piscando' ? ONBOARDING_MASCOTS.happy : ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
     );
 
     const fallbackActions: { label: string; value: QuickActionValue; icon: keyof typeof Ionicons.glyphMap }[] = [
@@ -1056,7 +1222,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
     if (item.type === 'user') {
       return (
-        <View style={styles.userBubbleContainer}>
+        <View style={[styles.userBubbleContainer, grouped && styles.groupedMessage]}>
           <View style={styles.userBubble}>
             <Text style={styles.userText}>{item.text}</Text>
           </View>
@@ -1066,7 +1232,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
     if (item.type === 'fallback') {
       return (
-        <View style={styles.botRow}>
+        <View style={[styles.botRow, grouped && styles.groupedMessage]}>
           {renderBotAvatar('confuso')}
           <View style={styles.botContent}>
             <View style={styles.botBubble}>
@@ -1074,7 +1240,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
             </View>
             <View style={styles.quickActionsRow}>
               {fallbackActions.map(({ label, value }) => (
-                <TouchableOpacity key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)} disabled={sending || queue.current.length > 0 || item.historical}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1087,28 +1253,28 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     const hasCards = item.cards && item.cards.length > 0;
 
     return (
-      <View style={styles.botRow}>
+      <View style={[styles.botRow, grouped && styles.groupedMessage]}>
         {renderBotAvatar(hasCards ? 'piscando' : isTransactionReport ? 'piscando' : 'neutro')}
         <View style={styles.botContent}>
           {hasCards ? (
             <View style={styles.cardsContainer}>
               {item.cards!.map((card, idx) => (
-                <BotMessageCard key={idx} card={card} />
+                <BotMessageCard key={idx} card={card} onExpansionChange={preserveCardReading} />
               ))}
             </View>
           ) : (
             <View style={styles.botBubble}>
-              <Text style={styles.botText}>{item.text}</Text>
+              <Text style={styles.botText}>{item.pending ? 'Pendente de confirmação · ' : ''}{item.text}</Text>
             </View>
           )}
           {item.quickActions && item.quickActions.length > 0 && (
             <View style={styles.quickActionsRow}>
               {item.quickActions.map((action) => (
-                <TouchableOpacity key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
                   ? handleGenericQuickAction(item, action.value)
                   : item.ambiguity?.type === 'task_or_event'
                     ? handleTaskEventChoice(item, action.value as 'task' | 'event')
-                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])}>
+                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])} disabled={sending || item.historical}>
                   <Text style={styles.quickActionText}>{action.label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1117,7 +1283,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           {item.actions && item.actions.length > 0 && (
             <View style={styles.actionsRow}>
               {item.actions.map((action) => (
-                <TouchableOpacity key={action} style={styles.actionBtn}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action} style={styles.actionBtn}>
                   <Text style={styles.actionText}>{action}</Text>
                 </TouchableOpacity>
               ))}
@@ -1131,7 +1297,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View ref={headerRef} style={styles.header} onLayout={() => {
+        headerRef.current?.measureInWindow((_x, y, _width, height) => setKeyboardVerticalOffset(y + height));
+      }}>
         <View style={styles.headerLeft}>
           <Image source={require('../../assets/lumio.png')} style={styles.headerLogo} resizeMode="contain" />
         </View>
@@ -1141,30 +1309,48 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       {/* Messages */}
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
+        // Same strategy as onboarding: padding while Android's keyboard is
+        // visible, never retain a fixed height across tab-bar layout changes.
+        enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && keyboardVisible)}
+        behavior="padding"
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
+        <View style={styles.flex} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
         <FlatList
+          style={styles.readingArea}
           ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={styles.messagesList}
+          contentContainerStyle={[styles.messagesList, { paddingBottom: composerTopOverlap + Spacing.md }]}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={scrollToBottom}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          removeClippedSubviews={false}
+          onScrollBeginDrag={() => { dragging.current = true; preserveCardReading(); }}
+          onScrollEndDrag={() => { dragging.current = false; }}
+          onMomentumScrollBegin={() => { dragging.current = true; }}
+          onMomentumScrollEnd={() => { dragging.current = false; }}
+          onScroll={event => {
+            const { contentSize, contentOffset, layoutMeasurement } = event.nativeEvent;
+            if (!dragging.current) return;
+            followContentResize.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 72;
+          }}
+          scrollEventThrottle={16}
+          onLayout={handleContentResize}
+          onContentSizeChange={handleContentResize}
         />
 
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(239,239,237,0)', Colors.bg]}
-          style={styles.messageFade}
-        />
-
-        {commandSuggestions.length > 0 && (
-          <View style={styles.commandMenu} accessibilityLabel="Ações disponíveis">
+        {showCommandPanel && (
+          <Animated.View style={[styles.commandMenu, { maxHeight: commandPanelMaxHeight }]}
+            entering={FadeInDown.duration(160).withInitialValues({ transform: [{ translateY: 8 }] }).easing(Easing.bezier(0.23, 1, 0.32, 1)).reduceMotion(ReduceMotion.System)}
+            accessibilityLabel="Ações disponíveis">
+          <ScrollView style={styles.commandScroll} contentContainerStyle={styles.commandContent}
+            keyboardShouldPersistTaps="always" keyboardDismissMode="none" showsVerticalScrollIndicator>
+          {commandSuggestions.length > 0 ? <>
             <Text style={styles.commandMenuTitle}>O que você quer fazer?</Text>
             {commandSuggestions.map((command) => (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 key={command.name}
                 style={styles.commandSuggestion}
                 onPress={() => runCommandSuggestion(command.name)}
@@ -1178,80 +1364,51 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
                   <Text style={styles.commandLabel}>{command.label}</Text>
                   <Text style={styles.commandUsage} numberOfLines={1}>{command.usage.replace(/^\/\w+\s*/, '')}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={16} color={Colors.textMuted} />
+                <Ionicons name="chevron-forward" size={16} color={Colors.iconMuted} />
               </TouchableOpacity>
             ))}
             {hasAllCommandPlugins ? (
               <View style={styles.commandAllActive} accessibilityLabel="Todos os módulos com comando estão ativos">
-                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.accent} />
+                <Ionicons name="checkmark-circle-outline" size={16} color={Colors.accentIcon} />
                 <Text style={styles.commandAppsLinkText}>Você já ativou todos os módulos</Text>
               </View>
             ) : (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.commandAppsLink}
                 onPress={() => router.push('/(tabs)/apps' as any)}
                 accessibilityRole="button"
                 accessibilityLabel="Adicionar mais módulos"
               >
-                <Ionicons name="add-circle-outline" size={16} color={Colors.accent} />
+                <Ionicons name="add-circle-outline" size={16} color={Colors.accentIcon} />
                 <Text style={styles.commandAppsLinkText}>Adicionar mais módulos</Text>
               </TouchableOpacity>
             )}
-          </View>
-        )}
-        {isCommandMenuOpen && activatedPlugins.length === 0 && (
-          <View style={styles.commandMenu} accessibilityLabel="Nenhum módulo ativo">
+          </> : <View accessibilityLabel="Nenhum módulo ativo">
             <View style={styles.commandEmptyIcon}>
-              <Ionicons name="apps-outline" size={20} color={Colors.accent} />
+              <Ionicons name="apps-outline" size={20} color={Colors.accentIcon} />
             </View>
             <Text style={styles.commandEmptyTitle}>Ative seu primeiro módulo</Text>
             <Text style={styles.commandEmptyText}>Os comandos aparecem aqui quando você ativar um módulo.</Text>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.commandEmptyButton}
               onPress={() => router.push('/(tabs)/apps' as any)}
               accessibilityRole="button"
               accessibilityLabel="Ir para a tela de Apps"
             >
               <Text style={styles.commandEmptyButtonText}>Ver Apps</Text>
-              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" />
+              <Ionicons name="arrow-forward" size={16} color={Colors.onAction} />
             </TouchableOpacity>
-          </View>
+          </View>}
+          </ScrollView>
+          </Animated.View>
         )}
 
-        {/* Input bar */}
-        <View style={[styles.inputBar, { marginBottom: Spacing.sm }]}>
-          <View style={styles.inputWrapper}>
-            {!input && (
-              <Text
-                style={styles.inputPlaceholder}
-                numberOfLines={1}
-                ellipsizeMode="tail"
-                pointerEvents="none"
-              >
-                Digite aqui...
-              </Text>
-            )}
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={setInput}
-              placeholderTextColor="transparent"
-              onSubmitEditing={handleSend}
-              returnKeyType="send"
-              numberOfLines={1}
-            />
-          </View>
-          <VoiceInput
-            onCapture={handleVoiceCapture}
-            onPartialResult={setInput}
-          />
-          <TouchableOpacity
-            style={[styles.sendBtn, !input.trim() && styles.sendBtnDisabled]}
-            onPress={handleSend}
-            disabled={!input.trim()}
-          >
-            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-          </TouchableOpacity>
+        <BottomSurface style={styles.inputBar} organicEdge={!showCommandPanel}
+          onTopOverlapChange={setComposerTopOverlap}
+          onLayout={event => setComposerHeight(event.nativeEvent.layout.height)}>
+          <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend}
+            voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={changeInput} appearance="onboarding" />} />
+        </BottomSurface>
         </View>
       </KeyboardAvoidingView>
       <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
@@ -1260,8 +1417,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
-  flex: { flex: 1 },
+  safe: { flex: 1, backgroundColor: Colors.chatBackground },
+  readingArea: { flex: 1, minHeight: 0, backgroundColor: Colors.chatBackground },
+  flex: { flex: 1, backgroundColor: Colors.bottomSurface },
 
   header: {
     flexDirection: 'row',
@@ -1269,7 +1427,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: 'transparent',
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   headerLogo: {
@@ -1287,36 +1445,24 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 13,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 
   messagesList: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    paddingBottom: 12,
     gap: Spacing.md,
   },
-  messageFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 76,
-    height: 10,
-  },
   commandMenu: {
-    marginHorizontal: Spacing.xl,
-    marginBottom: Spacing.xs,
-    padding: Spacing.sm,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    backgroundColor: Colors.bottomSurface,
+    flexShrink: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.composerDivider,
+    overflow: 'hidden',
   },
+  commandScroll: { flexGrow: 0, flexShrink: 1 },
+  commandContent: { paddingHorizontal: Spacing.xl, paddingVertical: Spacing.sm },
   commandMenuTitle: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
@@ -1330,7 +1476,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
+    minHeight: 56,
   },
   commandIcon: {
     width: 32,
@@ -1349,7 +1495,8 @@ const styles = StyleSheet.create({
   commandUsage: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.xs,
-    color: Colors.textMuted,
+    color: Colors.textSecondary,
+    lineHeight: 18,
   },
   commandHint: {
     paddingHorizontal: Spacing.sm,
@@ -1360,14 +1507,14 @@ const styles = StyleSheet.create({
   },
   commandAppsLink: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
-    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+    minHeight: 48, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
   },
   commandAllActive: {
     flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', gap: 4,
-    minHeight: 40, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
+    minHeight: 48, marginTop: Spacing.xs, paddingHorizontal: Spacing.sm,
   },
   commandAppsLinkText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent,
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accentText,
   },
   commandEmptyIcon: {
     width: 36, height: 36, borderRadius: Radius.full, backgroundColor: Colors.accentLight,
@@ -1382,18 +1529,19 @@ const styles = StyleSheet.create({
   },
   commandEmptyButton: {
     alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: Spacing.xs,
-    backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.actionBackground, borderRadius: Radius.full, paddingHorizontal: Spacing.md,
     minHeight: 40, marginTop: Spacing.md,
   },
   commandEmptyButtonText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.onAction,
   },
 
   userBubbleContainer: { alignItems: 'flex-end', marginVertical: Spacing.xs },
   userBubble: {
+      ...SurfaceStyles.userMessage,
     backgroundColor: Colors.bubbleUser,
-    borderRadius: Radius.lg,
-    borderBottomRightRadius: 4,
+    borderRadius: Radius.xl,
+    borderBottomRightRadius: Radius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     maxWidth: '80%',
@@ -1401,7 +1549,7 @@ const styles = StyleSheet.create({
   userText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
-    color: '#FFFFFF',
+    color: Colors.onAction,
     lineHeight: 22,
   },
 
@@ -1419,49 +1567,39 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   botAvatarImage: {
-    width: 36,
-    height: 36,
+    width: 40,
+    height: 40,
     marginTop: 2,
   },
-  botContent: { flex: 1, gap: Spacing.xs },
+  botContent: { flex: 1, gap: Spacing.md },
   cardsContainer: {
-    gap: Spacing.xs,
+    gap: Spacing.sm,
     alignSelf: 'flex-start',
     maxWidth: '92%',
   },
   botBubble: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.message,
     borderRadius: Radius.lg,
-    borderTopLeftRadius: 4,
+    borderTopLeftRadius: Radius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     alignSelf: 'flex-start',
-    maxWidth: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    maxWidth: '100%'
   },
   botText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
-    color: Colors.primary,
+    color: Colors.ink,
     lineHeight: 22,
   },
-  conversationPrompt: { alignSelf: 'flex-start', maxWidth: '92%', gap: Spacing.xs },
+  conversationPrompt: { alignSelf: 'flex-start', maxWidth: '92%', gap: Spacing.md },
   conversationBubble: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.message,
     borderRadius: Radius.lg,
-    borderTopLeftRadius: 4,
+    borderTopLeftRadius: Radius.sm,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    gap: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
+    gap: 3
   },
   conversationTitle: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
@@ -1483,7 +1621,7 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     backgroundColor: Colors.accentLight,
   },
   conversationActionText: {
@@ -1494,12 +1632,10 @@ const styles = StyleSheet.create({
 
   actionsRow: { flexDirection: 'row', gap: Spacing.xs, flexWrap: 'wrap' },
   actionBtn: {
+      ...SurfaceStyles.filter,
     paddingHorizontal: Spacing.md,
     paddingVertical: 6,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.bgCard,
+    borderRadius: Radius.full
   },
   actionText: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -1513,7 +1649,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: Radius.full,
     borderWidth: 1.5,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     backgroundColor: Colors.bgCard,
   },
   quickActionText: {
@@ -1522,47 +1658,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  inputBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
-    paddingVertical: Spacing.md,
-    gap: Spacing.sm,
-    backgroundColor: Colors.bg,
-  },
-  inputWrapper: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  inputPlaceholder: {
-    position: 'absolute',
-    left: Spacing.lg,
-    right: Spacing.lg,
-    zIndex: 1,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.textMuted,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.md,
-    color: Colors.primary,
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sendBtnDisabled: { backgroundColor: Colors.textMuted },
+  inputBar: { flexShrink: 0, paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.md },
+  groupedMessage: { marginTop: 0 },
 });

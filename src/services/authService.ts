@@ -1,7 +1,15 @@
+import { PersistenceError } from './persistenceErrors';
+import { AUTH_REDIRECT } from './authLinks';
+import { isInvalidSession } from './sessionErrors';
 import { AuthError } from '../types/errors';
 import type { AuthResult, PublicUser, Session } from '../types/user';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { photoService } from './photoService';
+import { throwAuthError } from './authError';
+import { businessStateService } from './businessStateService';
+import { supabaseProjectScope } from '../lib/supabase';
+import { purgeAccountStorage } from './localPrivacy';
+import { protectedStorage } from './protectedStorage';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 function client() {
@@ -13,7 +21,7 @@ function session(accessToken: string, userId: string): Session {
 }
 async function profile(userId: string, fallback?: { name?: string; email?: string }): Promise<PublicUser> {
   const { data, error } = await client().from('profiles').select('id,name,email,photo,role,phone,onboarding_completed,created_at').eq('id', userId).maybeSingle();
-  if (error) throw new Error('Não foi possível carregar seu perfil.');
+  if (error || !data) throw new PersistenceError('Profile hydration failed', 'PROFILE_LOAD');
   return {
     id: userId, name: data?.name ?? fallback?.name ?? '', email: data?.email ?? fallback?.email ?? '',
     photo: data?.photo ? await photoService.signedUrl() : null, role: data?.role ?? '', phone: data?.phone ?? '',
@@ -21,15 +29,41 @@ async function profile(userId: string, fallback?: { name?: string; email?: strin
     createdAt: data?.created_at ?? new Date().toISOString(),
   };
 }
-function authError(message: string): never {
-  if (/already registered|already exists/i.test(message)) throw new AuthError('EMAIL_ALREADY_REGISTERED');
-  if (/invalid login credentials|invalid password/i.test(message)) throw new AuthError('INVALID_PASSWORD');
-  throw new Error('Não foi possível autenticar. Tente novamente.');
-}
 export interface RegisterInput { name: string; email: string; password: string }
 export interface LoginInput { email: string; password: string }
 
 export const authService = {
+  async resendConfirmation(email: string) {
+    if (!EMAIL_REGEX.test(email.trim())) throw new AuthError('INVALID_EMAIL');
+    const { error } = await client().auth.resend({ type: 'signup', email: email.trim().toLowerCase(), options: { emailRedirectTo: AUTH_REDIRECT } });
+    if (error) throwAuthError(error);
+  },
+  async requestPasswordRecovery(email: string) {
+    if (!EMAIL_REGEX.test(email.trim())) throw new AuthError('INVALID_EMAIL');
+    const { error } = await client().auth.resetPasswordForEmail(email.trim().toLowerCase(), { redirectTo: AUTH_REDIRECT + '?intent=recovery' });
+    if (error) throwAuthError(error);
+  },
+  async completePasswordRecovery(password: string) {
+    if (password.length < 6) throw new AuthError('WEAK_PASSWORD');
+    const { error } = await client().auth.updateUser({ password });
+    if (error) throwAuthError(error);
+  },
+  async finishDeletionCleanup(): Promise<void> {
+    const key = '@lumio/deletion-cleanup/' + supabaseProjectScope;
+    const raw = await protectedStorage.getItem(key);
+    if (!raw) return;
+    const { userId, email } = JSON.parse(raw);
+    if (typeof userId !== 'string' || !userId || (email !== undefined && typeof email !== 'string')) throw new Error('Recibo de exclusão inválido. Solicite suporte para concluir a limpeza local.');
+    const saved = await client().auth.getSession();
+    if (saved.error) throw saved.error;
+    if (saved.data.session?.user.id === userId) {
+      businessStateService.stop(); businessStateService.clearPrivateState();
+      const { error } = await client().auth.signOut({ scope: 'local' });
+      if (error) throw error;
+    }
+    await purgeAccountStorage(supabaseProjectScope, userId, email);
+    await protectedStorage.removeItem(key);
+  },
   async changePassword(_userId: string, currentPassword: string, newPassword: string): Promise<void> {
     if (newPassword.length < 6) throw new AuthError('WEAK_PASSWORD');
     const api = client();
@@ -42,6 +76,12 @@ export const authService = {
   },
   async deleteAccount(_userId: string, password: string): Promise<void> {
     if (!password) throw new AuthError('INVALID_PASSWORD');
+    const sessionData = await client().auth.getSession();
+    const identity = sessionData.data.session?.user;
+    if (!identity || identity.id !== _userId) throw new Error('Sessão indisponível. Entre novamente.');
+    // Flush writers before deletion so no late local write can recreate a purged journal.
+    try { await businessStateService.commit(); } catch { /* Explicit account deletion also discards pending work. */ }
+    await businessStateService.waitForJournal();
     const { error } = await client().functions.invoke('delete-account', { body: { password } });
     if (error) {
       const status = (error as { context?: { status?: number } }).context?.status;
@@ -49,14 +89,16 @@ export const authService = {
       if (status === 403) throw new AuthError('INVALID_PASSWORD');
       throw new Error('Não foi possível excluir a conta.');
     }
-    await client().auth.signOut();
+    const key = '@lumio/deletion-cleanup/' + supabaseProjectScope;
+    await protectedStorage.setItem(key, JSON.stringify({ userId: identity.id, email: identity.email }));
+    await this.finishDeletionCleanup();
   },
   async register({ name, email, password }: RegisterInput): Promise<AuthResult> {
     if (!name.trim()) throw new AuthError('INVALID_NAME');
     if (!EMAIL_REGEX.test(email.trim())) throw new AuthError('INVALID_EMAIL');
     if (password.length < 6) throw new AuthError('WEAK_PASSWORD');
-    const { data, error } = await client().auth.signUp({ email: email.trim().toLowerCase(), password, options: { data: { name: name.trim() } } });
-    if (error) authError(error.message);
+    const { data, error } = await client().auth.signUp({ email: email.trim().toLowerCase(), password, options: { data: { name: name.trim() }, emailRedirectTo: AUTH_REDIRECT } });
+    if (error) throwAuthError(error);
     if (!data.user) throw new Error('Não foi possível criar a conta.');
     if (!data.session) throw new AuthError('EMAIL_CONFIRMATION_REQUIRED');
     return { user: await profile(data.user.id, { name, email }), session: session(data.session.access_token, data.user.id) };
@@ -64,7 +106,7 @@ export const authService = {
   async login({ email, password }: LoginInput): Promise<AuthResult> {
     if (!EMAIL_REGEX.test(email.trim())) throw new AuthError('INVALID_EMAIL');
     const { data, error } = await client().auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
-    if (error) authError(error.message);
+    if (error) throwAuthError(error);
     if (!data.user || !data.session) throw new Error('Sessão inválida.');
     return { user: await profile(data.user.id, { email }), session: session(data.session.access_token, data.user.id) };
   },
@@ -74,10 +116,22 @@ export const authService = {
   },
   async restoreSession(): Promise<AuthResult | null> {
     const api = client();
+    await this.finishDeletionCleanup();
+    const saved = await api.auth.getSession();
+    if (saved.error) { if (isInvalidSession(saved.error)) return null; throw saved.error; }
+    if (!saved.data.session) return null;
     const { data, error } = await api.auth.getUser();
-    if (error || !data.user) return null;
+    if (error) {
+      if (isInvalidSession(error)) return null;
+      throw new Error('Não foi possível verificar sua sessão. Confira a internet e tente novamente.');
+    }
+    if (!data.user) return null;
     const { data: sessionData, error: sessionError } = await api.auth.getSession();
-    if (sessionError || !sessionData.session) return null;
+    if (sessionError) {
+      if (isInvalidSession(sessionError)) return null;
+      throw new Error('Não foi possível renovar sua sessão. Tente novamente.');
+    }
+    if (!sessionData.session) return null;
     return { user: await profile(data.user.id, { name: data.user.user_metadata?.name, email: data.user.email }), session: session(sessionData.session.access_token, data.user.id) };
   },
 };

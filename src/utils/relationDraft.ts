@@ -1,14 +1,18 @@
+import { draftIdentity, onDraftIdentityChange } from '../services/accountScope';
 export type RelationDraftKind = 'task' | 'calendar' | 'quotes' | 'contracts' | 'deliveries' | 'sales' | 'stock';
 export type RelationDraftRelation = 'client' | 'supplier' | 'employee';
 
 type Draft = Record<string, unknown>;
 const pendingDrafts: Partial<Record<RelationDraftKind, Draft>> = {};
+onDraftIdentityChange(() => { for (const key of Object.keys(pendingDrafts)) delete pendingDrafts[key as RelationDraftKind]; });
 
 export function saveRelationDraft(kind: RelationDraftKind, draft: object) {
+  if (!draftIdentity()) return;
   pendingDrafts[kind] = { ...draft };
 }
 
 export function getRelationDraft<T extends object>(kind: RelationDraftKind): T | null {
+  if (!draftIdentity()) return null;
   return (pendingDrafts[kind] as T | undefined) ?? null;
 }
 

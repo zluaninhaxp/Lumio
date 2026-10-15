@@ -1,31 +1,38 @@
+import { ModuleSuggestions, type ModuleSuggestion } from '../../src/components/Tasks/ModuleSuggestions';
+import { useDismissedTaskSuggestions } from '../../src/hooks/use-dismissed-task-suggestions';
+import { useSystemReducedMotion } from '../../src/hooks/use-system-reduced-motion';
+import { HorizontalOptions } from '../../src/components/horizontal-options';
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModalKeyboardViewport } from '../../src/components/modal-keyboard-viewport';
+import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Modal, Alert, LayoutAnimation, Platform, UIManager, ActivityIndicator,
-  Pressable, ScrollView, KeyboardAvoidingView,
+  Modal, LayoutAnimation, Platform,
+  Pressable, ScrollView, KeyboardAvoidingView, Keyboard,
+  type NativeMethods,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, Swipeable } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { ControlOpacity, CategoryColors, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { daysUntil } from '../../src/utils/supplier';
-import { FAB } from '../components/Calendar/FAB';
-import { BottomSheet } from '../components/Calendar/BottomSheet';
-import { TaskForm, type TaskFormData } from '../components/Tasks/TaskForm';
-import { TaskDateSelector } from '../components/Tasks/TaskDateSelector';
-import { TaskPeopleSelector } from '../components/Tasks/TaskPeopleSelector';
+import { FAB } from '../../src/components/Calendar/FAB';
+import { BottomSheet } from '../../src/components/Calendar/BottomSheet';
+import { TaskForm, type TaskFormData } from '../../src/components/Tasks/TaskForm';
+import { TaskDateSelector } from '../../src/components/Tasks/TaskDateSelector';
+import { TaskPeopleSelector } from '../../src/components/Tasks/TaskPeopleSelector';
 import { useAuth } from '../../src/hooks/useAuth';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { ChatIndicator } from '../components/ChatIndicator';
-import { BottomFade } from '../components/BottomFade';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { ChatIndicator } from '../../src/components/ChatIndicator';
+import { BottomFade } from '../../src/components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
-
-if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
+import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 type Task = ReturnType<typeof useAppStore.getState>['tasks'][number];
 type Subtask = Task['subtasks'][number];
@@ -33,9 +40,9 @@ type Priority = 'alta' | 'media' | 'baixa';
 type FilterKey = 'todas' | 'hoje' | 'importante' | 'concluidas';
 
 const PRIORITY_CONFIG = {
-  alta: { label: 'Alta', color: Colors.danger, icon: 'flag' as const },
-  media: { label: 'Média', color: Colors.warning, icon: 'flash' as const },
-  baixa: { label: 'Baixa', color: Colors.accent, icon: 'arrow-down' as const },
+  alta: { label: 'Alta', color: Colors.dangerText, tint: Colors.danger + '18', icon: 'flag' as const },
+  media: { label: 'Média', color: Colors.warningText, tint: Colors.warning + '18', icon: 'flash' as const },
+  baixa: { label: 'Baixa', color: Colors.accentText, tint: Colors.accent + '18', icon: 'arrow-down' as const },
 } as const;
 
 const PRIORITY_WEIGHT: Record<Priority, number> = { alta: 0, media: 1, baixa: 2 };
@@ -48,12 +55,12 @@ const FILTERS: { key: FilterKey; label: string; icon: any }[] = [
 ];
 
 const TAG_COLORS = [
-  { bg: '#EBF5FF', text: '#2563EB' },
-  { bg: '#FEF3C7', text: '#D97706' },
-  { bg: '#FCE7F3', text: '#DB2777' },
-  { bg: '#D1FAE5', text: '#059669' },
-  { bg: '#EDE9FE', text: '#7C3AED' },
-  { bg: '#FFEDD5', text: '#EA580C' },
+  CategoryColors.blue,
+  CategoryColors.amber,
+  CategoryColors.pink,
+  CategoryColors.green,
+  CategoryColors.purple,
+  CategoryColors.orange,
   { bg: '#E0F2FE', text: '#0284C7' },
   { bg: '#FEE2E2', text: '#DC2626' },
 ];
@@ -87,6 +94,10 @@ function formatDueDate(dateStr: string | null): string {
   if (diffDays === 1) return 'Amanhã';
   if (diffDays < 0) return 'Atrasada';
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+}
+
+function daysSince(dateStr: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 function isToday(dateStr: string | null): boolean {
@@ -125,6 +136,17 @@ export default function TarefasScreen() {
   }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
+  const { dismissedIds, dismiss: dismissSuggestion, ready: suggestionsReady } = useDismissedTaskSuggestions(currentUser?.id);
+  const reducedMotion = useSystemReducedMotion();
+  const taskListRef = useRef<FlatList<Task>>(null);
+  const emptyListRef = useRef<ScrollView>(null);
+  const suggestionsHeight = useRef(0);
+  const contentHeight = useRef(0);
+  const anchorRequested = useRef(false);
+  const suggestionsAnchorRef = useRef<View>(null);
+  const scrollOffset = useRef(0);
+  const anchorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (anchorTimer.current) clearTimeout(anchorTimer.current); }, []);
   const { tasks, addTask, updateTask, toggleTask, removeTask, taskTags, customTaskTags, addCustomTaskTag, removeCustomTaskTag, transactions, fornecedorItems, estoqueItems, pedidos, clienteItems, orcamentos, refreshOrcamentos, refreshContratos, employeeItems, commissions, activatedPlugins, entregas, atendimentos } = useAppStore();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -148,7 +170,7 @@ export default function TarefasScreen() {
   const [employeePicker, setEmployeePicker] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState('');
   const [newSubtaskTexts, setNewSubtaskTexts] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(true);
+
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   const allTaskTags = useMemo(
@@ -165,36 +187,40 @@ export default function TarefasScreen() {
     return [{ transaction, supplier, days }];
   }), [transactions, fornecedorItems, tasks]);
 
-  const confirmSupplierSuggestion = useCallback((suggestion: (typeof supplierSuggestions)[number]) => {
-    addTask({
-      description: `Confirmar pagamento para ${suggestion.supplier.name}: ${suggestion.transaction.description}`,
-      done: false,
-      dueDate: suggestion.transaction.supplierDueDate ?? null,
-      dueDateLabel: suggestion.days === 0 ? 'Hoje' : suggestion.days === 1 ? 'Amanhã' : undefined,
-      priority: suggestion.days === 0 ? 'alta' : 'media',
-      subtasks: [],
-      tags: ['Fornecedor', 'Financeiro'],
-      createdAt: new Date().toISOString(),
-    });
-  }, [addTask]);
+  const confirmSupplierSuggestion = useCallback((suggestion: (typeof supplierSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmSupplierSuggestion:193", () => {
+  addTask({
+        description: `Confirmar pagamento para ${suggestion.supplier.name}: ${suggestion.transaction.description}`,
+        done: false,
+        dueDate: suggestion.transaction.supplierDueDate ?? null,
+        dueDateLabel: suggestion.days === 0 ? 'Hoje' : suggestion.days === 1 ? 'Amanhã' : undefined,
+        priority: suggestion.days === 0 ? 'alta' : 'media',
+        subtasks: [],
+        tags: ['Fornecedor', 'Financeiro'],
+        createdAt: new Date().toISOString(),
+      });
+  return () => {  };
+  }); }, [addTask]);
 
   const stockSuggestions = useMemo(() => estoqueItems.filter((item) => item.quantity < item.minAlert && !tasks.some((task) => task.description.toLowerCase().includes(item.name.toLowerCase()) && !task.done)), [estoqueItems, tasks]);
 
-  const confirmStockSuggestion = useCallback((item: (typeof stockSuggestions)[number]) => {
-    addTask({ description: `Comprar ${item.name}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Estoque'], createdAt: new Date().toISOString() });
-  }, [addTask]);
+  const confirmStockSuggestion = useCallback((item: (typeof stockSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmStockSuggestion:208", () => {
+  addTask({ description: `Comprar ${item.name}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Estoque'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask]);
 
   const orderFollowUpSuggestions = useMemo(() => pedidos.filter((order) => order.status === 'aberto' && (Date.now() - new Date(order.createdAt).getTime()) >= 3 * 24 * 60 * 60 * 1000 && !tasks.some((task) => task.description.includes(order.id) && !task.done)), [pedidos, tasks]);
-  const confirmOrderFollowUp = useCallback((order: (typeof orderFollowUpSuggestions)[number]) => {
-    const client = clienteItems.find((item) => item.id === order.clientId);
-    addTask({ description: `Fazer follow-up do pedido ${order.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
-  }, [addTask, clienteItems]);
+  const confirmOrderFollowUp = useCallback((order: (typeof orderFollowUpSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmOrderFollowUp:213", () => {
+  const client = clienteItems.find((item) => item.id === order.clientId);
+  addTask({ description: `Fazer follow-up do pedido ${order.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask, clienteItems]);
 
   const quoteFollowUpSuggestions = useMemo(() => orcamentos.filter((quote) => quote.status === 'pendente' && (Date.now() - new Date(quote.createdAt).getTime()) >= 3 * 24 * 60 * 60 * 1000 && !tasks.some((task) => task.description.includes(quote.id) && !task.done)), [orcamentos, tasks]);
-  const confirmQuoteFollowUp = useCallback((quote: (typeof quoteFollowUpSuggestions)[number]) => {
-    const client = clienteItems.find((item) => item.id === quote.clientId);
-    addTask({ description: `Fazer follow-up do orçamento ${quote.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
-  }, [addTask, clienteItems]);
+  const confirmQuoteFollowUp = useCallback((quote: (typeof quoteFollowUpSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmQuoteFollowUp:219", () => {
+  const client = clienteItems.find((item) => item.id === quote.clientId);
+  addTask({ description: `Fazer follow-up do orçamento ${quote.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask, clienteItems]);
 
   const showCommissionSuggestion = useMemo(() => {
     if (!activatedPlugins.includes('comissoes')) return false;
@@ -204,9 +230,10 @@ export default function TarefasScreen() {
     if (!hasPending) return false;
     return !tasks.some((task) => /fechar\s+comiss/i.test(task.description) && !task.done);
   }, [activatedPlugins, commissions, tasks]);
-  const confirmCommissionSuggestion = useCallback(() => {
-    addTask({ description: 'Fechar comissões do mês anterior', done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Financeiro'], createdAt: new Date().toISOString() });
-  }, [addTask]);
+  const confirmCommissionSuggestion = useCallback(() => { void confirmAction("tarefas.tsx:confirmCommissionSuggestion:232", () => {
+  addTask({ description: 'Fechar comissões do mês anterior', done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: 'Hoje', priority: 'media', subtasks: [], tags: ['Financeiro'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask]);
 
   const contractSuggestions = useMemo(() => transactions.flatMap((transaction) => {
     if (!transaction.contractId || transaction.amount <= 0 || transaction.confirmed !== false || !transaction.expectedDate) return [];
@@ -215,9 +242,16 @@ export default function TarefasScreen() {
     const client = clienteItems.find((item) => item.id === transaction.clientId);
     return [{ transaction, client, days }];
   }), [transactions, clienteItems, tasks]);
-  const confirmContractSuggestion = useCallback((suggestion: (typeof contractSuggestions)[number]) => {
-    addTask({ description: `Cobrar assinatura ${suggestion.client?.name ?? 'do cliente'} (${suggestion.transaction.id})`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: suggestion.days < 0 ? 'Em atraso' : 'Hoje', priority: 'alta', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
-  }, [addTask]);
+  const confirmContractSuggestion = useCallback((suggestion: (typeof contractSuggestions)[number]) => { void confirmAction("tarefas.tsx:confirmContractSuggestion:243", () => {
+  addTask({ description: `Cobrar assinatura ${suggestion.client?.name ?? 'do cliente'} (${suggestion.transaction.id})`, done: false, dueDate: new Date().toISOString().split('T')[0], dueDateLabel: suggestion.days < 0 ? 'Em atraso' : 'Hoje', priority: 'alta', subtasks: [], tags: ['Clientes', 'Financeiro'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask]);
+
+  const pendingCommissionMonths = new Set(
+    commissions
+      .filter(item => !item.paid && item.month < new Date().toISOString().slice(0, 7))
+      .map(item => item.month),
+  ).size;
 
   const deliverySuggestions = useMemo(() => entregas.flatMap((delivery) => {
     if (delivery.status !== 'a caminho') return [];
@@ -225,9 +259,10 @@ export default function TarefasScreen() {
     if (days < 0 || days > 2 || tasks.some((task) => task.description.includes(delivery.id) && !task.done)) return [];
     return [{ delivery, days }];
   }), [entregas, tasks]);
-  const confirmDeliverySuggestion = useCallback((delivery: (typeof deliverySuggestions)[number]['delivery']) => {
-    addTask({ description: `Acompanhar entrega ${delivery.id.slice(-6)} do pedido ${delivery.orderId.slice(-6)}`, done: false, dueDate: delivery.estimatedDate, dueDateLabel: 'Prazo próximo', priority: 'alta', subtasks: [], tags: ['Entregas'], createdAt: new Date().toISOString(), employeeId: delivery.employeeId });
-  }, [addTask]);
+  const confirmDeliverySuggestion = useCallback((delivery: (typeof deliverySuggestions)[number]['delivery']) => { void confirmAction("tarefas.tsx:confirmDeliverySuggestion:259", () => {
+  addTask({ description: `Acompanhar entrega ${delivery.id.slice(-6)} do pedido ${delivery.orderId.slice(-6)}`, done: false, dueDate: delivery.estimatedDate, dueDateLabel: 'Prazo próximo', priority: 'alta', subtasks: [], tags: ['Entregas'], createdAt: new Date().toISOString(), employeeId: delivery.employeeId });
+  return () => {  };
+  }); }, [addTask]);
 
   const appointmentSuggestions = useMemo(() => atendimentos.flatMap((appointment) => {
     if (appointment.status !== 'confirmado') return [];
@@ -235,16 +270,73 @@ export default function TarefasScreen() {
     if (days < 0 || days > 2 || tasks.some((task) => task.description.includes(appointment.id) && !task.done)) return [];
     return [{ appointment, days }];
   }), [atendimentos, tasks]);
-  const confirmAppointmentSuggestion = useCallback((appointment: (typeof appointmentSuggestions)[number]['appointment']) => {
-    const client = clienteItems.find((item) => item.id === appointment.clientId);
-    addTask({ description: `Confirmar atendimento ${appointment.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: appointment.date, dueDateLabel: 'Próximo', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
-  }, [addTask, clienteItems]);
+  const confirmAppointmentSuggestion = useCallback((appointment: (typeof appointmentSuggestions)[number]['appointment']) => { void confirmAction("tarefas.tsx:confirmAppointmentSuggestion:269", () => {
+  const client = clienteItems.find((item) => item.id === appointment.clientId);
+  addTask({ description: `Confirmar atendimento ${appointment.id.slice(-6)}${client ? ` com ${client.name}` : ''}`, done: false, dueDate: appointment.date, dueDateLabel: 'Próximo', priority: 'media', subtasks: [], tags: ['Clientes'], createdAt: new Date().toISOString() });
+  return () => {  };
+  }); }, [addTask, clienteItems]);
+
+  // Keep the existing eligibility rules and creation callbacks; adapt only presentation.
+  const moduleSuggestions = useMemo<ModuleSuggestion[]>(() => [
+    ...contractSuggestions.map(suggestion => ({
+      id: `contract:${suggestion.transaction.id}:${suggestion.transaction.expectedDate}`,
+      icon: 'repeat-outline' as const, label: suggestion.days < 0 ? 'Cobrança atrasada' : 'Cobrança hoje',
+      title: suggestion.client?.name ?? `Assinatura #${suggestion.transaction.contractId?.slice(-6)}`,
+      description: suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje',
+      tone: 'warning' as const, onCreate: () => confirmContractSuggestion(suggestion),
+    })),
+    ...appointmentSuggestions.map(({ appointment, days }) => ({
+      id: `appointment:${appointment.id}:${appointment.date}:${appointment.time}`,
+      icon: 'calendar-outline' as const, label: 'Atendimento próximo', title: appointment.service,
+      description: `${days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : 'Em ' + days + ' dias'} às ${appointment.time}`,
+      tone: 'neutral' as const, onCreate: () => confirmAppointmentSuggestion(appointment),
+    })),
+    ...deliverySuggestions.map(({ delivery, days }) => ({
+      id: `delivery:${delivery.id}:${delivery.estimatedDate}`,
+      icon: 'bicycle-outline' as const, label: 'Entrega perto do prazo', title: `Pedido #${delivery.orderId.slice(-6)}`,
+      description: days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`,
+      tone: 'warning' as const, onCreate: () => confirmDeliverySuggestion(delivery),
+    })),
+    ...supplierSuggestions.map(suggestion => ({
+      id: `supplier:${suggestion.transaction.id}:${suggestion.transaction.supplierDueDate}`,
+      icon: 'briefcase-outline' as const, label: 'Pagamento próximo', title: suggestion.supplier.name,
+      description: suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`,
+      tone: 'warning' as const, onCreate: () => confirmSupplierSuggestion(suggestion),
+    })),
+    ...stockSuggestions.map(item => ({
+      id: `stock:${item.id}:${item.quantity}:${item.minAlert}`,
+      icon: 'cube-outline' as const, label: 'Estoque baixo', title: item.name,
+      description: `${item.quantity} unidades (mínimo ${item.minAlert})`,
+      tone: 'danger' as const, onCreate: () => confirmStockSuggestion(item),
+    })),
+    ...orderFollowUpSuggestions.map(order => ({
+      id: `order:${order.id}:${order.createdAt}`,
+      icon: 'receipt-outline' as const, label: 'Pedido sem conclusão',
+      title: `Pedido #${order.id.slice(-6)} · ${clienteItems.find(client => client.id === order.clientId)?.name ?? 'Cliente não informado'}`,
+      description: `Aberto há ${daysSince(order.createdAt)} dias`,
+      tone: 'warning' as const, onCreate: () => confirmOrderFollowUp(order),
+    })),
+    ...quoteFollowUpSuggestions.map(quote => ({
+      id: `quote:${quote.id}:${quote.createdAt}`,
+      icon: 'document-text-outline' as const, label: 'Orçamento sem resposta',
+      title: `Orçamento #${quote.id.slice(-6)} · ${clienteItems.find(client => client.id === quote.clientId)?.name ?? 'Cliente não informado'}`,
+      description: `Sem resposta há ${daysSince(quote.createdAt)} dias`,
+      tone: 'warning' as const, onCreate: () => confirmQuoteFollowUp(quote),
+    })),
+    ...(showCommissionSuggestion ? [{
+      id: `commissions:${commissions.filter(item => !item.paid).map(item => item.id + ':' + item.month).sort().join(',')}`,
+      icon: 'cash-outline' as const, label: 'Comissões pendentes', title: 'Fechamento de comissões',
+      description: `${pendingCommissionMonths} ${pendingCommissionMonths === 1 ? 'mês pendente' : 'meses pendentes'}`,
+      tone: 'warning' as const, onCreate: confirmCommissionSuggestion,
+    }] : []),
+  ], [contractSuggestions, appointmentSuggestions, deliverySuggestions, supplierSuggestions, stockSuggestions, orderFollowUpSuggestions, quoteFollowUpSuggestions, showCommissionSuggestion, commissions, clienteItems, confirmContractSuggestion, confirmAppointmentSuggestion, confirmDeliverySuggestion, confirmSupplierSuggestion, confirmStockSuggestion, confirmOrderFollowUp, confirmQuoteFollowUp, confirmCommissionSuggestion]);
+  const visibleSuggestions = suggestionsReady ? moduleSuggestions.filter(item => !dismissedIds.has(item.id)) : [];
+  const hasModuleSuggestions = visibleSuggestions.length > 0;
 
   useEffect(() => {
     refreshOrcamentos();
     refreshContratos();
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
+
   }, [refreshOrcamentos, refreshContratos]);
 
   useEffect(() => {
@@ -289,6 +381,7 @@ export default function TarefasScreen() {
   }, [tasks, searchQuery, activeFilter, activeTagFilters]);
 
   const hasNoTasksAtAll = tasks.length === 0;
+  useEffect(() => { anchorRequested.current = false; }, [activeFilter, activeTagFilters, searchQuery]);
   const taskBeingAssigned = employeePicker ? tasks.find((task) => task.id === employeePicker) : null;
 
   const handleAddTask = useCallback((data: TaskFormData) => {
@@ -305,39 +398,33 @@ export default function TarefasScreen() {
       createdAt: new Date().toISOString(),
       employeeId: data.employeeId,
     });
-    setSheetVisible(false);
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
   }, [addTask]);
 
-  const handleSaveTask = useCallback((data: TaskFormData) => {
-    if (editingTask) {
-      updateTask(editingTask.id, data);
-      setEditingTask(null);
-      clearRelationDraft('task');
-      setPendingTaskDraft(null);
-      setSheetVisible(false);
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      return;
-    }
-    clearRelationDraft('task');
-    setPendingTaskDraft(null);
-    handleAddTask(data);
-  }, [editingTask, handleAddTask, updateTask]);
+  const taskSave = useConfirmedSave();
+    const handleSaveTask = useCallback((data: TaskFormData) => {
+       return taskSave.run(() => {
+       if (editingTask) updateTask(editingTask.id, data);
+       else handleAddTask(data);
+       return () => { setEditingTask(null); clearRelationDraft('task'); setPendingTaskDraft(null); setSheetVisible(false); LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); };
+       });
+      }, [editingTask, handleAddTask, updateTask]);
 
   const handleToggle = useCallback(
-    (id: string) => {
+    (id: string) => { void confirmAction("tarefas.tsx:handleToggle:409" + ':' + id, () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       toggleTask(id);
-    },
+      return () => {  };
+      }); },
     [toggleTask],
   );
 
   const handleDelete = useCallback(
-    (id: string) => {
+    (id: string) => { void confirmAction("tarefas.tsx:handleDelete:417" + ':' + id, () => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       removeTask(id);
       if (expandedTaskId === id) setExpandedTaskId(null);
-    },
+      return () => {  };
+      }); },
     [removeTask, expandedTaskId],
   );
 
@@ -348,22 +435,22 @@ export default function TarefasScreen() {
   }, []);
 
   const handleSetPriority = useCallback(
-    (taskId: string | undefined, priority: Priority) => {
+    (taskId: string | undefined, priority: Priority) => { void confirmAction("tarefas.tsx:handleSetPriority:432" + ':' + taskId, () => {
       if (taskId) {
-        updateTask(taskId, { priority });
-      }
-      setPriorityPicker(null);
-    },
+              updateTask(taskId, { priority });
+            }
+      return () => { setPriorityPicker(null); };
+      }); },
     [updateTask],
   );
 
   const handleSetDueDate = useCallback(
-    (taskId: string | undefined, dueDate: string | null, label?: string | null) => {
+    (taskId: string | undefined, dueDate: string | null, label?: string | null) => { void confirmAction("tarefas.tsx:handleSetDueDate:442" + ':' + taskId, () => {
       if (taskId) {
-        updateTask(taskId, { dueDate, dueDateLabel: label ?? null });
-      }
-      setDatePicker(null);
-    },
+              updateTask(taskId, { dueDate, dueDateLabel: label ?? null });
+            }
+      return () => { setDatePicker(null); };
+      }); },
     [updateTask],
   );
 
@@ -373,35 +460,37 @@ export default function TarefasScreen() {
   }, []);
 
   const handleToggleSubtask = useCallback(
-    (taskId: string, subtaskId: string) => {
+    (taskId: string, subtaskId: string) => { void confirmAction("tarefas.tsx:handleToggleSubtask:457" + ':' + taskId, () => {
       const subtasks = getFreshSubtasks(taskId);
       const updated = subtasks.map((s) => (s.id === subtaskId ? { ...s, done: !s.done } : s));
       updateTask(taskId, { subtasks: updated });
-    },
+      return () => {  };
+      }); },
     [updateTask, getFreshSubtasks],
   );
 
   const handleRemoveSubtask = useCallback(
-    (taskId: string, subtaskId: string) => {
+    (taskId: string, subtaskId: string) => { void confirmAction("tarefas.tsx:handleRemoveSubtask:466" + ':' + taskId, () => {
       const subtasks = getFreshSubtasks(taskId);
       updateTask(taskId, { subtasks: subtasks.filter((s) => s.id !== subtaskId) });
-    },
+      return () => {  };
+      }); },
     [updateTask, getFreshSubtasks],
   );
 
   const handleAddSubtask = useCallback(
-    (taskId: string) => {
+    (taskId: string) => { void confirmAction("tarefas.tsx:handleAddSubtask:474" + ':' + taskId, () => {
       const text = (newSubtaskTexts[taskId] ?? '').trim();
       if (!text) return;
       const subtasks = getFreshSubtasks(taskId);
       const newSub: Subtask = { id: Date.now().toString(), text, done: false };
       updateTask(taskId, { subtasks: [...subtasks, newSub] });
-      setNewSubtaskTexts((prev) => {
-        const copy = { ...prev };
-        delete copy[taskId];
-        return copy;
-      });
-    },
+      return () => { setNewSubtaskTexts((prev) => {
+              const copy = { ...prev };
+              delete copy[taskId];
+              return copy;
+            }); };
+      }); },
     [newSubtaskTexts, updateTask, getFreshSubtasks],
   );
 
@@ -421,71 +510,60 @@ export default function TarefasScreen() {
   );
 
   const handleToggleTag = useCallback(
-    (taskId: string, tag: string) => {
+    (taskId: string, tag: string) => { void confirmAction("tarefas.tsx:handleToggleTag:505" + ':' + taskId, () => {
       const task = useAppStore.getState().tasks.find((t) => t.id === taskId);
       if (!task) return;
       const hasTag = task.tags.includes(tag);
       updateTask(taskId, {
-        tags: hasTag ? task.tags.filter((t) => t !== tag) : [...task.tags, tag],
-      });
+              tags: hasTag ? task.tags.filter((t) => t !== tag) : [...task.tags, tag],
+            });
       setTagManager((prev) => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          current: hasTag ? prev.current.filter((t) => t !== tag) : [...prev.current, tag],
-        };
-      });
-    },
+              if (!prev) return null;
+              return {
+                ...prev,
+                current: hasTag ? prev.current.filter((t) => t !== tag) : [...prev.current, tag],
+              };
+            });
+      return () => {  };
+      }); },
     [updateTask],
   );
 
-  const handleCreateTag = useCallback(() => {
-    const name = newTagName.trim();
-    if (!name || allTaskTags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return;
-    addCustomTaskTag(name);
-    if (tagManager) {
-      updateTask(tagManager.taskId, { tags: [...tagManager.current, name] });
-      setTagManager((prev) => (prev ? { ...prev, current: [...prev.current, name] } : null));
-    }
-    setNewTagName('');
-  }, [newTagName, allTaskTags, addCustomTaskTag, updateTask, tagManager]);
+  const handleCreateTag = useCallback(() => { void confirmAction("tarefas.tsx:handleCreateTag:523" + ':' + String(name), () => {
+  const name = newTagName.trim();
+  if (!name || allTaskTags.some((tag) => tag.toLocaleLowerCase() === name.toLocaleLowerCase())) return;
+  addCustomTaskTag(name);
+  if (tagManager) {
+        updateTask(tagManager.taskId, { tags: [...tagManager.current, name] });
+        setTagManager((prev) => (prev ? { ...prev, current: [...prev.current, name] } : null));
+      }
+  return () => { setNewTagName(''); };
+  }); }, [newTagName, allTaskTags, addCustomTaskTag, updateTask, tagManager]);
 
   const handleRemoveGlobalTag = useCallback(
-    (tag: string) => {
+    (tag: string) => { void confirmAction("tarefas.tsx:handleRemoveGlobalTag:535" + ':' + String(tag), () => {
       removeCustomTaskTag(tag);
       if (tagManager) {
-        setTagManager((prev) =>
-          prev ? { ...prev, current: prev.current.filter((t) => t !== tag) } : null,
-        );
-      }
-    },
+              setTagManager((prev) =>
+                prev ? { ...prev, current: prev.current.filter((t) => t !== tag) } : null,
+              );
+            }
+      return () => {  };
+      }); },
     [removeCustomTaskTag, tagManager],
   );
 
   // ─────── Empty State ───────
   const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      {hasNoTasksAtAll && !searchQuery ? (
-        <>
-          <View style={styles.emptyIconCircle}>
-            <Ionicons name="checkbox-outline" size={36} color={Colors.accent} />
-          </View>
-          <Text style={styles.emptyTitle}>Nenhuma tarefa ainda</Text>
-          <Text style={styles.emptySubtitle}>
-            Toque no botão + para criar sua primeira tarefa.
-          </Text>
-        </>
-      ) : (
-        <>
-          <Ionicons name="search-outline" size={40} color={Colors.textMuted} style={{ marginBottom: Spacing.md }} />
-          <Text style={styles.emptyTitle}>Nenhum resultado</Text>
-          <Text style={styles.emptySubtitle}>
-            {searchQuery
-              ? `Nenhuma tarefa encontrada para "${searchQuery}".`
-              : 'Nenhuma tarefa corresponde ao filtro selecionado.'}
-          </Text>
-          {(searchQuery || activeFilter !== 'todas') && (
-            <TouchableOpacity
+    <FeedbackEmptyState
+      variant={hasNoTasksAtAll && !searchQuery ? 'spacious' : 'compact'}
+      icon={hasNoTasksAtAll && !searchQuery ? 'checkbox-outline' : 'search-outline'}
+      title={hasNoTasksAtAll && !searchQuery ? 'Nenhuma tarefa ainda' : 'Nenhum resultado'}
+      description={hasNoTasksAtAll && !searchQuery ? 'Toque no botão + para criar sua primeira tarefa.' :
+        searchQuery ? `Nenhuma tarefa encontrada para "${searchQuery}".` : 'Nenhuma tarefa corresponde ao filtro selecionado.'}>
+      {!(hasNoTasksAtAll && !searchQuery) && <>
+        {(searchQuery || activeFilter !== 'todas') && (
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.clearFilterBtn}
               onPress={() => {
                 setSearchQuery('');
@@ -495,28 +573,27 @@ export default function TarefasScreen() {
               <Text style={styles.clearFilterBtnText}>Limpar filtros</Text>
             </TouchableOpacity>
           )}
-        </>
-      )}
-    </View>
+      </>}
+    </FeedbackEmptyState>
   );
 
   // ─────── Swipe Actions ───────
   const renderRightActions = (taskId: string) => (
-    <TouchableOpacity
+    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
       style={styles.swipeDelete}
       onPress={() => { closeOpenSwipeable(); handleDelete(taskId); }}
     >
-      <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
+      <Ionicons name="trash-outline" size={20} color={Colors.onAction} />
       <Text style={styles.swipeActionText}>Excluir</Text>
     </TouchableOpacity>
   );
 
   const renderLeftActions = (task: Task) => (
-    <TouchableOpacity
+    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
       style={styles.swipeComplete}
       onPress={() => handleStartEdit(task)}
     >
-      <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+      <Ionicons name="create-outline" size={20} color={Colors.onAction} />
       <Text style={styles.swipeActionText}>Editar</Text>
     </TouchableOpacity>
   );
@@ -531,6 +608,8 @@ export default function TarefasScreen() {
 
     return (
       <Swipeable
+        containerStyle={SurfaceStyles.swipeContainer}
+        childrenContainerStyle={SurfaceStyles.swipeContainer}
         ref={(ref) => {
           if (ref) swipeableRefs.current.set(item.id, ref);
           else swipeableRefs.current.delete(item.id);
@@ -548,26 +627,26 @@ export default function TarefasScreen() {
       >
         <TouchableOpacity
           style={[styles.taskCard, item.done && styles.taskCardDone]}
-          activeOpacity={0.7}
+          activeOpacity={ControlOpacity.pressed}
           onLongPress={() => {
-            Alert.alert('Excluir tarefa', `"${item.description}" será removida.`, [
+            AppAlert.alert('Excluir tarefa', `"${item.description}" será removida.`, [
               { text: 'Cancelar', style: 'cancel' },
               { text: 'Excluir', style: 'destructive', onPress: () => handleDelete(item.id) },
             ]);
           }}
         >
           <View style={styles.taskMainRow}>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={[styles.checkbox, item.done && styles.checkboxDone]}
               onPress={() => handleToggle(item.id)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              {item.done && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+              {item.done && <Ionicons name="checkmark" size={13} color={Colors.onAction} />}
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.taskBody}
-              activeOpacity={1}
+              activeOpacity={ControlOpacity.pressed}
               onPress={() => handleToggleExpand(item.id)}
             >
               <View style={styles.taskDescriptionRow}>
@@ -581,7 +660,7 @@ export default function TarefasScreen() {
               </View>
 
               <View style={styles.taskMetaRow}>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.taskMetaTag}
                   onPress={() => setPriorityPicker({ taskId: item.id, current: item.priority })}
                 >
@@ -596,23 +675,23 @@ export default function TarefasScreen() {
                 </TouchableOpacity>
 
                 {item.dueDate && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={[styles.taskMetaTag, isOverdue && styles.taskMetaTagOverdue]}
                     onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate, currentLabel: item.dueDateLabel ?? null })}
                   >
                     <Ionicons
                       name="calendar-outline"
                       size={10}
-                      color={isOverdue ? Colors.danger : Colors.textSecondary}
+                      color={isOverdue ? Colors.dangerIcon : Colors.textSecondary}
                     />
-                    <Text style={[styles.taskMetaText, { color: isOverdue ? Colors.danger : Colors.textSecondary }]}>
+                    <Text style={[styles.taskMetaText, { color: isOverdue ? Colors.dangerText : Colors.textSecondary }]}>
                       {formatTaskDate(item)}
                     </Text>
                   </TouchableOpacity>
                 )}
 
                 {!item.dueDate && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={styles.taskMetaTag}
                     onPress={() => setDatePicker({ taskId: item.id, current: item.dueDate, currentLabel: item.dueDateLabel ?? null })}
                   >
@@ -624,21 +703,21 @@ export default function TarefasScreen() {
                 {item.tags.map((tag) => {
                   const c = getTagColor(tag);
                   return (
-                    <TouchableOpacity
+                    <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                       key={tag}
                       style={[styles.tagChip, { backgroundColor: c.bg }]}
                       onPress={() => setTagManager({ taskId: item.id, current: item.tags })}
                     >
-                      <Text style={[styles.tagChipText, { color: c.text }]} numberOfLines={1}>
+                      <Text style={[styles.tagChipText, { color: c.text }]}>
                         {tag}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
 
-                <TouchableOpacity style={styles.taskMetaTag} onPress={() => setEmployeePicker(item.id)}>
-                  <Ionicons name="person-outline" size={10} color={item.employeeId || item.clientId || item.supplierId ? Colors.accent : Colors.textSecondary} />
-                  <Text style={[styles.taskMetaText, (item.employeeId || item.clientId || item.supplierId) && { color: Colors.accent }]} numberOfLines={1}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.taskMetaTag} onPress={() => setEmployeePicker(item.id)}>
+                  <Ionicons name="person-outline" size={10} color={item.employeeId || item.clientId || item.supplierId ? Colors.accentIcon : Colors.textSecondary} />
+                  <Text style={[styles.taskMetaText, (item.employeeId || item.clientId || item.supplierId) && { color: Colors.accentText }]} numberOfLines={1}>
                     {[
                       clienteItems.find((client) => client.id === item.clientId)?.name,
                       fornecedorItems.find((supplier) => supplier.id === item.supplierId)?.name,
@@ -647,15 +726,15 @@ export default function TarefasScreen() {
                   </Text>
                 </TouchableOpacity>
 
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.tagChipAdd}
                   onPress={() => setTagManager({ taskId: item.id, current: item.tags })}
                 >
-                  <Ionicons name="add" size={12} color={Colors.textMuted} />
+                  <Ionicons name="add" size={12} color={Colors.iconMuted} />
                 </TouchableOpacity>
 
                 {progress.total > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={styles.taskMetaTag}
                     onPress={() => handleToggleExpand(item.id)}
                   >
@@ -666,7 +745,7 @@ export default function TarefasScreen() {
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => handleToggleExpand(item.id)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.chevronBtn}
@@ -674,7 +753,7 @@ export default function TarefasScreen() {
               <Ionicons
                 name={isExpanded ? 'chevron-up' : 'chevron-down'}
                 size={18}
-                color={Colors.textMuted}
+                color={Colors.iconMuted}
               />
             </TouchableOpacity>
           </View>
@@ -698,20 +777,20 @@ export default function TarefasScreen() {
                   </View>
                   {item.subtasks.map((sub) => (
                     <View key={sub.id} style={styles.subtaskItem}>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         style={[styles.subtaskCheck, sub.done && styles.subtaskCheckDone]}
                         onPress={() => handleToggleSubtask(item.id, sub.id)}
                       >
-                        {sub.done && <Ionicons name="checkmark" size={10} color="#FFFFFF" />}
+                        {sub.done && <Ionicons name="checkmark" size={10} color={Colors.onAction} />}
                       </TouchableOpacity>
                       <Text style={[styles.subtaskText, sub.done && styles.subtaskTextDone]} numberOfLines={2}>
                         {sub.text}
                       </Text>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         onPress={() => handleRemoveSubtask(item.id, sub.id)}
                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       >
-                        <Ionicons name="close" size={14} color={Colors.textMuted} />
+                        <Ionicons name="close" size={14} color={Colors.iconMuted} />
                       </TouchableOpacity>
                     </View>
                   ))}
@@ -719,11 +798,11 @@ export default function TarefasScreen() {
               )}
 
               <View style={styles.addSubtaskRow}>
-                <Ionicons name="add" size={15} color={Colors.textMuted} style={{ marginRight: Spacing.sm }} />
+                <Ionicons name="add" size={15} color={Colors.iconMuted} style={{ marginRight: Spacing.sm }} />
                 <TextInput
                   style={styles.addSubtaskInput}
                   placeholder="Adicionar subtarefa..."
-                  placeholderTextColor={Colors.textMuted}
+                  placeholderTextColor={Colors.placeholder}
                   value={newSubtaskTexts[item.id] ?? ''}
                   onChangeText={(t) => setNewSubtaskTexts((prev) => ({ ...prev, [item.id]: t }))}
                   onSubmitEditing={() => handleAddSubtask(item.id)}
@@ -741,71 +820,75 @@ export default function TarefasScreen() {
   // ─────── Tag Manager Modal ───────
   const renderTagManager = () => (
     <Modal visible={tagManager !== null} transparent animationType="fade">
-      <Pressable style={styles.modalOverlay} onPress={() => setTagManager(null)}>
-        <Pressable style={styles.pickerCard}>
-          <View style={styles.pickerHeader}>
-            <Text style={styles.pickerTitle}>Tags</Text>
-            <TouchableOpacity
-              onPress={() => setTagManager(null)}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="close" size={22} color={Colors.textMuted} />
-            </TouchableOpacity>
-          </View>
+      <ModalKeyboardViewport>
+        <Pressable style={styles.modalOverlay} onPress={() => setTagManager(null)}>
+          <Pressable style={[styles.pickerCard, { maxHeight: '100%', flexShrink: 1 }]}>
+            <View style={styles.pickerHeader}>
+              <Text style={styles.pickerTitle}>Tags</Text>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
+                onPress={() => setTagManager(null)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={22} color={Colors.iconMuted} />
+              </TouchableOpacity>
+            </View>
 
-          {allTaskTags.length === 0 && (
-            <Text style={styles.tagEmpty}>Nenhuma tag criada ainda.</Text>
-          )}
+            <ModalScrollView style={{ flexShrink: 1 }}>
+              {allTaskTags.length === 0 && (
+                <Text style={styles.tagEmpty}>Nenhuma tag criada ainda.</Text>
+              )}
 
-          <View style={styles.tagGrid}>
-            {allTaskTags.map((tag) => {
-              const c = getTagColor(tag);
-              const active = tagManager?.current.includes(tag) ?? false;
-              const canRemove = customTaskTags.includes(tag);
-              return (
-                <View key={tag} style={styles.tagRow}>
-                  <TouchableOpacity
-                    style={[
-                      styles.tagToggleChip,
-                      { borderColor: active ? c.text : Colors.border, backgroundColor: active ? c.bg : 'transparent' },
-                    ]}
-                    onPress={() => {
-                      if (tagManager) handleToggleTag(tagManager.taskId, tag);
-                    }}
-                  >
-                    <Text style={[styles.tagToggleText, { color: active ? c.text : Colors.textSecondary }]}>
-                      {tag}
-                    </Text>
-                    {active && <Ionicons name="checkmark" size={14} color={c.text} style={{ marginLeft: 4 }} />}
-                  </TouchableOpacity>
-                  {canRemove && <TouchableOpacity
-                      onPress={() => handleRemoveGlobalTag(tag)}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <Ionicons name="close-circle-outline" size={18} color={Colors.textMuted} />
-                    </TouchableOpacity>}
-                </View>
-              );
-            })}
-          </View>
+              <View style={styles.tagGrid}>
+                {allTaskTags.map((tag) => {
+                  const c = getTagColor(tag);
+                  const active = tagManager?.current.includes(tag) ?? false;
+                  const canRemove = customTaskTags.includes(tag);
+                  return (
+                    <View key={tag} style={styles.tagRow}>
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
+                        style={[
+                          styles.tagToggleChip,
+                          { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : 'transparent' },
+                        ]}
+                        onPress={() => {
+                          if (tagManager) handleToggleTag(tagManager.taskId, tag);
+                        }}
+                      >
+                        <Text style={[styles.tagToggleText, { color: active ? c.text : Colors.textSecondary }]}>
+                          {tag}
+                        </Text>
+                        {active && <Ionicons name="checkmark" size={14} color={c.text} style={{ marginLeft: 4 }} />}
+                      </TouchableOpacity>
+                      {canRemove && <TouchableOpacity activeOpacity={ControlOpacity.pressed}
+                          onPress={() => handleRemoveGlobalTag(tag)}
+                          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        >
+                          <Ionicons name="close-circle-outline" size={18} color={Colors.iconMuted} />
+                        </TouchableOpacity>}
+                    </View>
+                  );
+                })}
+              </View>
 
-          <View style={styles.tagDivider} />
-          <View style={styles.tagAddRow}>
-            <TextInput
-              style={styles.tagAddInput}
-              placeholder="Nova tag..."
-              placeholderTextColor={Colors.textMuted}
-              value={newTagName}
-              onChangeText={setNewTagName}
-              onSubmitEditing={handleCreateTag}
-              returnKeyType="done"
-            />
-            <TouchableOpacity style={styles.tagAddBtn} onPress={handleCreateTag}>
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
+              <View style={styles.tagDivider} />
+              <View style={styles.tagAddRow}>
+                <TextInput
+                  style={styles.tagAddInput}
+                  placeholder="Nova tag..."
+                  placeholderTextColor={Colors.placeholder}
+                  value={newTagName}
+                  onChangeText={setNewTagName}
+                  onSubmitEditing={handleCreateTag}
+                  returnKeyType="done"
+                />
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.tagAddBtn} onPress={handleCreateTag}>
+                  <Ionicons name="add" size={18} color={Colors.onAction} />
+                </TouchableOpacity>
+              </View>
+            </ModalScrollView>
+          </Pressable>
         </Pressable>
-      </Pressable>
+      </ModalKeyboardViewport>
     </Modal>
   );
 
@@ -816,15 +899,15 @@ export default function TarefasScreen() {
         <Pressable style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Prioridade</Text>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => setPriorityPicker(null)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={22} color={Colors.textMuted} />
+              <Ionicons name="close" size={22} color={Colors.iconMuted} />
             </TouchableOpacity>
           </View>
           {(Object.keys(PRIORITY_CONFIG) as Priority[]).map((p) => (
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               key={p}
               style={[styles.pickerOption, priorityPicker?.current === p && styles.pickerOptionActive]}
               onPress={() => {
@@ -833,7 +916,7 @@ export default function TarefasScreen() {
                 }
               }}
             >
-              <View style={[styles.pickerIconCircle, { backgroundColor: PRIORITY_CONFIG[p].color + '18' }]}>
+              <View style={[styles.pickerIconCircle, { backgroundColor: PRIORITY_CONFIG[p].tint }]}>
                 <Ionicons name={PRIORITY_CONFIG[p].icon} size={20} color={PRIORITY_CONFIG[p].color} />
               </View>
               <View style={{ marginLeft: Spacing.md, flex: 1 }}>
@@ -843,7 +926,7 @@ export default function TarefasScreen() {
                 </Text>
               </View>
               {priorityPicker?.current === p && (
-                <Ionicons name="checkmark-circle" size={22} color={Colors.accent} />
+                <Ionicons name="checkmark-circle" size={22} color={Colors.accentIcon} />
               )}
             </TouchableOpacity>
           ))}
@@ -864,11 +947,11 @@ export default function TarefasScreen() {
         <Pressable style={styles.pickerCard}>
           <View style={styles.pickerHeader}>
             <Text style={styles.pickerTitle}>Data de vencimento</Text>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               onPress={() => setDatePicker(null)}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <Ionicons name="close" size={22} color={Colors.textMuted} />
+              <Ionicons name="close" size={22} color={Colors.iconMuted} />
             </TouchableOpacity>
           </View>
 
@@ -886,23 +969,57 @@ export default function TarefasScreen() {
     </Modal>
   );
 
-  // ─────── Loading State ───────
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Tarefas</Text>
-          <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.accent} />
-          <Text style={styles.loadingText}>Carregando tarefas...</Text>
-        </View>
-        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
-      </SafeAreaView>
-    );
-  }
+  const scrollToSuggestionAnchor = () => {
+    if (filteredTasks.length > 0) {
+      taskListRef.current?.scrollToIndex({ index: filteredTasks.length - 1, viewPosition: 0, animated: !reducedMotion });
+    }
+    else emptyListRef.current?.scrollToEnd({ animated: !reducedMotion });
+  };
+  const handleSuggestionsShortcut = () => {
+    Keyboard.dismiss();
+    closeOpenSwipeable();
+    anchorRequested.current = true;
+    scrollToSuggestionAnchor();
+    queueAnchorCheck();
+  };
+  const queueAnchorCheck = () => {
+    if (anchorTimer.current !== null) return;
+    anchorTimer.current = setTimeout(() => {
+      anchorTimer.current = null;
+      handleAnchorScrollEnd();
+    }, 350);
+  };
+  const handleContentSizeChange = (_width: number, height: number) => {
+    contentHeight.current = height;
+    // Virtualized rows can revise their estimated height while scrolling to the footer.
+    if (anchorRequested.current) queueAnchorCheck();
+  };
+  const handleAnchorScrollEnd = () => {
+    if (!anchorRequested.current) return;
+    const viewport = (filteredTasks.length > 0 ? taskListRef.current?.getNativeScrollRef() : emptyListRef.current?.getNativeScrollRef()) as NativeMethods | null | undefined;
+    viewport?.measureInWindow((_x, top, _width, height) => {
+      suggestionsAnchorRef.current?.measureInWindow((_sx, sectionTop, sectionWidth) => {
+        if (!anchorRequested.current) return;
+        if (sectionWidth > 0 && sectionTop >= top - 1 && sectionTop < top + height - 40) {
+          anchorRequested.current = false;
+        } else {
+          const offset = Math.max(0, scrollOffset.current + sectionTop - top);
+          if (filteredTasks.length > 0) {
+            if (sectionWidth > 0) taskListRef.current?.scrollToOffset({ offset, animated: !reducedMotion });
+            else taskListRef.current?.scrollToEnd({ animated: !reducedMotion });
+          } else emptyListRef.current?.scrollTo({ y: offset, animated: !reducedMotion });
+          queueAnchorCheck();
+        }
+      });
+    });
+  };
+  const renderModuleSuggestions = () => hasModuleSuggestions ? (
+    <View ref={suggestionsAnchorRef} collapsable={false} onLayout={event => { suggestionsHeight.current = event.nativeEvent.layout.height; }}>
+      <ModuleSuggestions suggestions={visibleSuggestions} onDismiss={dismissSuggestion} />
+    </View>
+  ) : null;
 
+  // ─────── Loading State ───────
   // ─────── Main Render ───────
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -919,39 +1036,32 @@ export default function TarefasScreen() {
             <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
           </View>
 
-          {contractSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="repeat-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Cobranças em atraso</Text></View>{contractSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Assinatura {suggestion.client?.name ?? 'sem cliente'}</Text><Text style={styles.suggestionMeta}>{suggestion.days < 0 ? `Em atraso há ${Math.abs(suggestion.days)} dias` : 'Vence hoje'}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmContractSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {appointmentSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="time-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Atendimentos próximos</Text></View>{appointmentSuggestions.map(({ appointment, days }) => <View key={appointment.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{appointment.service} às {appointment.time}</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Hoje' : days === 1 ? 'Amanhã' : `Em ${days} dias`} · confirmar cliente</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmAppointmentSuggestion(appointment)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {deliverySuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="bicycle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Entregas perto do prazo</Text></View>{deliverySuggestions.map(({ delivery, days }) => <View key={delivery.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {delivery.orderId.slice(-6)} precisa de acompanhamento</Text><Text style={styles.suggestionMeta}>{days === 0 ? 'Prazo hoje' : days === 1 ? 'Prazo amanhã' : `Prazo em ${days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmDeliverySuggestion(delivery)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {supplierSuggestions.length > 0 && <View style={styles.supplierSuggestion}><View style={styles.suggestionHeader}><Ionicons name="alert-circle-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pagamentos próximos</Text></View>{supplierSuggestions.map((suggestion) => <View key={suggestion.transaction.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{suggestion.supplier.name}: {suggestion.transaction.description}</Text><Text style={styles.suggestionMeta}>{suggestion.days === 0 ? 'Vence hoje' : suggestion.days === 1 ? 'Vence amanhã' : `Vence em ${suggestion.days} dias`}</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmSupplierSuggestion(suggestion)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {stockSuggestions.length > 0 && <View style={styles.stockSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cube-outline" size={18} color={Colors.danger} /><Text style={styles.suggestionTitle}>Estoque baixo</Text></View>{stockSuggestions.map((item) => <View key={item.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>{item.name}: {item.quantity} {item.unit} (mínimo {item.minAlert})</Text><Text style={styles.suggestionMeta}>Sugestão com a tag Estoque</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmStockSuggestion(item)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {orderFollowUpSuggestions.length > 0 && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="chatbox-ellipses-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Pedidos sem conclusão</Text></View>{orderFollowUpSuggestions.map((order) => <View key={order.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Pedido {order.id.slice(-6)} está aberto há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmOrderFollowUp(order)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {quoteFollowUpSuggestions.length > 0 && <View style={styles.quoteSuggestion}><View style={styles.suggestionHeader}><Ionicons name="document-text-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Orçamentos sem resposta</Text></View>{quoteFollowUpSuggestions.map((quote) => <View key={quote.id} style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Orçamento {quote.id.slice(-6)} está pendente há mais de 3 dias</Text><Text style={styles.suggestionMeta}>Sugestão de follow-up</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={() => confirmQuoteFollowUp(quote)}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View>)}</View>}
-          {showCommissionSuggestion && <View style={styles.orderSuggestion}><View style={styles.suggestionHeader}><Ionicons name="cash-outline" size={18} color={Colors.warning} /><Text style={styles.suggestionTitle}>Comissões pendentes</Text></View><View style={styles.suggestionRow}><View style={styles.suggestionBody}><Text style={styles.suggestionText}>Há comissões de meses anteriores sem pagamento confirmado</Text><Text style={styles.suggestionMeta}>Feche o mês no módulo Comissões</Text></View><TouchableOpacity style={styles.suggestionButton} onPress={confirmCommissionSuggestion}><Text style={styles.suggestionButtonText}>Criar tarefa</Text></TouchableOpacity></View></View>}
+
 
           <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={17} color={Colors.textMuted} style={styles.searchIcon} />
+            <Ionicons name="search-outline" size={17} color={Colors.iconMuted} style={styles.searchIcon} />
             <TextInput
               style={styles.searchInput}
               placeholder="Buscar tarefas..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={Colors.placeholder}
               value={searchQuery}
               onChangeText={setSearchQuery}
               returnKeyType="search"
             />
             {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close-circle" size={17} color={Colors.textMuted} />
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => setSearchQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close-circle" size={17} color={Colors.iconMuted} />
               </TouchableOpacity>
             )}
           </View>
 
-          {!hasNoTasksAtAll && (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
+          {(!hasNoTasksAtAll || hasModuleSuggestions) && (
+            <HorizontalOptions
               contentContainerStyle={styles.filterRow}
+              hintStyle={styles.filterHint}
               keyboardShouldPersistTaps="handled"
             >
+              {!hasNoTasksAtAll && <>
               {FILTERS.slice(0, 3).map((f) => {
                 const isActive = activeFilter === f.key;
                 let chipCount = 0;
@@ -960,7 +1070,7 @@ export default function TarefasScreen() {
                 else if (f.key === 'importante') chipCount = tasks.filter((t) => t.priority === 'alta').length;
 
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     key={f.key}
                     style={[styles.filterChip, isActive && styles.filterChipActive]}
                     onPress={() => {
@@ -971,7 +1081,7 @@ export default function TarefasScreen() {
                     <Ionicons
                       name={isActive ? f.icon.replace('-outline', '') : f.icon}
                       size={14}
-                      color={isActive ? '#FFFFFF' : Colors.textSecondary}
+                      color={isActive ? Colors.onAction : Colors.textSecondary}
                     />
                     <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                       {f.label}
@@ -987,7 +1097,7 @@ export default function TarefasScreen() {
                 );
               })}
 
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={[
                   styles.filterChip,
                   (showTagFilter || activeTagFilters.length > 0) && styles.filterChipTagActive,
@@ -997,12 +1107,12 @@ export default function TarefasScreen() {
                 <Ionicons
                   name="pricetag-outline"
                   size={14}
-                  color={activeTagFilters.length > 0 ? Colors.accent : Colors.textSecondary}
+                  color={activeTagFilters.length > 0 ? Colors.accentIcon : Colors.textSecondary}
                 />
                 <Text
                   style={[
                     styles.filterChipText,
-                    activeTagFilters.length > 0 && { color: Colors.accent },
+                    activeTagFilters.length > 0 && { color: Colors.accentText },
                   ]}
                 >
                   {activeTagFilters.length > 0
@@ -1010,14 +1120,14 @@ export default function TarefasScreen() {
                     : 'Tags'}
                 </Text>
                 {activeTagFilters.length > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={(e) => {
                       e.stopPropagation?.();
                       setActiveTagFilters([]);
                     }}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   >
-                    <Ionicons name="close-circle" size={14} color={Colors.accent} />
+                    <Ionicons name="close-circle" size={14} color={Colors.accentIcon} />
                   </TouchableOpacity>
                 )}
               </TouchableOpacity>
@@ -1027,7 +1137,7 @@ export default function TarefasScreen() {
                 const chipCount = tasks.filter((t) => t.done).length;
 
                 return (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     key={f.key}
                     style={[styles.filterChip, isActive && styles.filterChipActive]}
                     onPress={() => {
@@ -1038,7 +1148,7 @@ export default function TarefasScreen() {
                     <Ionicons
                       name={isActive ? f.icon.replace('-outline', '') : f.icon}
                       size={14}
-                      color={isActive ? '#FFFFFF' : Colors.textSecondary}
+                      color={isActive ? Colors.onAction : Colors.textSecondary}
                     />
                     <Text style={[styles.filterChipText, isActive && styles.filterChipTextActive]}>
                       {f.label}
@@ -1053,7 +1163,18 @@ export default function TarefasScreen() {
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+              </>}
+              {hasModuleSuggestions && <TouchableOpacity
+                activeOpacity={ControlOpacity.pressed}
+                style={styles.filterChip}
+                accessibilityRole="button"
+                accessibilityLabel="Ir para sugestões dos módulos"
+                onPress={handleSuggestionsShortcut}
+              >
+                <Ionicons name="sparkles-outline" size={14} color={Colors.accentIcon} />
+                <Text style={styles.filterChipText}>Sugestões</Text>
+              </TouchableOpacity>}
+            </HorizontalOptions>
           )}
 
         </View>
@@ -1064,20 +1185,33 @@ export default function TarefasScreen() {
         >
           {filteredTasks.length === 0 ? (
             <ScrollView
-              contentContainerStyle={{ flexGrow: 1, paddingHorizontal: CONTENT_H }}
+              ref={emptyListRef}
+              onContentSizeChange={handleContentSizeChange}
+              onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+              onScrollBeginDrag={() => { anchorRequested.current = false; }}
+              onMomentumScrollEnd={handleAnchorScrollEnd}
+              contentContainerStyle={{ flexGrow: 1, paddingHorizontal: CONTENT_H, paddingBottom: hasModuleSuggestions ? 120 : 0 }}
               keyboardShouldPersistTaps="handled"
             >
               {renderEmptyState()}
+              {renderModuleSuggestions()}
             </ScrollView>
           ) : (
             <FlatList
+              ref={taskListRef}
+              onContentSizeChange={handleContentSizeChange}
+              onScroll={event => { scrollOffset.current = event.nativeEvent.contentOffset.y; }}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={handleAnchorScrollEnd}
               data={filteredTasks}
               renderItem={renderTaskCard}
+              ListFooterComponent={renderModuleSuggestions()}
               keyExtractor={(item) => item.id}
               contentContainerStyle={styles.listContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
-              onScrollBeginDrag={closeOpenSwipeable}
+              onScrollBeginDrag={() => { anchorRequested.current = false; closeOpenSwipeable(); }}
             />
           )}
 
@@ -1108,7 +1242,7 @@ export default function TarefasScreen() {
                     : `/plugins/store?highlight=${pluginId}`;
                   router.push(`${route}${route.includes('?') ? '&' : '?'}returnToTasks=1&relation=${relation}` as any);
                 }, 240);
-              }}
+              }} locked={taskSave.locked}
             />
           </BottomSheet>
         </KeyboardAvoidingView>
@@ -1120,13 +1254,16 @@ export default function TarefasScreen() {
         <Modal visible={employeePicker !== null} transparent animationType="fade" onRequestClose={() => setEmployeePicker(null)}>
           <Pressable style={styles.modalOverlay} onPress={() => setEmployeePicker(null)}>
             <Pressable style={styles.pickerCard}>
-              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir tarefa</Text><TouchableOpacity onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.textMuted} /></TouchableOpacity></View>
+              <View style={styles.pickerHeader}><Text style={styles.pickerTitle}>Atribuir tarefa</Text><TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => setEmployeePicker(null)}><Ionicons name="close" size={22} color={Colors.iconMuted} /></TouchableOpacity></View>
               {taskBeingAssigned && (
                 <TaskPeopleSelector
                   clientId={taskBeingAssigned.clientId}
                   supplierId={taskBeingAssigned.supplierId}
                   employeeId={taskBeingAssigned.employeeId}
-                  onChange={(relation, id) => updateTask(taskBeingAssigned.id, { [`${relation}Id`]: id })}
+                  onChange={(relation, id) => { void confirmAction("tarefas.tsx:action:1269" + ':' + id, () => {
+                  updateTask(taskBeingAssigned.id, { [`${relation}Id`]: id });
+                  return () => {  };
+                  }); }}
                 />
               )}
             </Pressable>
@@ -1146,11 +1283,11 @@ export default function TarefasScreen() {
                       const c = getTagColor(tag);
                       const active = activeTagFilters.includes(tag);
                       return (
-                        <TouchableOpacity
+                        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                           key={tag}
                           style={[
                             styles.tagFilterChip,
-                            { borderColor: active ? c.text : Colors.border, backgroundColor: active ? c.bg : Colors.bgCard },
+                            { borderColor: active ? c.text : SurfaceStyles.filter.borderColor, backgroundColor: active ? c.bg : Colors.bgCard },
                           ]}
                           onPress={() => {
                             setActiveTagFilters((prev) =>
@@ -1168,7 +1305,7 @@ export default function TarefasScreen() {
                   </View>
                 )}
                 {activeTagFilters.length > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     style={styles.tagFilterClear}
                     onPress={() => setActiveTagFilters([])}
                   >
@@ -1187,56 +1324,13 @@ export default function TarefasScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
 
   topSection: {
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
     zIndex: 1,
   },
-  supplierSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: '#FFF8E7',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F5D98A',
-  },
-  stockSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: Colors.dangerLight,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F2B8B8',
-  },
-  orderSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: '#FFF8E7',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F5D98A',
-  },
-  quoteSuggestion: {
-    marginHorizontal: CONTENT_H,
-    marginBottom: Spacing.sm,
-    padding: Spacing.md,
-    backgroundColor: '#FFF8E7',
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: '#F5D98A',
-  },
-  suggestionHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm },
-  suggestionTitle: { fontFamily: 'PlusJakartaSans_600SemiBold', color: Colors.primary, fontSize: FontSize.sm },
-  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
-  suggestionBody: { flex: 1 },
-  suggestionText: { fontFamily: 'PlusJakartaSans_500Medium', color: Colors.primary, fontSize: FontSize.xs },
-  suggestionMeta: { color: Colors.textSecondary, fontSize: FontSize.xs, marginTop: 2 },
-  suggestionButton: { backgroundColor: Colors.accent, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
-  suggestionButtonText: { color: '#FFFFFF', fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
+
 
   // Header
   header: {
@@ -1262,13 +1356,13 @@ const styles = StyleSheet.create({
 
   // Search
   searchContainer: {
+      ...SurfaceStyles.control,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bgCard,
     marginHorizontal: CONTENT_H,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
-    height: 44,
+    minHeight: 44,
   },
   searchIcon: { marginRight: Spacing.sm },
   searchInput: {
@@ -1288,15 +1382,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  filterChip: {
+  filterHint: {
+    marginLeft: CONTENT_H,
+    marginRight: CONTENT_H,
+  },
+  filterChip: { ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md + 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.full,
-    backgroundColor: Colors.bgCard,
-    borderWidth: 1,
-    borderColor: Colors.border,
     gap: 5,
   },
   filterChipActive: {
@@ -1312,12 +1407,12 @@ const styles = StyleSheet.create({
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
   },
-  filterChipTextActive: { color: '#FFFFFF' },
+  filterChipTextActive: { color: Colors.onAction },
   filterChipBadge: {
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
     borderRadius: Radius.full,
     minWidth: 18,
-    height: 18,
+    minHeight: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
@@ -1328,7 +1423,7 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.textMuted,
   },
-  filterChipBadgeTextActive: { color: '#FFFFFF' },
+  filterChipBadgeTextActive: { color: Colors.onAction },
 
   // List
   listContent: {
@@ -1339,16 +1434,11 @@ const styles = StyleSheet.create({
 
   // Task card
   taskCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   taskCardDone: { opacity: 0.55 },
   taskMainRow: {
@@ -1361,14 +1451,14 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: Radius.full,
     borderWidth: 2,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 2,
   },
   checkboxDone: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   taskBody: {
     flex: 1,
@@ -1392,9 +1482,9 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm + 2,
   },
   taskMetaTag: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg,
     paddingHorizontal: Spacing.sm + 1,
     paddingVertical: 3,
     borderRadius: Radius.sm,
@@ -1415,15 +1505,13 @@ const styles = StyleSheet.create({
   },
 
   inlineEditInput: {
+      ...SurfaceStyles.control,
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
     color: Colors.primary,
-    backgroundColor: Colors.bg,
     borderRadius: Radius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs + 2,
-    borderWidth: 1.5,
-    borderColor: Colors.accent,
     lineHeight: 21,
   },
 
@@ -1450,7 +1538,7 @@ const styles = StyleSheet.create({
   },
   subtaskProgressBarFill: {
     height: '100%',
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
   },
   subtaskProgressText: {
@@ -1473,13 +1561,13 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: Radius.sm,
     borderWidth: 1.5,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     alignItems: 'center',
     justifyContent: 'center',
   },
   subtaskCheckDone: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
+    borderColor: Colors.accentIcon,
   },
   subtaskText: {
     flex: 1,
@@ -1494,9 +1582,9 @@ const styles = StyleSheet.create({
   },
 
   addSubtaskRow: {
+      ...SurfaceStyles.control,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.bg,
     borderRadius: Radius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
@@ -1515,10 +1603,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   accordionActionBtn: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.bg,
     paddingHorizontal: Spacing.sm + 2,
     paddingVertical: Spacing.sm,
     borderRadius: Radius.sm,
@@ -1530,12 +1618,11 @@ const styles = StyleSheet.create({
   },
 
   // Tag chips on cards
-  tagChip: {
-    paddingHorizontal: Spacing.sm,
+  tagChip: { maxWidth: '100%', paddingHorizontal: Spacing.sm,
     paddingVertical: 3,
     borderRadius: Radius.sm,
   },
-  tagChipText: {
+  tagChipText: { flexShrink: 1,
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: 10,
   },
@@ -1544,7 +1631,7 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: Radius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: SurfaceStyles.filter.borderColor,
     borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1552,7 +1639,7 @@ const styles = StyleSheet.create({
 
   // Swipe
   swipeDelete: {
-    backgroundColor: Colors.danger,
+    backgroundColor: Colors.dangerActionBackground,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -1562,7 +1649,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   swipeComplete: {
-    backgroundColor: Colors.warning,
+    backgroundColor: Colors.warningActionBackground,
     justifyContent: 'center',
     alignItems: 'center',
     width: 80,
@@ -1571,42 +1658,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     gap: 4,
   },
-  swipeCompleteUndo: { backgroundColor: Colors.warning },
+  swipeCompleteUndo: { backgroundColor: Colors.warningActionBackground },
   swipeActionText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 11,
-    color: '#FFFFFF',
-  },
-
-  // Empty
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: Spacing.xxxl * 2,
-    paddingHorizontal: Spacing.xxl,
-  },
-  emptyIconCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.accentLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  emptyTitle: {
-    fontFamily: 'PlusJakartaSans_700Bold',
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-    marginBottom: Spacing.xs,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontFamily: 'PlusJakartaSans_400Regular',
-    fontSize: FontSize.sm,
-    color: Colors.textMuted,
-    textAlign: 'center',
-    lineHeight: 20,
+    color: Colors.onAction,
   },
   clearFilterBtn: {
     marginTop: Spacing.xl,
@@ -1618,7 +1674,7 @@ const styles = StyleSheet.create({
   clearFilterBtnText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: '#FFFFFF',
+    color: Colors.onAction,
   },
 
   // Loading
@@ -1636,13 +1692,13 @@ const styles = StyleSheet.create({
 
   // Modals
   modalOverlay: {
+      ...SurfaceStyles.backdrop,
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   pickerCard: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderRadius: Radius.xl,
     padding: Spacing.xxl,
     width: '88%',
@@ -1705,13 +1761,13 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   tagToggleChip: {
+      ...SurfaceStyles.filter,
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: Spacing.sm + 1,
     paddingHorizontal: Spacing.md,
-    borderRadius: Radius.md,
-    borderWidth: 1.5,
+    borderRadius: Radius.md
   },
   tagToggleText: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -1728,11 +1784,11 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   tagAddInput: {
+      ...SurfaceStyles.control,
     flex: 1,
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
     color: Colors.primary,
-    backgroundColor: Colors.bg,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 1,
@@ -1741,14 +1797,14 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: 'center',
     justifyContent: 'center',
   },
 
   // Tag filter popover
   tagFilterPopover: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.overlay,
     borderRadius: Radius.xl,
     padding: Spacing.xl,
     width: '80%',
@@ -1774,12 +1830,12 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   tagFilterChip: {
+      ...SurfaceStyles.filter,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.full,
-    borderWidth: 1.5,
+    borderRadius: Radius.full
   },
   tagFilterChipText: {
     fontFamily: 'PlusJakartaSans_500Medium',
@@ -1795,6 +1851,6 @@ const styles = StyleSheet.create({
   tagFilterClearText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: FontSize.sm,
-    color: Colors.danger,
+    color: Colors.dangerText,
   },
 });

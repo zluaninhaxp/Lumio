@@ -1,16 +1,22 @@
 import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
+import { Colors } from '@/src/constants/theme';
+import { SystemBars } from '@/src/components/system-bars';
+import { AppAlertHost } from '@/src/components/app-alert-host';
+import { AppFeedbackHost } from '@/src/components/app-feedback';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_500Medium, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider } from '@/src/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useAppStore } from '@/src/store';
-import { businessSyncStatus } from '@/src/services/businessStateService';
-import { Text, View } from 'react-native';
+import { PersistenceFeedback } from '@/src/components/persistence-feedback';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import * as SplashScreen from 'expo-splash-screen';
+
+// Keep the native launch screen until fonts, session and destination are ready.
+void SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [loaded, fontError] = useFonts({
     PlusJakartaSans_400Regular,
     PlusJakartaSans_500Medium,
     PlusJakartaSans_600SemiBold,
@@ -19,34 +25,31 @@ export default function RootLayout() {
   });
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const migrateCatalogItems = useAppStore((state) => state.migrateCatalogItems);
-  const [syncState, setSyncState] = useState(businessSyncStatus.get());
 
-  useEffect(() => businessSyncStatus.subscribe(setSyncState), []);
 
   useEffect(() => {
     refreshContratos();
     migrateCatalogItems();
   }, [refreshContratos, migrateCatalogItems]);
 
-  if (!loaded) return null;
+  if (!loaded && !fontError) return null;
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
         <AuthProvider>
-          <StatusBar style="dark" />
-          {syncState.status === 'saving' && <View style={{ backgroundColor: '#FFF3CD', padding: 4 }}><Text style={{ color: '#6B4E00', textAlign: 'center' }}>Salvando alterações...</Text></View>}
-          {syncState.status === 'warning' && <View style={{ backgroundColor: '#FFF3CD', padding: 8 }}><Text style={{ color: '#6B4E00', textAlign: 'center' }}>{syncState.error}</Text></View>}
-          {syncState.status === 'error' && <View style={{ backgroundColor: '#B42318', padding: 8 }}><Text style={{ color: 'white', textAlign: 'center' }}>{syncState.error}</Text></View>}
-          <Stack screenOptions={{ headerShown: false }}>
+          <SystemBars />
+          <PersistenceFeedback>
+          <Stack screenOptions={({ route }) => ({ headerShown: false, contentStyle: { backgroundColor: ['index', 'welcome', 'auth', 'login', 'register', 'onboarding', 'celebration', 'onboarding-report-intro', 'onboarding-summary'].includes(route.name) ? Colors.bg : Colors.appBackground } })}>
             <Stack.Screen name="index" />
             <Stack.Screen name="welcome" />
-            <Stack.Screen name="auth" options={{ presentation: 'transparentModal', animation: 'none' }} />
-            <Stack.Screen name="login" />
-            <Stack.Screen name="register" />
+            <Stack.Screen name="auth" options={{ animation: 'none' }} />
+            <Stack.Screen name="login" options={{ animation: 'fade' }} />
+            <Stack.Screen name="register" options={{ animation: 'fade' }} />
             <Stack.Screen name="onboarding" />
-            <Stack.Screen name="celebration" />
-            <Stack.Screen name="onboarding-summary" />
+            <Stack.Screen name="celebration" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="onboarding-report-intro" options={{ gestureEnabled: false }} />
+            <Stack.Screen name="onboarding-summary" options={{ gestureEnabled: false }} />
             <Stack.Screen name="(tabs)" />
             <Stack.Screen name="plugins/store" />
             <Stack.Screen name="plugins/estoque" />
@@ -59,10 +62,15 @@ export default function RootLayout() {
             <Stack.Screen name="plugins/entregas" />
             <Stack.Screen name="plugins/[id]" />
             <Stack.Screen name="profile" />
+            <Stack.Screen name="settings" />
+            <Stack.Screen name="resources" />
             <Stack.Screen name="account" />
             <Stack.Screen name="preferences" />
             <Stack.Screen name="ai-settings" />
           </Stack>
+          </PersistenceFeedback>
+          <AppAlertHost />
+          <AppFeedbackHost />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

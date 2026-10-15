@@ -5,11 +5,11 @@
  * existentes da tela Financeiro:
  *
  *  - Realizada (paid/received): `amount` com sinal (entrada >0, saída <0),
- *    `date` = "DD/MM" do `transactionDate`, sem flags de pendência.
+ *    `date` = ISO YYYY-MM-DD do `transactionDate`, sem flags de pendência.
  *  - Pendência futura (pending): NÃO entra no saldo do mês — usa o mesmo
  *    padrão dos contratos (`expectedDate` + `confirmed:false`) para receita
  *    e a variável de fornecedores (`supplierDueDate` + `supplierPaid:false`)
- *    para despesa, com `date` = "DD/MM" do `dueDate`.
+ *    para despesa, com `date` = ISO YYYY-MM-DD do `dueDate`.
  *  - `expectedDate`/`supplierDueDate` permanecem ISO YYYY-MM-DD.
  *
  * Regras de não-invenção (seção 42): categoria ausente = 'Sem categoria'
@@ -23,12 +23,6 @@ export interface AppliedTransaction {
   transaction: import('../../store/index.ts').Transaction;
   /** Id devolvido pelo `addTransaction` (preenchido pelo consumidor). */
   id: string;
-}
-
-/** Formata ISO YYYY-MM-DD -> "DD/MM" (formato da tela Financeiro). */
-function isoToDDMM(iso: string): string {
-  const [, m, d] = iso.split('-');
-  return `${d}/${m}`;
 }
 
 /** Rótulo de descrição sem inventar conteúdo: usa item/contraparte/verbos. */
@@ -51,7 +45,7 @@ export function entryToTransactionPayload(entry: ParsedFinancialEntry): Omit<imp
   const signedAmount = entry.direction === 'expense' ? -Math.abs(entry.amount!) : Math.abs(entry.amount!);
   const isFuture = entry.tense === 'future';
   const dateISO = isFuture ? entry.dueDate! : entry.transactionDate!;
-  const date = isoToDDMM(dateISO);
+  const date = dateISO;
 
   if (isFuture) {
     // Pendência: mesmo padrão dos contratos (receita) / fornecedores (despesa).

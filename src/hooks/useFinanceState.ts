@@ -1,5 +1,8 @@
+import { financialDate, dateInput, isRealized } from '../services/financialRules';
+import { CategoryColors } from '../constants/theme';
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useAppStore, Transaction } from '../store';
+import { confirmAction } from "../services/confirmedAction";
 
 export type FinanceFilter = 'Todos' | 'Entradas' | 'Saídas' | string;
 
@@ -18,20 +21,30 @@ export const CATEGORY_ICONS: Record<string, string> = {
 };
 
 export const CATEGORY_ICON_COLORS: Record<string, string> = {
-  'Combustível': '#F59E0B',
-  'Materiais': '#3B82F6',
-  'Fornecedores': '#8B5CF6',
-  'Alimentação': '#EC4899',
-  'Receita': '#00A878',
-  'Outros': '#AAAAAA',
+  'Combustível': CategoryColors.amber.icon,
+  'Materiais': CategoryColors.blue.icon,
+  'Fornecedores': CategoryColors.purple.icon,
+  'Alimentação': CategoryColors.pink.icon,
+  'Receita': CategoryColors.green.icon,
+  'Outros': CategoryColors.neutral.icon,
 };
+
+const CATEGORY_ICON_BACKGROUNDS: Record<string, string> = {
+ 'Combustível': CategoryColors.amber.tint, 'Materiais': CategoryColors.blue.tint,
+ 'Fornecedores': CategoryColors.purple.tint, 'Alimentação': CategoryColors.pink.tint,
+ 'Receita': CategoryColors.green.tint, 'Outros': CategoryColors.neutral.tint,
+};
+
+export function getCategoryIconBackground(category: string): string {
+ return CATEGORY_ICON_BACKGROUNDS[category] ?? CategoryColors.neutral.tint;
+}
 
 export function getCategoryIcon(category: string): string {
   return CATEGORY_ICONS[category] ?? 'ellipsis-horizontal-outline';
 }
 
 export function getCategoryIconColor(category: string): string {
-  return CATEGORY_ICON_COLORS[category] ?? '#AAAAAA';
+  return CATEGORY_ICON_COLORS[category] ?? CategoryColors.neutral.icon;
 }
 
 const fmtCurrency = (v: number) =>
@@ -113,16 +126,8 @@ export function useFinanceState() {
     [period.month, period.year]
   );
 
-  const periodTransactions = useMemo(
-    () =>
-      transactions.filter((t) => {
-        const parts = t.date.split('/');
-        if (parts.length !== 2) return false;
-        const txMonth = parseInt(parts[1], 10);
-        return txMonth === period.month;
-      }),
-    [transactions, period.month]
-  );
+  const legacyTransactions = useMemo(() => transactions.filter(tx => !financialDate(tx)), [transactions]);
+  const periodTransactions = useMemo(() => transactions.filter(tx => financialDate(tx)?.startsWith(period.year + '-' + String(period.month).padStart(2,'0') + '-')), [transactions, period.month, period.year]);
 
   const onboardingCategoryLabels = useMemo(
     () =>
@@ -173,31 +178,27 @@ export function useFinanceState() {
       grouped[t.date].push(t);
     });
 
-    return Object.entries(grouped)
-      .sort(([a], [b]) => {
-        const [da, ma] = a.split('/').map(Number);
-        const [db, mb] = b.split('/').map(Number);
-        if (ma !== mb) return mb - ma;
-        return db - da;
-      })
+    const dated = Object.entries(grouped)
+      .sort(([a], [b]) => b.localeCompare(a))
       .map(([date, data]) => ({
-        title: getSectionTitle(date),
+        title: getSectionTitle(dateInput(date).slice(0,5)),
         data,
       }));
-  }, [filteredTransactions]);
+    return [...dated, ...(legacyTransactions.length ? [{ title: 'Ano não informado — revise a data completa', data: legacyTransactions.filter(tx => !search.trim() || tx.description.toLowerCase().includes(search.toLowerCase())) }] : [])];
+  }, [filteredTransactions, legacyTransactions, search]);
 
   const summary = useMemo(() => {
     const entradas = periodTransactions
-      .filter((t) => t.amount > 0 && t.confirmed !== false)
+      .filter((t) => t.amount > 0 && isRealized(t))
       .reduce((s, t) => s + t.amount, 0);
     const saidas = periodTransactions
-      .filter((t) => t.amount < 0)
+      .filter((t) => t.amount < 0 && isRealized(t))
       .reduce((s, t) => s + Math.abs(t.amount), 0);
     const saldo = entradas - saidas;
 
     const catMap: Record<string, number> = {};
     periodTransactions
-      .filter((t) => t.amount < 0 && t.category !== 'Receita')
+      .filter((t) => t.amount < 0 && isRealized(t) && t.category !== 'Receita')
       .forEach((t) => {
       if (t.category) catMap[t.category] = (catMap[t.category] || 0) + Math.abs(t.amount);
       });
@@ -242,31 +243,22 @@ export function useFinanceState() {
   }, []);
 
   const deleteWithUndo = useCallback(
-    (ids: string[]) => {
-      deletedSnapshotRef.current = transactions.filter((t) =>
-        ids.includes(t.id)
-      );
-      removeTransactions(ids);
-      snackbarRef.current?.show(ids);
-      exitSelectionMode();
-    },
+    (ids: string[]) => { void confirmAction('finance-delete:' + [...ids].sort().join(','), () => {
+       const snapshot = useAppStore.getState().transactions.filter(t => ids.includes(t.id));
+       removeTransactions(ids);
+       return () => { deletedSnapshotRef.current = snapshot; snackbarRef.current?.show(ids); exitSelectionMode(); };
+      }); },
     [transactions, removeTransactions, exitSelectionMode]
   );
 
-  const handleUndo = useCallback(() => {
-    const items = deletedSnapshotRef.current;
-    if (items.length > 0) {
-      items.forEach((item) => addTransaction(item));
-      deletedSnapshotRef.current = [];
-    }
-    snackbarRef.current?.dismiss();
-  }, [addTransaction]);
+  const handleUndo = useCallback(() => { void confirmAction('finance-undo', () => {
+   const items = deletedSnapshotRef.current;
+   useAppStore.setState(state => ({ transactions: [...items.filter(item => !state.transactions.some(existing => existing.id === item.id)), ...state.transactions] }));
+   return () => { deletedSnapshotRef.current = []; snackbarRef.current?.dismiss(); };
+  }); }, [addTransaction]);
 
   const bulkCategorize = useCallback(
-    (ids: string[], category: string) => {
-      ids.forEach((id) => updateTransaction(id, { category }));
-      exitSelectionMode();
-    },
+    (ids: string[], category: string) => { void confirmAction('finance-categorize:' + [...ids].sort().join(','), () => { ids.forEach(id => updateTransaction(id, { category })); return exitSelectionMode; }); },
     [updateTransaction, exitSelectionMode]
   );
 
@@ -278,7 +270,7 @@ export function useFinanceState() {
 
   const hasActiveFilters = filter !== 'Todos' || search.trim().length > 0;
 
-  const periodHasData = periodTransactions.length > 0;
+  const periodHasData = periodTransactions.length > 0 || legacyTransactions.length > 0;
 
   return {
     filteredTransactions,

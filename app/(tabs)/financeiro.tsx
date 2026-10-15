@@ -1,3 +1,6 @@
+import { confirmAction } from '../../src/services/confirmedAction';
+import { financialDate, transactionOrigin } from '../../src/services/financialRules';
+import { AppAlert } from '../../src/services/appAlert';
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
@@ -13,24 +16,24 @@ import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useFinanceState, TransactionSection } from '../../src/hooks/useFinanceState';
 import { useAppStore, type Transaction } from '../../src/store';
-import { CollapsingHeader } from '../components/Finance/CollapsingHeader';
-import { TransactionItem } from '../components/Finance/TransactionItem';
+import { CollapsingHeader } from '../../src/components/Finance/CollapsingHeader';
+import { TransactionItem } from '../../src/components/Finance/TransactionItem';
 import {
   QuickAddForm,
   clearPendingTransactionDraft,
   consumeDraftClosePreservation,
   setPendingTransactionRelation,
-} from '../components/Finance/QuickAddForm';
-import { MonthSelector } from '../components/Finance/MonthSelector';
-import { FinanceSkeleton } from '../components/Finance/FinanceSkeleton';
-import { FinanceEmptyState } from '../components/Finance/FinanceEmptyState';
-import { UndoSnackbar } from '../components/Finance/UndoSnackbar';
-import { SelectionBar } from '../components/Finance/SelectionBar';
-import { FAB } from '../components/Calendar/FAB';
-import { BottomSheet } from '../components/Calendar/BottomSheet';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { BottomFade } from '../components/BottomFade';
+} from '../../src/components/Finance/QuickAddForm';
+import { MonthSelector } from '../../src/components/Finance/MonthSelector';
+import { FinanceSkeleton } from '../../src/components/Finance/FinanceSkeleton';
+import { FinanceEmptyState } from '../../src/components/Finance/FinanceEmptyState';
+import { UndoSnackbar } from '../../src/components/Finance/UndoSnackbar';
+import { SelectionBar } from '../../src/components/Finance/SelectionBar';
+import { FAB } from '../../src/components/Calendar/FAB';
+import { BottomSheet } from '../../src/components/Calendar/BottomSheet';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { BottomFade } from '../../src/components/BottomFade';
 
 const HEADER_DEFAULT_HEIGHT = 290;
 const HEADER_MIN_HEIGHT = 90;
@@ -47,8 +50,10 @@ export default function FinanceiroScreen() {
   }>();
   const { currentUser } = useAuth();
   const [accountVisible, setAccountVisible] = useState(false);
+  const [bodyHeight, setBodyHeight] = useState<number>();
   const handledReturnRef = useRef<string | null>(null);
   const markTransactionReceived = useAppStore((state) => state.markTransactionReceived);
+  const markSupplierTransactionPaid = useAppStore((state) => state.markSupplierTransactionPaid);
   const refreshContratos = useAppStore((state) => state.refreshContratos);
   const financialExpenseCategories = useAppStore((state) => state.financialExpenseCategories);
   const financialIncomeCategories = useAppStore((state) => state.financialIncomeCategories);
@@ -84,7 +89,6 @@ export default function FinanceiroScreen() {
     fmtClean,
   } = useFinanceState();
 
-  const [loading, setLoading] = useState(true);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<Transaction | null>(null);
   const [dynamicHeaderHeight, setDynamicHeaderHeight] = useState(HEADER_DEFAULT_HEIGHT);
@@ -98,8 +102,7 @@ export default function FinanceiroScreen() {
 
   useEffect(() => {
     refreshContratos();
-    const timer = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(timer);
+
   }, [refreshContratos]);
 
   const openAddSheet = useCallback(() => {
@@ -133,13 +136,14 @@ export default function FinanceiroScreen() {
       } else {
         transactionId = addTransaction(data);
       }
-      closeSheet();
       return transactionId;
     },
     [editingItem, addTransaction, updateTransaction, closeSheet]
   );
 
   const handleEdit = useCallback((item: Transaction) => {
+    const origin = transactionOrigin(item);
+    if (origin && financialDate(item)) { AppAlert.alert('Lançamento vinculado', 'Altere a origem em ' + origin + ' para preservar o histórico.'); return; }
     setEditingItem(item);
     setSheetVisible(true);
   }, []);
@@ -211,7 +215,7 @@ export default function FinanceiroScreen() {
         onLongPress={enterSelectionMode}
         onDelete={handleSwipeDelete}
         onEdit={handleEdit}
-        onMarkReceived={(id) => markTransactionReceived(id, true)}
+        onMarkReceived={(id) => void confirmAction('finance-settle:' + id, () => { if (item.amount > 0) markTransactionReceived(id, true); else markSupplierTransactionPaid(id, true); return () => {}; })}
         onSwipeOpen={handleSwipeOpen}
       />
     ),
@@ -249,21 +253,17 @@ export default function FinanceiroScreen() {
 
   const ListEmpty = useMemo(
     () =>
-      loading ? (
-        <View style={styles.emptyContainer}>
-          <FinanceSkeleton />
-        </View>
-      ) : (
+      (
         <FinanceEmptyState
           hasFilters={hasActiveFilters}
           onClearFilters={clearFilters}
           emptyMonth={!periodHasData && !hasActiveFilters}
         />
       ),
-    [loading, hasActiveFilters, periodHasData, clearFilters]
+    [hasActiveFilters, periodHasData, clearFilters]
   );
 
-  const isEmpty = sections.length === 0 && !loading;
+  const isEmpty = sections.length === 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -280,7 +280,7 @@ export default function FinanceiroScreen() {
         onNext={goToNextMonth}
       />
 
-      <View style={styles.body}>
+      <View style={styles.body} onLayout={event => setBodyHeight(event.nativeEvent.layout.height)}>
         {searchVisible && (
           <Pressable style={styles.searchBackdrop} onPress={() => setSearchVisible(false)} />
         )}
@@ -288,6 +288,7 @@ export default function FinanceiroScreen() {
           summary={summary}
           scrollY={scrollY}
           headerMinHeight={HEADER_MIN_HEIGHT}
+          viewportHeight={bodyHeight}
           fmt={fmtCurrency}
           filterOptions={filterOptions}
           selectedFilter={filter}
@@ -330,6 +331,7 @@ export default function FinanceiroScreen() {
         <BottomSheet visible={sheetVisible} onClose={closeSheet}>
           <QuickAddForm
             onSave={handleSaveTransaction}
+            onSaved={closeSheet}
             onCancel={closeSheet}
             editData={editingItem}
             categories={quickAddCategories}
@@ -360,7 +362,7 @@ export default function FinanceiroScreen() {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
   },
   topBar: {
     flexDirection: 'row',
@@ -368,7 +370,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
     zIndex: 20,
   },
   title: {
@@ -404,7 +406,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.xs,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.appBackground,
   },
   sectionHeaderText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',

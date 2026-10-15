@@ -1,4 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
+import { ModalScrollView } from '../../src/components/modal-scroll-view';
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,21 +10,20 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   Dimensions,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
-import { SwipeableActions } from "../components/SwipeableActions";
-import { FormLabel, RequiredLabel } from "../components/RequiredLabel";
-import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
-import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
+import { FAB } from "../../src/components/Calendar/FAB";
+import { BottomSheet, type BottomSheetHandle } from "../../src/components/Calendar/BottomSheet";
+import { SwipeableActions } from "../../src/components/SwipeableActions";
+import { FormLabel, RequiredLabel } from "../../src/components/RequiredLabel";
+import { pluginFormStyles } from "../../src/components/Forms/pluginFormStyles";
+import { TaskPeopleSelector } from "../../src/components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
 import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 import {
@@ -29,6 +32,11 @@ import {
   QuoteStatus,
   useAppStore,
 } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
+import { AppFeedback } from '@/src/components/app-feedback';
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 type DraftItem = OrderItem;
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -66,6 +74,7 @@ export default function OrcamentosScreen() {
     catalogItems,
   } = useAppStore();
   const [query, setQuery] = useState("");
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [clientId, setClientId] = useState<string | undefined>();
@@ -154,62 +163,59 @@ export default function OrcamentosScreen() {
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...updates } : item)),
     );
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     const validItems = items
-      .filter((item) => item.name.trim() && item.quantity > 0)
-      .map((item) => ({ ...item, name: item.name.trim() }));
+          .filter((item) => item.name.trim() && item.quantity > 0)
+          .map((item) => ({ ...item, name: item.name.trim() }));
     if (!validItems.length || !validUntil.trim()) return;
     const current = editingId
-      ? orcamentos.find((quote) => quote.id === editingId)
-      : undefined;
+          ? orcamentos.find((quote) => quote.id === editingId)
+          : undefined;
     if (current && current.status !== "pendente") {
-      Alert.alert(
-        "Orçamento encerrado",
-        "Orçamentos aprovados, recusados ou expirados não podem ser editados.",
-      );
-      return;
-    }
+          AppAlert.alert(
+            "Orçamento encerrado",
+            "Orçamentos aprovados, recusados ou expirados não podem ser editados.", undefined, { variant: 'warning' }
+          );
+          return;
+        }
     const payload = {
-      clientId,
-      items: validItems,
-      total: validItems.reduce(
-        (sum, item) => sum + item.quantity * item.unitPrice,
-        0,
-      ),
-      validUntil: validUntil.trim(),
-      status: current?.status ?? ("pendente" as QuoteStatus),
-      createdAt: current?.createdAt ?? new Date().toISOString(),
-    };
+          clientId,
+          items: validItems,
+          total: validItems.reduce(
+            (sum, item) => sum + item.quantity * item.unitPrice,
+            0,
+          ),
+          validUntil: validUntil.trim(),
+          status: current?.status ?? ("pendente" as QuoteStatus),
+          createdAt: current?.createdAt ?? new Date().toISOString(),
+        };
     if (editingId) updateOrcamento(editingId, payload);
-    else addOrcamento(payload);
+        else addOrcamento(payload);
+    return () => {
     clearRelationDraft("quotes");
     setModalVisible(false);
-  };
-  const approve = (id: string) => {
-    const orderId = approveOrcamento(id);
-    if (!orderId)
-      Alert.alert(
-        "Orçamento não aprovado",
-        "Ele pode já ter sido convertido, estar expirado ou não estar pendente.",
-      );
-    else
-      Alert.alert(
-        "Orçamento aprovado",
-        `Pedido ${orderId.slice(-6)} criado. Conclua o pedido em Pedidos / Vendas para gerar a receita.`,
-      );
-  };
+    };
+    });
+    };
+  const approve = (id: string) => { void confirmAction('quote-approve:' + id, () => {
+   const orderId = approveOrcamento(id);
+   if (!orderId) { AppAlert.alert('Orçamento não aprovado', 'Ele pode já ter sido convertido, estar expirado ou não estar pendente.', undefined, { variant: 'warning' }); return; }
+   return () => AppFeedback.show('Orçamento aprovado', 'Pedido ' + orderId.slice(-6) + ' criado. Conclua o pedido em Pedidos / Vendas para gerar a receita.');
+  }); };
   const clientName = (id?: string) =>
     id ? clienteItems.find((client) => client.id === id)?.name : undefined;
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Orçamentos</Text>
-        <TouchableOpacity
+        <Text style={ModuleTextStyles.headerTitle}>Orçamentos</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Orçamentos",
               "O módulo sai da aba Apps, mas os dados continuam guardados.",
               [
@@ -217,10 +223,10 @@ export default function OrcamentosScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("orcamentos", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("orcamentos.tsx:action:232" + ':' + String("orcamentos"), () => {
+                  setPluginActivation("orcamentos", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -235,35 +241,29 @@ export default function OrcamentosScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar orçamento"
-          placeholderTextColor={Colors.textMuted}
-          style={styles.searchInput}
+          placeholderTextColor={Colors.placeholder}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         {visible.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="document-text-outline"
-              size={46}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.emptyText}>
-              {query
+          <FeedbackEmptyState variant="compact" icon="document-text-outline" title={query
                 ? "Nenhum orçamento encontrado."
-                : "Nenhum orçamento cadastrado ainda."}
-            </Text>
-          </View>
+                : "Nenhum orçamento cadastrado ainda."} />
         )}
         {visible.map((quote) => (
           <SwipeableActions
             key={quote.id}
             onEdit={() => openEdit(quote)}
-            onDelete={() => removeOrcamento(quote.id)}
+            onDelete={() => { void confirmAction("orcamentos.tsx:action:269" + ':' + String(quote.id), () => {
+            removeOrcamento(quote.id);
+            return () => {  };
+            }); }}
           >
           <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -271,7 +271,7 @@ export default function OrcamentosScreen() {
                 <Ionicons
                   name="document-text-outline"
                   size={18}
-                  color={Colors.accent}
+                  color={Colors.accentIcon}
                 />
               </View>
               <View style={styles.cardMain}>
@@ -306,12 +306,12 @@ export default function OrcamentosScreen() {
               <Text style={styles.total}>{money(quote.total)}</Text>
               <View style={styles.actions}>
                 {quote.status === "pendente" && (
-                  <TouchableOpacity onPress={() => approve(quote.id)}>
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => approve(quote.id)}>
                     <Text style={styles.approveText}>Aprovar</Text>
                   </TouchableOpacity>
                 )}
                 {quote.status === "pendente" && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={() =>
                       updateOrcamento(quote.id, { status: "recusado" })
                     }
@@ -330,9 +330,9 @@ export default function OrcamentosScreen() {
           </SwipeableActions>
         ))}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={{ clientId, validUntil, items }} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         minHeight={0}
         maxHeight={FORM_SHEET_MAX_HEIGHT}
@@ -340,7 +340,7 @@ export default function OrcamentosScreen() {
       >
         <View style={[styles.modalOverlay, formSheetBounded && styles.formSheetOverlay]}>
           <View style={[styles.modalCard, formSheetBounded && styles.formSheetCard]}>
-              <ScrollView
+              <ModalScrollView
                 style={[styles.formScroll, formSheetBounded && styles.formScrollBounded]}
                 showsVerticalScrollIndicator={false}
                 onContentSizeChange={(_, height) => setFormBodyHeight((current) => current === height ? current : height)}
@@ -356,12 +356,12 @@ export default function OrcamentosScreen() {
                 onBeforeNavigate={navigateToRelationPlugin}
               />
               <RequiredLabel>Validade (AAAA-MM-DD)</RequiredLabel>
-              <TextInput
+              <FormTextInput
                 style={styles.input}
                 value={validUntil}
                 onChangeText={setValidUntil}
                 placeholder="AAAA-MM-DD"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
                 <Text style={styles.label}>Itens propostos</Text>
                 {items.map((item, index) => (
@@ -371,20 +371,20 @@ export default function OrcamentosScreen() {
                   <View style={styles.numberRow}>
                     <View style={{ flex: 1 }}>
                       <RequiredLabel>Quantidade</RequiredLabel>
-                      <TextInput
+                      <FormTextInput
                         style={styles.numberInput}
                         value={String(item.quantity)}
                         onChangeText={(value) =>
                           updateItem(item.id, { quantity: Number(value) || 0 })
                         }
                         placeholder="Qtd."
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
+                        placeholderTextColor={Colors.placeholder}
+                        keyboardType="decimal-pad" editable={!(saveConfirmation.locked)}
                       />
                     </View>
                     <View style={{ flex: 1 }}>
                       <FormLabel>Valor unitário (opcional)</FormLabel>
-                      <TextInput
+                      <FormTextInput
                         style={styles.numberInput}
                         value={String(item.unitPrice || "")}
                         onChangeText={(value) =>
@@ -393,35 +393,35 @@ export default function OrcamentosScreen() {
                           })
                         }
                         placeholder="Valor"
-                        placeholderTextColor={Colors.textMuted}
-                        keyboardType="decimal-pad"
+                        placeholderTextColor={Colors.placeholder}
+                        keyboardType="decimal-pad" editable={!(saveConfirmation.locked)}
                       />
                     </View>
                   </View>
                 </View>
               ))}
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.addItem}
                 onPress={() => setItems((current) => [...current, emptyItem()])}
               >
                 <Text style={styles.actionText}>+ Adicionar item</Text>
               </TouchableOpacity>
-            </ScrollView>
+            </ModalScrollView>
             <View
               style={styles.formFooter}
               onLayout={(event) => setFormFooterHeight(event.nativeEvent.layout.height)}
             >
               <Text style={styles.totalPreview}>Total: {money(total)}</Text>
               <View style={styles.modalActions}>
-                <TouchableOpacity
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                   style={styles.modalCancel}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
                 >
                   <Text style={styles.cancelLabel}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalConfirm} onPress={save}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                   <Text style={styles.confirmLabel}>Salvar</Text>
-                </TouchableOpacity>
+                </>}</TouchableOpacity>
               </View>
             </View>
           </View>
@@ -432,7 +432,7 @@ export default function OrcamentosScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -440,33 +440,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    color: Colors.primary,
-    fontSize: FontSize.lg,
-  },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -483,10 +471,10 @@ const styles = StyleSheet.create({
   cardMain: { flex: 1 },
   cardTitle: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -502,9 +490,9 @@ const styles = StyleSheet.create({
   statusText: {
     color: Colors.primary,
     fontSize: FontSize.xs,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
-  itemsText: { color: Colors.textSecondary, marginTop: Spacing.md },
+  itemsText: { ...ModuleTextStyles.metadata, color: Colors.textSecondary, marginTop: Spacing.md },
   footer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -512,98 +500,55 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
   },
   total: {
-    color: Colors.accent,
-    fontFamily: "PlusJakartaSans_700Bold",
+    color: Colors.accentText,
+    fontFamily: Typography.bold,
     fontSize: FontSize.md,
   },
-  actions: { flexDirection: "row", gap: Spacing.md },
   approveText: {
-    color: Colors.accent,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.accentText,
+    fontFamily: Typography.semibold,
   },
   rejectText: {
-    color: Colors.danger,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.dangerText,
+    fontFamily: Typography.semibold,
   },
   actionText: {
-    color: Colors.accent,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.accentText,
+    fontFamily: Typography.semibold,
   },
-  linked: {
+  linked: { ...ModuleTextStyles.metadata,
     color: Colors.textMuted,
     fontSize: FontSize.xs,
     marginTop: Spacing.sm,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    maxHeight: "90%",
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-  },
-  modalTitle: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    marginBottom: Spacing.md,
+    justifyContent: "center"
   },
   formScroll: { flexShrink: 1 },
-  formScrollBounded: { flex: 1 },
-  formSheetOverlay: { flex: 1 },
-  formSheetCard: { flex: 1 },
-  label: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.sm,
-    marginTop: Spacing.sm,
-  },
+  formScrollBounded: { flex: 1, minHeight: 0 },
+  formSheetOverlay: { flex: 1, flexShrink: 1, minHeight: 0 },
+  formSheetCard: { flex: 1, flexShrink: 1, minHeight: 0 },
   chips: { flexDirection: "row", gap: Spacing.sm, paddingVertical: Spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: FontSize.xs },
-  chipTextActive: { color: "#FFFFFF" },
-  input: {
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    color: Colors.primary,
-    marginTop: Spacing.xs,
-  },
   itemForm: {
-    backgroundColor: Colors.bg,
+      ...SurfaceStyles.control,
     borderRadius: Radius.md,
     padding: Spacing.md,
     marginTop: Spacing.sm,
     gap: Spacing.sm,
   },
   numberRow: { flexDirection: "row", gap: Spacing.sm },
-  numberInput: {
+  numberInput: { ...ModuleTextStyles.search,
+      ...SurfaceStyles.control,
     flex: 1,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.sm,
     padding: Spacing.md,
     color: Colors.primary,
@@ -612,7 +557,7 @@ const styles = StyleSheet.create({
   totalPreview: {
     textAlign: "right",
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
+    fontFamily: Typography.bold,
     fontSize: FontSize.lg,
     marginBottom: Spacing.sm,
   },
@@ -622,34 +567,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  modalCancel: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: "center",
-  },
   cancelLabel: {
     color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
   },
-  modalConfirm: {
-    flex: 1,
-    backgroundColor: Colors.accent,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    alignItems: "center",
-  },
   confirmLabel: {
-    color: "#FFFFFF",
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.onAction,
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
   },
   ...pluginFormStyles,

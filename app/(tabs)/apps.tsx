@@ -1,15 +1,17 @@
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, Spacing, Radius, FontSize } from '../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { useAppStore } from '../../src/store';
 import { canActivatePlugin, getPluginDefinition, PluginId } from '../../src/plugins/registry';
 import { useAuth } from '../../src/hooks/useAuth';
 import { onboardingService } from '../../src/services/onboardingService';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { AppAlert } from "@/src/services/appAlert";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 export default function AppsScreen() {
   const router = useRouter();
@@ -25,19 +27,20 @@ export default function AppsScreen() {
     dismissPluginSuggestion,
   } = useAppStore();
 
-  const tryActivate = (pluginId: PluginId) => {
-    const check = canActivatePlugin(pluginId, activatedPlugins);
-    if (!check.ok) {
-      const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
-      Alert.alert(
-        'Dependência necessária',
-        `Para ativar ${getPluginDefinition(pluginId)?.label ?? pluginId}, você precisa ter ${labels.join(' e ')} ativados primeiro.`,
-        [{ text: 'Entendi' }],
-      );
-      return;
-    }
-    setPluginActivation(pluginId, true);
-  };
+  const tryActivate = (pluginId: PluginId) => { void confirmAction("apps.tsx:tryActivate:29" + ':' + pluginId, () => {
+  const check = canActivatePlugin(pluginId, activatedPlugins);
+  if (!check.ok) {
+        const labels = check.missing.map((id) => getPluginDefinition(id)?.label ?? id);
+        AppAlert.alert(
+          'Dependência necessária',
+          `Para ativar ${getPluginDefinition(pluginId)?.label ?? pluginId}, você precisa ter ${labels.join(' e ')} ativados primeiro.`,
+          [{ text: 'Entendi' }], { variant: 'warning' }
+        );
+        return;
+      }
+  setPluginActivation(pluginId, true);
+  return () => {  };
+  }); };
 
   const orderedPluginIds = useMemo(() => {
     const active = new Set(activatedPlugins);
@@ -63,13 +66,11 @@ export default function AppsScreen() {
     try {
       await onboardingService.savePluginPreferences(currentUser.id, activatedPlugins, nextOrder);
     } catch (error) {
-      console.warn('Falha ao salvar a ordem dos módulos:', error);
-      Alert.alert('Não foi possível salvar', 'A nova ordem ficará disponível nesta sessão. Tente novamente mais tarde.');
     }
   };
 
   const deactivateAllPlugins = () => {
-    Alert.alert(
+    AppAlert.alert(
       'Desativar todos os módulos?',
       'Eles sairão da sua lista de Apps, mas seus dados continuarão guardados para quando você quiser reativá-los.',
       [
@@ -85,8 +86,6 @@ export default function AppsScreen() {
             try {
               await onboardingService.savePluginPreferences(currentUser.id, [], []);
             } catch (error) {
-              console.warn('Falha ao salvar a desativação dos módulos:', error);
-              Alert.alert('Não foi possível salvar', 'Os módulos foram desativados nesta sessão. Tente novamente mais tarde.');
             }
           },
         },
@@ -111,25 +110,25 @@ export default function AppsScreen() {
         </Text>
         {activeDefs.length > 1 && (
           <>
-            <TouchableOpacity
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed}
               style={styles.organizeButton}
               onPress={() => setIsOrganizing((value) => !value)}
               accessibilityRole="button"
               accessibilityState={{ selected: isOrganizing }}
               accessibilityLabel={isOrganizing ? 'Concluir organização dos módulos' : 'Organizar módulos'}
             >
-              <Ionicons name={isOrganizing ? 'checkmark' : 'swap-vertical'} size={16} color={Colors.accent} />
+              <Ionicons name={isOrganizing ? 'checkmark' : 'swap-vertical'} size={16} color={Colors.accentIcon} />
               <Text style={styles.organizeButtonText}>{isOrganizing ? 'Concluir' : 'Organizar'}</Text>
             </TouchableOpacity>
             {isOrganizing && <Text style={styles.organizeHint}>Use as setas para definir a ordem dos módulos.</Text>}
             {isOrganizing && (
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.deactivateAllButton}
                 onPress={deactivateAllPlugins}
                 accessibilityRole="button"
                 accessibilityLabel="Desativar todos os módulos"
               >
-                <Ionicons name="remove-circle-outline" size={16} color={Colors.danger} />
+                <Ionicons name="remove-circle-outline" size={16} color={Colors.dangerIcon} />
                 <Text style={styles.deactivateAllText}>Desativar todos</Text>
               </TouchableOpacity>
             )}
@@ -137,7 +136,7 @@ export default function AppsScreen() {
         )}
         {activeDefs.length === 0 && (
           <View style={styles.empty}>
-            <Ionicons name="apps-outline" size={40} color={Colors.textMuted} />
+            <Ionicons name="apps-outline" size={40} color={Colors.decorativeMuted} />
             <Text style={styles.emptyText}>Nenhum módulo ativado ainda.</Text>
           </View>
         )}
@@ -146,7 +145,7 @@ export default function AppsScreen() {
             key={def.id}
             style={styles.moduleCard}
             onPress={() => !isOrganizing && router.push(def.route as any)}
-            activeOpacity={0.7}
+            activeOpacity={ControlOpacity.pressed}
           >
             <View style={styles.moduleIcon}>
               <Ionicons name={def.icon as any} size={20} color={Colors.primary} />
@@ -154,23 +153,23 @@ export default function AppsScreen() {
             <Text style={styles.moduleName}>{def.label}</Text>
             {isOrganizing ? (
               <View style={styles.reorderActions}>
-                <TouchableOpacity style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]} onPress={() => movePlugin(index, -1)} disabled={index === 0} accessibilityRole="button" accessibilityLabel={`Mover ${def.label} para cima`}>
-                  <Ionicons name="chevron-up" size={20} color={index === 0 ? Colors.textMuted : Colors.accent} />
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.reorderButton, index === 0 && styles.reorderButtonDisabled]} onPress={() => movePlugin(index, -1)} disabled={index === 0} accessibilityRole="button" accessibilityLabel={`Mover ${def.label} para cima`}>
+                  <Ionicons name="chevron-up" size={20} color={index === 0 ? Colors.textDisabled : Colors.accentIcon} />
                 </TouchableOpacity>
-                <TouchableOpacity style={[styles.reorderButton, index === activeDefs.length - 1 && styles.reorderButtonDisabled]} onPress={() => movePlugin(index, 1)} disabled={index === activeDefs.length - 1} accessibilityRole="button" accessibilityLabel={`Mover ${def.label} para baixo`}>
-                  <Ionicons name="chevron-down" size={20} color={index === activeDefs.length - 1 ? Colors.textMuted : Colors.accent} />
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.reorderButton, index === activeDefs.length - 1 && styles.reorderButtonDisabled]} onPress={() => movePlugin(index, 1)} disabled={index === activeDefs.length - 1} accessibilityRole="button" accessibilityLabel={`Mover ${def.label} para baixo`}>
+                  <Ionicons name="chevron-down" size={20} color={index === activeDefs.length - 1 ? Colors.textDisabled : Colors.accentIcon} />
                 </TouchableOpacity>
               </View>
-            ) : <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />}
+            ) : <Ionicons name="chevron-forward" size={18} color={Colors.textDisabled} />}
           </TouchableOpacity>
         ))}
 
         <TouchableOpacity
           style={styles.addMoreBtn}
           onPress={() => router.push('/plugins/store' as any)}
-          activeOpacity={0.8}
+          activeOpacity={ControlOpacity.pressed}
         >
-          <Ionicons name="add-circle-outline" size={20} color={Colors.accent} />
+          <Ionicons name="add-circle-outline" size={20} color={Colors.accentIcon} />
           <Text style={styles.addMoreText}>Adicionar mais módulos</Text>
         </TouchableOpacity>
 
@@ -183,7 +182,7 @@ export default function AppsScreen() {
               return (
                 <View key={s.plugin} style={styles.suggestionCard}>
                   <View style={styles.suggestionIcon}>
-                    <Ionicons name={def.icon as any} size={20} color={Colors.accent} />
+                    <Ionicons name={def.icon as any} size={20} color={Colors.accentIcon} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.suggestionName}>{def.label}</Text>
@@ -192,13 +191,16 @@ export default function AppsScreen() {
                       <TouchableOpacity
                         style={styles.suggestionActivateBtn}
                         onPress={() => tryActivate(def.id)}
-                        activeOpacity={0.8}
+                        activeOpacity={ControlOpacity.pressed}
                       >
                         <Text style={styles.suggestionActivateText}>Ativar</Text>
                       </TouchableOpacity>
                       <TouchableOpacity
-                        onPress={() => dismissPluginSuggestion(def.id)}
-                        activeOpacity={0.8}
+                        onPress={() => { void confirmAction("apps.tsx:action:201" + ':' + String(def.id), () => {
+                                  dismissPluginSuggestion(def.id);
+                                  return () => {  };
+                                  }); }}
+                        activeOpacity={ControlOpacity.pressed}
                       >
                         <Text style={styles.suggestionDismissText}>Dispensar</Text>
                       </TouchableOpacity>
@@ -216,7 +218,7 @@ export default function AppsScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 12 },
   header: {
     flexDirection: 'row',
@@ -236,7 +238,7 @@ const styles = StyleSheet.create({
   },
   avatarText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: 13, color: '#FFFFFF',
+    fontSize: 13, color: Colors.onAction,
   },
   sectionLabel: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
@@ -251,7 +253,7 @@ const styles = StyleSheet.create({
     minHeight: 44, paddingHorizontal: Spacing.sm, marginBottom: Spacing.xs,
   },
   organizeButtonText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accent,
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.accentText,
   },
   organizeHint: {
     fontFamily: 'PlusJakartaSans_400Regular', fontSize: FontSize.sm,
@@ -262,12 +264,12 @@ const styles = StyleSheet.create({
     minHeight: 44, paddingHorizontal: Spacing.sm, marginBottom: Spacing.sm,
   },
   deactivateAllText: {
-    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.danger,
+    fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.sm, color: Colors.dangerText,
   },
   suggestionCard: {
+    ...SurfaceStyles.list,
     flexDirection: 'row',
     gap: Spacing.md,
-    backgroundColor: Colors.accentLight,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -293,37 +295,32 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   suggestionActivateBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 6,
   },
   suggestionActivateText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.sm, color: '#FFFFFF',
+    fontSize: FontSize.sm, color: Colors.onAction,
   },
   suggestionDismissText: {
     fontFamily: 'PlusJakartaSans_500Medium',
     fontSize: FontSize.sm, color: Colors.textMuted,
   },
   moduleCard: {
+    ...SurfaceStyles.list,
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   moduleIcon: {
     width: 36, height: 36, borderRadius: Radius.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.bgCard,
     alignItems: 'center', justifyContent: 'center',
   },
   moduleName: {
@@ -349,13 +346,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: Spacing.sm,
     borderWidth: 1,
-    borderColor: Colors.accent,
+    borderColor: Colors.accentIcon,
     borderRadius: Radius.lg,
     paddingVertical: Spacing.lg,
     marginTop: Spacing.lg,
   },
   addMoreText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
-    fontSize: FontSize.md, color: Colors.accent,
+    fontSize: FontSize.md, color: Colors.accentText,
   },
 });

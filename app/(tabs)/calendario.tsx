@@ -4,26 +4,28 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, Spacing, FontSize } from '../../src/constants/theme';
+import { ControlOpacity, Colors, Spacing, FontSize } from '../../src/constants/theme';
 import { useAppStore, type CalendarEvent, type Atendimento } from '../../src/store';
 import { useCalendarState } from '../../src/hooks/useCalendarState';
-import { CollapsibleCalendar } from '../components/Calendar/CollapsibleCalendar';
-import { BottomSheet } from '../components/Calendar/BottomSheet';
-import { EventForm } from '../components/Calendar/EventForm';
-import { EventListItem } from '../components/Calendar/EventListItem';
-import { FilterChips } from '../components/Calendar/FilterChips';
-import { SkeletonLoader } from '../components/Calendar/SkeletonLoader';
-import { EmptyState } from '../components/Calendar/EmptyState';
-import { FAB } from '../components/Calendar/FAB';
-import { AppointmentForm } from '../components/Calendar/AppointmentForm';
+import { CollapsibleCalendar } from '../../src/components/Calendar/CollapsibleCalendar';
+import { BottomSheet } from '../../src/components/Calendar/BottomSheet';
+import { EventForm } from '../../src/components/Calendar/EventForm';
+import { EventListItem } from '../../src/components/Calendar/EventListItem';
+import { FilterChips } from '../../src/components/Calendar/FilterChips';
+import { SkeletonLoader } from '../../src/components/Calendar/SkeletonLoader';
+import { EmptyState } from '../../src/components/Calendar/EmptyState';
+import { FAB, FAB_LAYOUT } from '../../src/components/Calendar/FAB';
+import { AppointmentForm } from '../../src/components/Calendar/AppointmentForm';
 import { useAuth } from '../../src/hooks/useAuth';
-import { UserAvatar } from '../components/account/UserAvatar';
-import { AccountSheet } from '../components/account/AccountSheet';
-import { BottomFade } from '../components/BottomFade';
+import { UserAvatar } from '../../src/components/account/UserAvatar';
+import { AccountSheet } from '../../src/components/account/AccountSheet';
+import { BottomFade } from '../../src/components/BottomFade';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import type { EventFormData } from '../components/Calendar/EventForm';
-import type { Relation } from '../components/Tasks/TaskPeopleSelector';
+import type { EventFormData } from '../../src/components/Calendar/EventForm';
+import type { Relation } from '../../src/components/Tasks/TaskPeopleSelector';
 import { clearRelationDraft, getRelationDraft, saveRelationDraft, setPendingRelation } from '../../src/utils/relationDraft';
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 export default function CalendarioScreen() {
   const router = useRouter();
@@ -109,87 +111,85 @@ export default function CalendarioScreen() {
     };
   }, [calendarEvents, selectedDate]);
 
-  const handleToggleCalendarEvent = useCallback((id: string) => {
-    if (id.startsWith('supplier-due:')) {
-      markSupplierTransactionPaid(id.replace('supplier-due:', ''), true);
-      return;
-    }
-    if (id.startsWith('contract-due:')) {
-      const [, contractId, expectedDate] = id.split(':');
-      const transaction = useAppStore.getState().transactions.find((item) => item.contractId === contractId && item.expectedDate === expectedDate);
-      if (transaction) markTransactionReceived(transaction.id, true);
-      return;
-    }
-    if (id.startsWith('appointment:')) {
-      concludeAtendimento(id.replace('appointment:', ''));
-      return;
-    }
-    toggleEvent(id);
-  }, [markSupplierTransactionPaid, markTransactionReceived, concludeAtendimento, toggleEvent]);
+  const handleToggleCalendarEvent = useCallback((id: string) => { void confirmAction("calendario.tsx:handleToggleCalendarEvent:113" + ':' + id, () => {
+  if (id.startsWith('supplier-due:')) {
+        markSupplierTransactionPaid(id.replace('supplier-due:', ''), true);
+        return;
+      }
+  if (id.startsWith('contract-due:')) {
+        const [, contractId, expectedDate] = id.split(':');
+        const transaction = useAppStore.getState().transactions.find((item) => item.contractId === contractId && item.expectedDate === expectedDate);
+        if (transaction) markTransactionReceived(transaction.id, true);
+        return;
+      }
+  if (id.startsWith('appointment:')) {
+        concludeAtendimento(id.replace('appointment:', ''));
+        return;
+      }
+  toggleEvent(id);
+  return () => {  };
+  }); }, [markSupplierTransactionPaid, markTransactionReceived, concludeAtendimento, toggleEvent]);
 
   const handleMonthChange = useCallback(
     (direction: -1 | 1) => {
-      setLoading(true);
       if (direction === -1) prevMonth();
       else nextMonth();
-      const timer = setTimeout(() => setLoading(false), 400);
-      return () => clearTimeout(timer);
     },
     [prevMonth, nextMonth]
   );
 
   const handleSelectDayEvent = useCallback(
-    (day: number) => {
-      setLoading(true);
-      selectDay(day);
-      const timer = setTimeout(() => setLoading(false), 300);
-      return () => clearTimeout(timer);
+    (day: number, exactDate?: string) => {
+      selectDay(day, exactDate);
     },
     [selectDay]
   );
 
-  const handleSave = useCallback(
-    (data: Omit<CalendarEvent, 'id' | 'done'>) => {
-      if (data.type === 'task') {
-        const taskId = addTask({
-          description: data.description,
-          done: false,
-          dueDate: data.date,
-          dueDateLabel: null,
-          priority: 'media',
-          subtasks: [],
-          tags: [],
-          clientId: data.clientId,
-          supplierId: data.supplierId,
-          employeeId: data.employeeId,
-          createdAt: new Date().toISOString(),
-        });
-        calendarizeTask(taskId, {
-          date: data.date,
-          time: data.time,
-          eventType: data.eventType,
-          clientId: data.clientId,
-          supplierId: data.supplierId,
-          employeeId: data.employeeId,
-        });
-      } else {
-        addEvent(data);
-      }
-      clearRelationDraft('calendar');
-      setPendingEventDraft(null);
-      setSheetVisible(false);
-    },
-    [addEvent, addTask, calendarizeTask]
-  );
+  const handleSaveConfirmation = useConfirmedSave();
+    const handleSave = useCallback(
+        (data: Omit<CalendarEvent, 'id' | 'done'>) => { return handleSaveConfirmation.run(() => {
+          if (data.type === 'task') {
+                  const taskId = addTask({
+                    description: data.description,
+                    done: false,
+                    dueDate: data.date,
+                    dueDateLabel: null,
+                    priority: 'media',
+                    subtasks: [],
+                    tags: [],
+                    clientId: data.clientId,
+                    supplierId: data.supplierId,
+                    employeeId: data.employeeId,
+                    createdAt: new Date().toISOString(),
+                  });
+                  calendarizeTask(taskId, {
+                    date: data.date,
+                    time: data.time,
+                    eventType: data.eventType,
+                    clientId: data.clientId,
+                    supplierId: data.supplierId,
+                    employeeId: data.employeeId,
+                  });
+                } else {
+                  addEvent(data);
+                }
+          return () => {
+          clearRelationDraft('calendar');
+          setPendingEventDraft(null);
+          setSheetVisible(false);
+          };
+          }); },
+        [addEvent, addTask, calendarizeTask]
+      );
 
-  const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => {
-    if (addAtendimento(data)) setAppointmentSheetVisible(false);
-  }, [addAtendimento]);
+  const handleSaveAppointmentConfirmation = useConfirmedSave();
+    const handleSaveAppointment = useCallback((data: Omit<Atendimento, 'id' | 'calendarEventId'>) => { return handleSaveAppointmentConfirmation.run(() => { if (!addAtendimento(data)) return; return () => setAppointmentSheetVisible(false); }); }, [addAtendimento]);
 
-  const handleDeleteCalendarItem = useCallback((id: string) => {
-    if (id.startsWith('appointment:')) removeAtendimento(id.replace('appointment:', ''));
-    else removeEvent(id);
-  }, [removeAtendimento, removeEvent]);
+  const handleDeleteCalendarItem = useCallback((id: string) => { void confirmAction("calendario.tsx:handleDeleteCalendarItem:192" + ':' + id, () => {
+  if (id.startsWith('appointment:')) removeAtendimento(id.replace('appointment:', ''));
+      else removeEvent(id);
+  return () => {  };
+  }); }, [removeAtendimento, removeEvent]);
 
   const handleCancelCalendarItem = useCallback((id: string) => {
     if (id.startsWith('appointment:')) updateAtendimento(id.replace('appointment:', ''), { status: 'cancelado' });
@@ -210,15 +210,9 @@ export default function CalendarioScreen() {
           Math.abs(gs.dx) > 25 && Math.abs(gs.dy) < 15,
         onPanResponderRelease: (_, gs) => {
           if (gs.dx > 50) {
-            setLoading(true);
             prevDay();
-            const t = setTimeout(() => setLoading(false), 300);
-            return () => clearTimeout(t);
           } else if (gs.dx < -50) {
-            setLoading(true);
             nextDay();
-            const t = setTimeout(() => setLoading(false), 300);
-            return () => clearTimeout(t);
           }
         },
       }),
@@ -230,12 +224,13 @@ export default function CalendarioScreen() {
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendário</Text>
         <View style={styles.headerActions}>
-          {activatedPlugins.includes('agenda') && <TouchableOpacity style={styles.newAppointment} onPress={() => setAppointmentSheetVisible(true)}><Ionicons name="time-outline" size={18} color={Colors.accent} /><Text style={styles.newAppointmentText}>Atendimento</Text></TouchableOpacity>}
+          {activatedPlugins.includes('agenda') && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.newAppointment} onPress={() => setAppointmentSheetVisible(true)}><Ionicons name="time-outline" size={18} color={Colors.accentIcon} /><Text style={styles.newAppointmentText}>Atendimento</Text></TouchableOpacity>}
           <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
         </View>
       </View>
 
       <ScrollView
+        contentContainerStyle={{ paddingBottom: FAB_LAYOUT.clearance }}
         showsVerticalScrollIndicator={false}
         {...listPanResponder.panHandlers}
       >
@@ -269,9 +264,7 @@ export default function CalendarioScreen() {
 
           <FilterChips selected={filter} onSelect={setFilter} counts={filterCounts} />
 
-          {loading ? (
-            <SkeletonLoader />
-          ) : sortedEvents.length === 0 ? (
+          {sortedEvents.length === 0 ? (
             <EmptyState filter={filter !== 'all' ? filter : undefined} />
           ) : (
             sortedEvents.map((event) => (
@@ -313,11 +306,11 @@ export default function CalendarioScreen() {
                 : `/plugins/store?highlight=${pluginId}`;
               router.push(`${route}${route.includes('?') ? '&' : '?'}returnToCalendar=1&relation=${relation}` as any);
             }, 240);
-          }}
+          }} locked={handleSaveConfirmation.locked}
         />
       </BottomSheet>
       <BottomSheet visible={appointmentSheetVisible} onClose={() => setAppointmentSheetVisible(false)}>
-        <AppointmentForm initialDate={selectedDate} clients={clienteItems} quotes={activatedPlugins.includes('orcamentos') ? orcamentos : []} onSave={handleSaveAppointment} onCancel={() => setAppointmentSheetVisible(false)} />
+        <AppointmentForm initialDate={selectedDate} clients={clienteItems} quotes={activatedPlugins.includes('orcamentos') ? orcamentos : []} onSave={handleSaveAppointment} onCancel={() => setAppointmentSheetVisible(false)} locked={handleSaveAppointmentConfirmation.locked} />
       </BottomSheet>
       <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
     </SafeAreaView>
@@ -325,7 +318,7 @@ export default function CalendarioScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -335,7 +328,7 @@ const styles = StyleSheet.create({
   },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   newAppointment: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.accentLight, borderRadius: 999, paddingHorizontal: Spacing.sm, paddingVertical: 7 },
-  newAppointmentText: { color: Colors.accent, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
+  newAppointmentText: { color: Colors.accentText, fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: FontSize.xs },
   headerTitle: {
     fontFamily: 'PlusJakartaSans_800ExtraBold',
     fontSize: FontSize.xxl,
@@ -352,7 +345,7 @@ const styles = StyleSheet.create({
   avatarText: {
     fontFamily: 'PlusJakartaSans_600SemiBold',
     fontSize: 13,
-    color: '#FFF',
+    color: Colors.onAction,
   },
   eventsSection: {
     paddingTop: Spacing.xl,

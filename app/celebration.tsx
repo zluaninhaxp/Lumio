@@ -1,7 +1,8 @@
+import { PRIVACY_VERSION } from '../src/constants/privacy';
+import { businessStateService } from '../src/services/businessStateService';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { Stack, useRouter } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,7 +21,12 @@ import {
   MissingApiKeyError,
 } from '../src/ai/aiOnboardingService';
 import { OnboardingExtractionResult } from '../src/ai/types';
-import CelebrationText from '@/app/components/CelebrationText';
+import { useAuth } from '../src/hooks/useAuth';
+import { onboardingService } from '../src/services/onboardingService';
+import CelebrationText from '@/src/components/CelebrationText';
+import ReportProcessing from '@/src/components/onboarding/report-processing';
+import { useForwardOnboarding } from '../src/hooks/use-forward-onboarding';
+import ReportError from '@/src/components/onboarding/report-error';
 
 const BG_COLOR = '#007F6A';
 
@@ -34,22 +40,30 @@ const ERROR_IMAGE = require('../assets/mascot-expressions/04_confuso.png');
 // de primeira configuração. Mostra o mascote neutro pra não soar falha.
 const MISSING_KEY_IMAGE = require('../assets/mascot-expressions/11_sorriso_leve.png');
 
-// Tempo mínimo (ms) que a animação de "pensando" fica visível antes de
-// poder revelar o botão — mesmo que a extração resolva quase
-// instantaneamente, isso evita um "pisca" na tela que pareceria bugado.
-const MIN_THINKING_MS = 2200;
 
 type Phase = 'thinking' | 'focused' | 'done' | 'error' | 'missing-key';
 
 export default function CelebrationScreen() {
   const router = useRouter();
+  useForwardOnboarding();
+  const { currentUser, refreshUser } = useAuth();
   const openAnswers = useAppStore((s) => s.openAnswers);
   const onboardingContext = useAppStore((s) => s.onboardingContext);
   const setPendingOnboardingExtraction = useAppStore((s) => s.setPendingOnboardingExtraction);
 
   const [phase, setPhase] = useState<Phase>('thinking');
   const [error, setError] = useState<{ message: string; kind: string } | null>(null);
+  const [finishingWithoutAi, setFinishingWithoutAi] = useState(false);
+  const [finishError, setFinishError] = useState<string | null>(null);
   const startedRef = useRef(false);
+  const requestInFlightRef = useRef(false);
+  const finishingWithoutAiRef = useRef(false);
+  const disposedRef = useRef(false);
+  const persistenceRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    disposedRef.current = false;
+    return () => { disposedRef.current = true; if (persistenceRetry.current) clearTimeout(persistenceRetry.current); };
+  }, []);
 
   const opacity = useSharedValue(0);
   const enterY = useSharedValue(200);
@@ -86,22 +100,26 @@ export default function CelebrationScreen() {
   }, []);
 
   /**
-   * Aplica o resultado (real ou simulado) respeitando o tempo mínimo de
-   * "pensando" — só então vira 'done' e revela o botão de ver resultados.
+   * Aplica o resultado (real ou simulado) quando a extração termina.
    * O flag `isSimulation` avisa a tela de resumo para exibir o banner de
    * aviso apropriado (instrução 3.2).
    */
   const applyResult = useCallback(
-    (result: OnboardingExtractionResult, isSimulation: boolean, startedAt: number) => {
-      const elapsed = Date.now() - startedAt;
-      const remaining = Math.max(0, MIN_THINKING_MS - elapsed);
-      setTimeout(() => {
-        setPendingOnboardingExtraction(result, isSimulation);
-        setPhase('done');
-        buttonOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.cubic) });
-      }, remaining);
+    async (result: OnboardingExtractionResult, isSimulation: boolean) => {
+      if (disposedRef.current) return;
+      setPendingOnboardingExtraction(result, isSimulation);
+      const confirmReport = async () => {
+        if (disposedRef.current) return;
+        try {
+          await businessStateService.commit();
+          if (!disposedRef.current) router.replace('/onboarding-report-intro');
+        } catch {
+          if (!disposedRef.current) persistenceRetry.current = setTimeout(() => { void confirmReport(); }, 10_000);
+        }
+      };
+      await confirmReport();
     },
-    [setPendingOnboardingExtraction, buttonOpacity],
+    [setPendingOnboardingExtraction, router],
   );
 
   /**
@@ -115,16 +133,15 @@ export default function CelebrationScreen() {
    */
   const useSimulationFallback = useCallback(
     () => {
-      const startedAt = Date.now();
       const mockResult = buildMockExtractionResult(openAnswers);
-      applyResult(mockResult, true, startedAt);
+      void applyResult(mockResult, true);
     },
     [openAnswers, applyResult],
   );
 
   /**
-   * Executa a extração real (chamada direta ao Gemini com a chave do
-   * usuário). Se não houver chave cadastrada, INTERROMPE o fluxo no
+   * Executa a extração pelo backend autenticado. Se não houver chave
+   * cadastrada para esta conta, INTERROMPE o fluxo no
    * estado 'missing-key' e mostra como ação principal "Configurar minha
    * chave" (com "Continuar com simulação" apenas como fallback opt-in,
    * não como caminho default) — o relatório depende da IA, não se
@@ -134,20 +151,21 @@ export default function CelebrationScreen() {
    * em 'error' com "Tentar novamente" / "Continuar com simulação".
    */
   const runExtraction = useCallback(() => {
+    if (useAppStore.getState().aiDisclosureAcceptedVersion !== PRIVACY_VERSION) { router.replace('/ai-consent'); return; }
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
     startedRef.current = true;
     setPhase('thinking');
     setError(null);
 
-    const midway = setTimeout(() => setPhase('focused'), MIN_THINKING_MS / 2);
-    const startedAt = Date.now();
-
     (async () => {
       try {
         if (!onboardingContext) throw new AIProviderError('invalid-input');
-        const result = await extractBusinessProfile(onboardingContext);
-        applyResult(result, false, startedAt);
+        const saved = useAppStore.getState().pendingOnboardingExtraction;
+        const result = saved ?? await extractBusinessProfile(onboardingContext);
+        await applyResult(result, false);
       } catch (e) {
-        clearTimeout(midway);
+        if (disposedRef.current) return;
 
         // Sem chave cadastrada → PARA no estado 'missing-key'. A ação
         // principal é configurar a chave; o usuário é quem decide se
@@ -168,19 +186,15 @@ export default function CelebrationScreen() {
         setPhase('error');
         setError({ message: 'A IA retornou um erro. Tente novamente em instantes.', kind: 'provider' });
         buttonOpacity.value = withTiming(1, { duration: 300 });
+      } finally {
+        requestInFlightRef.current = false;
       }
     })();
 
-    return () => clearTimeout(midway);
   }, [onboardingContext, applyResult, buttonOpacity]);
 
-  // Dispara a extração real assim que a tela monta — o fluxo antigo caía
-  // no mock por depender de uma função que lançava erro; agora a IA é
-  // chamada de verdade, e o mock só aparece como fallback explícito.
-  // O fluxo real é disparado no mount. Voltamos a disparar quando a tela
-  // volta a focar E estava pausada em 'missing-key' — só nesse caso o
-  // usuário pode ter vindo de configurar sua chave em /ai-settings e
-  // merece a IA re-tentar automaticamente sem precisar de botão.
+  // Geração começa ao montar. A configuração só retorna a esta rota
+  // após a confirmação explícita, nunca apenas ao testar ou cancelar.
   useEffect(() => {
     if (startedRef.current) return;
     const cleanup = runExtraction();
@@ -188,29 +202,37 @@ export default function CelebrationScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (phase === 'missing-key') {
-        // Re-tenta a extração — se a chave foi configurada nas settings
-        // agora resolve via IA; se ainda não foi, volta pra 'missing-key'.
-        startedRef.current = false;
-        runExtraction();
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase]),
-  );
-
   const handleRetry = useCallback(() => {
-    startedRef.current = false;
+    if (requestInFlightRef.current) return;
     runExtraction();
   }, [runExtraction]);
 
+
+  const handleContinueWithoutAi = useCallback(async () => {
+    if (finishingWithoutAiRef.current) return;
+    finishingWithoutAiRef.current = true;
+    setFinishingWithoutAi(true);
+    setFinishError(null);
+    try {
+      if (!currentUser) throw new Error('Sessão indisponível');
+      await onboardingService.completeOnboarding(currentUser.id, { ...openAnswers }, onboardingContext ?? undefined);
+      useAppStore.setState({ onboardingCompleted: true });
+      await refreshUser();
+      router.replace('/(tabs)/chat');
+    } catch {
+      // Keep the current step until persistence is confirmed.
+    } finally {
+      finishingWithoutAiRef.current = false;
+      setFinishingWithoutAi(false);
+    }
+  }, [currentUser, openAnswers, onboardingContext, refreshUser, router]);
+
   const handleGoToSettings = useCallback(() => {
-    router.push('/ai-settings');
+    router.replace({ pathname: '/ai-settings', params: { from: 'onboarding' } });
   }, [router]);
 
   const handleSeeResults = useCallback(() => {
-    router.replace('/onboarding-summary');
+    router.replace('/onboarding-report-intro');
   }, [router]);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -240,6 +262,14 @@ export default function CelebrationScreen() {
     phase === 'missing-key' || error?.kind === 'unauthorized';
   const showRetryButton = phase === 'error';
 
+  const processing = phase === 'thinking' || phase === 'focused';
+
+
+  if (processing) return <><Stack.Screen options={{ gestureEnabled: false }} /><ReportProcessing /></>;
+
+  const genericError = phase === 'error' && !['unauthorized', 'missing-api-key', 'not-authenticated', 'provider-model', 'payment-required', 'quota-exceeded', 'invalid-input'].includes(error?.kind ?? '');
+  if (genericError) return <ReportError onRetry={handleRetry} onContinue={handleContinueWithoutAi} onSimulation={useSimulationFallback} finishing={finishingWithoutAi} finishError={finishError} />;
+
   return (
     <View style={styles.container}>
       <Animated.Image
@@ -268,8 +298,8 @@ export default function CelebrationScreen() {
               chave grátis do Google AI Studio. Leva 1 minuto.
             </Text>
             <Text style={styles.errorHint}>
-              O Lumio nunca guarda nem paga pela sua chave — ela fica só
-              no seu aparelho e é usada direto com o Google.
+              Sua chave fica protegida no servidor e vinculada à sua conta.
+              O aplicativo recebe apenas o resultado da IA.
             </Text>
           </View>
         ) : (

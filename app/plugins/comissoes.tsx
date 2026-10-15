@@ -1,17 +1,20 @@
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Alert,
+  ScrollView
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
+import { AppAlert } from "@/src/services/appAlert";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
 const MONTH_NAMES = [
@@ -72,20 +75,23 @@ export default function ComissoesScreen() {
   const totalPending = pendingByEmployee.reduce((sum, e) => sum + e.amount, 0);
 
   const handlePay = (employeeId: string, name: string, amount: number) =>
-    Alert.alert(
+    AppAlert.alert(
       "Confirmar pagamento",
       `Concluir o saldo de ${money(amount)} de comissão de ${name}? Nenhuma transação será criada.`,
       [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Concluir",
-          onPress: () => closeEmployeeCommission(employeeId),
+          onPress: () => { void confirmAction("comissoes.tsx:action:84" + ':' + String(employeeId), () => {
+          closeEmployeeCommission(employeeId);
+          return () => {  };
+          }); },
         },
       ],
     );
 
   const handleDeactivate = () =>
-    Alert.alert(
+    AppAlert.alert(
       "Desativar Comissões",
       "O módulo sai da aba Apps, mas os dados continuam guardados.",
       [
@@ -93,10 +99,10 @@ export default function ComissoesScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation("comissoes", false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("comissoes.tsx:action:98" + ':' + String("comissoes"), () => {
+          setPluginActivation("comissoes", false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -104,11 +110,11 @@ export default function ComissoesScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Comissões</Text>
-        <TouchableOpacity onPress={handleDeactivate} style={styles.iconBtn}>
+        <Text style={ModuleTextStyles.headerTitle}>Comissões</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -132,10 +138,7 @@ export default function ComissoesScreen() {
 
         <Text style={styles.sectionLabel}>PENDENTES POR FUNCIONÁRIO</Text>
         {pendingByEmployee.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons name="cash-outline" size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyText}>Nenhuma comissão pendente.</Text>
-          </View>
+          <FeedbackEmptyState variant="compact" icon="cash-outline" title="Nenhuma comissão pendente." />
         )}
         {pendingByEmployee.map((entry) => (
           <View key={entry.employeeId} style={styles.card}>
@@ -152,7 +155,7 @@ export default function ComissoesScreen() {
             </View>
             <View style={styles.cardRight}>
               <Text style={styles.amount}>{money(entry.amount)}</Text>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.payBtn}
                 onPress={() =>
                   handlePay(
@@ -198,7 +201,7 @@ export default function ComissoesScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -206,15 +209,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
   summaryCard: {
-    backgroundColor: Colors.accentLight,
+    ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
@@ -222,12 +220,12 @@ const styles = StyleSheet.create({
   summaryLabel: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   summaryAmount: {
     fontFamily: "PlusJakartaSans_800ExtraBold",
     fontSize: FontSize.xxl,
-    color: Colors.accent,
+    color: Colors.accentText,
     marginTop: 4,
   },
   summaryHint: {
@@ -243,25 +241,14 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: Spacing.sm,
   },
-  empty: { alignItems: "center", paddingTop: 40, gap: Spacing.md },
-  emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   avatar: {
     width: 40,
@@ -271,7 +258,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accent },
+  avatarText: { fontFamily: "PlusJakartaSans_700Bold", color: Colors.accentText },
   cardMain: { flex: 1 },
   cardTitle: {
     fontFamily: "PlusJakartaSans_600SemiBold",
@@ -288,10 +275,10 @@ const styles = StyleSheet.create({
   amount: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.md,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
   payBtn: {
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 6,
@@ -299,7 +286,7 @@ const styles = StyleSheet.create({
   payBtnText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
   historyRow: {
     flexDirection: "row",
@@ -323,6 +310,6 @@ const styles = StyleSheet.create({
   historyAmount: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.sm,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

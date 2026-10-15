@@ -1,26 +1,132 @@
+import { Platform, type ViewStyle, type TextStyle } from 'react-native';
+
+const PAGE_BACKGROUND = '#F3FFF9';
+// Existing cool off-white, reserved for internal page backgrounds.
+const APP_BACKGROUND = '#F8FCFA';
+
 export const Colors = {
   // Paleta principal
-  bg: '#F8FCFA',
+  bg: PAGE_BACKGROUND,
+  appBackground: APP_BACKGROUND,
   bgCard: '#FFFFFF',
   primary: '#111111',
   accent: '#00A878',
+  // Identity/decoration keep accent; readable foregrounds and filled actions
+  // have separate roles. Do not use identity colors as small-text defaults.
+  accentText: '#006B4C',
+  accentIcon: '#00815D',
+  actionBackground: '#007354',
+  onAction: '#FFFFFF',
   accentLight: '#E6F7F1',
   accentSoft: '#F0FAF6',
   accentGlow: '#DDF4EC',
   danger: '#E05555',
+  dangerText: '#B23B3B',
+  dangerIcon: '#C74848',
+  dangerActionBackground: '#B23B3B',
   dangerLight: '#FFF0F0',
   textSecondary: '#6B6B6B',
-  textMuted: '#AAAAAA',
+  textMuted: '#5F6D66',
+  placeholder: '#5F6D66',
+  iconMuted: '#7D8983',
+  decorativeMuted: '#AAAAAA',
+  textDisabled: '#AAAAAA',
   border: '#DDEBE4',
 
   // Bolhas de chat
-  bubbleUser: '#111111',
+  bubbleUser: '#202B38',
   bubbleBot: '#FFFFFF',
+  chatBackground: APP_BACKGROUND,
+  mintBackground: PAGE_BACKGROUND,
+  bottomSurface: '#E6F7F1',
+  ink: '#202B38',
+  composerDivider: '#DCECE6',
+  composerPlaceholder: '#647286',
+  accentDisabled: '#A9D9CA',
 
   // Status
   success: '#00A878',
+  successText: '#006B4C',
+  successIcon: '#00815D',
   warning: '#F59E0B',
+  warningText: '#9A5100',
+  warningIcon: '#B56708',
+  warningActionBackground: '#995200',
 } as const;
+
+// TouchableOpacity fades foregrounds together with backgrounds. Keep pressed
+// feedback subtle so enabled text stays readable; disabled styles stay local.
+export const ControlOpacity = { pressed: 0.98 } as const;
+
+// Category fills are preserved; foregrounds carry the readable meaning.
+export const CategoryColors = {
+  blue: { bg: '#EBF5FF', text: '#2563EB', icon: '#2563EB', tint: '#3B82F618' },
+  amber: { bg: '#FEF3C7', text: Colors.warningText, icon: Colors.warningIcon, tint: '#F59E0B18' },
+  pink: { bg: '#FCE7F3', text: '#B51D62', icon: '#DB2777', tint: '#EC489918' },
+  green: { bg: '#D1FAE5', text: Colors.accentText, icon: Colors.accentIcon, tint: '#00A87818' },
+  purple: { bg: '#EDE9FE', text: '#7133D4', icon: '#7C3AED', tint: '#8B5CF618' },
+  orange: { bg: '#FFEDD5', text: '#AD3D08', icon: '#AD3D08', tint: '#EA580C18' },
+  neutral: { icon: Colors.iconMuted, tint: '#AAAAAA18' },
+} as const;
+
+// Neutral content elevation. boxShadow runs on both platforms with the
+// project's New Architecture (Android outset shadows require Android 9+).
+// Surface roles: neutral controls, white content, then overlays. Brand fills
+// remain explicit state overrides, never the default outline or shadow.
+export const SurfaceColors = {
+  control: Colors.bgCard,
+  card: Colors.bgCard,
+  overlay: Colors.bgCard,
+  disabled: '#ECEFF1',
+  subtleBorder: '#E1E5E8',
+  controlBorder: '#C9D0D4',
+  focusBorder: Colors.accentIcon,
+  errorBorder: Colors.dangerIcon,
+  backdrop: 'rgba(32,43,56,0.40)',
+} as const;
+
+// Content cards and Chat bubbles share one neutral shadow.
+const CONTENT_SHADOW = '0 4px 8px -2px rgba(32,43,56,0.16), 0 1px 2px rgba(32,43,56,0.07)';
+
+export const SurfaceElevation = {
+  control: 'none',
+  list: CONTENT_SHADOW,
+  card: CONTENT_SHADOW,
+  message: CONTENT_SHADOW,
+  overlay: '0 10px 24px -4px rgba(32,43,56,0.20), 0 2px 6px rgba(32,43,56,0.09)',
+  floating: '0 5px 12px -2px rgba(32,43,56,0.22)',
+  userMessage: '0 3px 8px rgba(32,43,56,0.16)',
+} as const;
+
+// RN 0.81 outset boxShadow works with New Architecture on Android 9+.
+// Older supported Android versions use native elevation instead, never both.
+function surfaceElevation(role: keyof typeof SurfaceElevation): { boxShadow?: string; elevation?: number } {
+  if (Platform.OS === 'android' && Number(Platform.Version) < 28) {
+    const levels = { control: 0, list: 2, card: 2, message: 2, overlay: 8, floating: 6, userMessage: 2 };
+    return { elevation: levels[role] };
+  }
+  return { boxShadow: SurfaceElevation[role] };
+}
+
+export const SurfaceStyles = {
+  // Swipeable clips to its row by default, cutting off content-card shadows.
+  swipeContainer: { overflow: 'visible' },
+  control: { backgroundColor: SurfaceColors.control, borderWidth: 1, borderColor: SurfaceColors.controlBorder, ...surfaceElevation('control') },
+  filter: { backgroundColor: SurfaceColors.card, borderWidth: 1, borderColor: SurfaceColors.controlBorder, ...surfaceElevation('control') },
+  tonal: { backgroundColor: SurfaceColors.control },
+  card: { backgroundColor: SurfaceColors.card, borderWidth: 0, ...surfaceElevation('card') },
+  // Grouped navigation and read-only rows use depth rather than an outline.
+  list: { backgroundColor: SurfaceColors.card, ...surfaceElevation('list') },
+  message: { backgroundColor: Colors.bubbleBot, ...surfaceElevation('message') },
+  overlay: { backgroundColor: SurfaceColors.overlay, borderWidth: 1, borderColor: SurfaceColors.subtleBorder, ...surfaceElevation('overlay') },
+  floating: { ...surfaceElevation('floating') },
+  userMessage: { ...surfaceElevation('userMessage') },
+  controlFocus: { borderColor: SurfaceColors.focusBorder },
+  controlError: { borderColor: SurfaceColors.errorBorder },
+  controlDisabled: { backgroundColor: SurfaceColors.disabled, borderColor: SurfaceColors.subtleBorder },
+  actionDisabled: { backgroundColor: Colors.accentDisabled, ...surfaceElevation('control') },
+  backdrop: { backgroundColor: SurfaceColors.backdrop },
+} satisfies Record<string, ViewStyle>;
 
 export const Typography = {
   regular: 'PlusJakartaSans_400Regular',
@@ -28,6 +134,16 @@ export const Typography = {
   semibold: 'PlusJakartaSans_600SemiBold',
   bold: 'PlusJakartaSans_700Bold',
   heavy: 'PlusJakartaSans_800ExtraBold',
+} as const;
+
+// Exact visual values of the approved onboarding confirmation.
+export const DialogTokens = {
+  backdrop: 'rgba(18, 39, 32, 0.42)',
+  icon: '#07856D',
+  secondary: '#087E68',
+  message: '#62736E',
+  radius: 28,
+  maxWidth: 360,
 } as const;
 
 export const Spacing = {
@@ -58,3 +174,27 @@ export const FontSize = {
   xxxl: 32,
   display: 40,
 } as const;
+
+/** Semantic roles; size differences between account, forms and authentication are intentional. */
+export const TextStyles = {
+  screenTitle: { fontFamily: Typography.bold, fontSize: FontSize.lg, lineHeight: 24, color: Colors.primary },
+  accountTitle: { fontFamily: Typography.bold, fontSize: FontSize.lg, lineHeight: 24, color: Colors.ink },
+  formTitle: { fontFamily: Typography.bold, fontSize: FontSize.xl, lineHeight: 28, color: Colors.primary },
+  cardTitle: { fontFamily: Typography.semibold, fontSize: FontSize.md, lineHeight: 22, color: Colors.primary },
+  body: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 22, color: Colors.primary },
+  label: { fontFamily: Typography.semibold, fontSize: FontSize.sm, lineHeight: 20, color: Colors.textSecondary },
+  metadata: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20, color: Colors.textSecondary },
+  caption: { fontFamily: Typography.medium, fontSize: FontSize.xs, lineHeight: 16, color: Colors.textSecondary },
+  action: { fontFamily: Typography.semibold, fontSize: FontSize.md, lineHeight: 22, color: Colors.onAction },
+  secondaryAction: { fontFamily: Typography.semibold, fontSize: FontSize.md, lineHeight: 22, color: Colors.textSecondary },
+  authTitle: { fontFamily: Typography.heavy, fontSize: 26, lineHeight: 34, color: Colors.primary },
+  authBody: { fontFamily: Typography.regular, fontSize: FontSize.md, lineHeight: 23, color: Colors.textSecondary },
+  authCaption: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 22, color: Colors.textSecondary },
+  warning: { fontFamily: Typography.regular, fontSize: FontSize.sm, lineHeight: 20, color: Colors.warningText },
+} satisfies Record<string, TextStyle>;
+
+/** Preserve native font metrics when adopting a role in an existing control without lineHeight. */
+export function nativeTextStyle<T extends TextStyle>(style: T): Omit<T, 'lineHeight'> {
+  const { lineHeight: _lineHeight, ...nativeStyle } = style;
+  return nativeStyle;
+}

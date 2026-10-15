@@ -1,28 +1,34 @@
-import { useState } from "react";
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
+import { ModalScrollView } from '../../src/components/modal-scroll-view';
+import { useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Modal,
-  TextInput,
-  Alert,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
-import { SwipeableActions } from "../components/SwipeableActions";
-import { RequiredLabel } from "../components/RequiredLabel";
-import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
+import { FAB } from "../../src/components/Calendar/FAB";
+import { BottomSheet, type BottomSheetHandle } from "../../src/components/Calendar/BottomSheet";
+import { SwipeableActions } from "../../src/components/SwipeableActions";
+import { RequiredLabel } from "../../src/components/RequiredLabel";
+import { pluginFormStyles } from "../../src/components/Forms/pluginFormStyles";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   getPluginDefinition,
   isValidPluginId,
 } from "../../src/plugins/registry";
+import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 /**
  * Tela mínima genérica para os plugins ainda sem CRUD completo
@@ -43,6 +49,7 @@ export default function GenericPluginScreen() {
     setPluginActivation,
   } = useAppStore();
 
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [form, setForm] = useState<Record<string, string>>({});
 
@@ -65,14 +72,19 @@ export default function GenericPluginScreen() {
     setModalVisible(true);
   };
 
-  const handleSave = () => {
+  const handleSaveConfirmation = useConfirmedSave();
+    const handleSave = () => {
+     void handleSaveConfirmation.run(() => {
     if (primaryField && !form[primaryField.key]?.trim()) return;
     addGenericPluginItem(def.id, form);
+    return () => {
     setModalVisible(false);
-  };
+    };
+    });
+    };
 
   const handleDelete = (itemId: string) => {
-    Alert.alert(`Excluir ${def.itemLabel}`, "Tem certeza?", [
+    AppAlert.alert(`Excluir ${def.itemLabel}`, "Tem certeza?", [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Excluir",
@@ -83,7 +95,7 @@ export default function GenericPluginScreen() {
   };
 
   const handleDeactivate = () => {
-    Alert.alert(
+    AppAlert.alert(
       `Desativar ${def.label}`,
       "O módulo sai da aba Apps, mas seus dados continuam guardados e voltam se você reativar.",
       [
@@ -91,10 +103,10 @@ export default function GenericPluginScreen() {
         {
           text: "Desativar",
           style: "destructive",
-          onPress: () => {
-            setPluginActivation(def.id, false);
-            router.back();
-          },
+          onPress: () => { void confirmAction("[id].tsx:action:104" + ':' + String(def.id), () => {
+          setPluginActivation(def.id, false);
+          return () => { router.back(); };
+          }); },
         },
       ],
     );
@@ -103,11 +115,11 @@ export default function GenericPluginScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{def.label}</Text>
-        <TouchableOpacity onPress={handleDeactivate} style={styles.iconBtn}>
+        <Text style={ModuleTextStyles.headerTitle}>{def.label}</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={handleDeactivate} style={styles.iconBtn}>
           <Ionicons
             name="ellipsis-horizontal"
             size={22}
@@ -121,21 +133,14 @@ export default function GenericPluginScreen() {
         contentContainerStyle={styles.content}
       >
         {items.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name={def.icon as any}
-              size={48}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.emptyText}>Nenhum {def.itemLabel} ainda.</Text>
-          </View>
+          <FeedbackEmptyState variant="compact" icon={def.icon as any} title={`Nenhum ${def.itemLabel} ainda.`} />
         )}
         {items.map((item) => (
           <SwipeableActions
             key={item.id}
             onDelete={() => handleDelete(item.id)}
           >
-            <TouchableOpacity style={styles.card} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.card} activeOpacity={ControlOpacity.pressed}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>
                   {(primaryField && item.values[primaryField.key]) ||
@@ -155,18 +160,19 @@ export default function GenericPluginScreen() {
         ))}
       </ScrollView>
 
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
 
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={form} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
+        contentOwnsScroll
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, { flexShrink: 1 }]}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Novo {def.itemLabel}</Text>
-            <ScrollView
-              style={{ maxHeight: 360 }}
+            <ModalScrollView
+              style={{ maxHeight: 360, flexShrink: 1 }}
               showsVerticalScrollIndicator={false}
             >
               {def.fields.map((field) => (
@@ -181,7 +187,7 @@ export default function GenericPluginScreen() {
                       {(field.options ?? []).map((opt) => {
                         const selected = form[field.key] === opt;
                         return (
-                          <TouchableOpacity
+                          <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                             key={opt}
                             style={[
                               styles.selectChip,
@@ -204,35 +210,35 @@ export default function GenericPluginScreen() {
                       })}
                     </View>
                   ) : (
-                    <TextInput
+                    <FormTextInput
                       style={styles.input}
                       placeholder={field.placeholder}
-                      placeholderTextColor={Colors.textMuted}
+                      placeholderTextColor={Colors.placeholder}
                       value={form[field.key] ?? ""}
                       onChangeText={(v) =>
                         setForm((f) => ({ ...f, [field.key]: v }))
                       }
                       keyboardType={
                         field.type === "number" ? "numeric" : "default"
-                      }
+                      } editable={!(handleSaveConfirmation.locked)}
                     />
                   )}
                 </View>
               ))}
-            </ScrollView>
+            </ModalScrollView>
             <View style={styles.modalActions}>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalCancel}
-                onPress={() => setModalVisible(false)}
+                onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button"
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
-                onPress={handleSave}
-              >
+                onPress={handleSave} accessibilityRole="button" disabled={handleSaveConfirmation.saving}
+              >{handleSaveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>
@@ -242,7 +248,7 @@ export default function GenericPluginScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -250,141 +256,47 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
-  headerTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    color: Colors.primary,
-  },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
   empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
   emptyText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
     color: Colors.textSecondary,
   },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.lg,
     marginBottom: Spacing.sm,
-    gap: Spacing.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    gap: Spacing.md
   },
   cardTitle: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
     color: Colors.primary,
   },
   cardSubtitle: {
-    fontFamily: "PlusJakartaSans_400Regular",
+    fontFamily: Typography.regular,
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 2,
   },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     bottom: 24,
     right: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: Colors.accent,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  modalCard: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xxl,
-    paddingBottom: 40,
-    gap: Spacing.md,
-  },
-  modalTitle: {
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.xl,
-    color: Colors.primary,
-  },
-  fieldLabel: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.xs,
-    color: Colors.textMuted,
-    marginBottom: Spacing.xs,
-    letterSpacing: 0.5,
-  },
-  input: {
-    backgroundColor: Colors.bg,
-    borderRadius: Radius.md,
-    padding: Spacing.lg,
-    fontFamily: "PlusJakartaSans_400Regular",
-    fontSize: FontSize.md,
-    color: Colors.primary,
+    justifyContent: "center"
   },
   selectRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  selectChip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.sm,
-  },
-  selectChipActive: {
-    backgroundColor: Colors.accent,
-    borderColor: Colors.accent,
-  },
-  selectChipText: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  selectChipTextActive: { color: "#FFFFFF" },
-  modalActions: {
-    flexDirection: "row",
-    gap: Spacing.md,
-    marginTop: Spacing.sm,
-  },
-  modalCancel: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: Colors.textSecondary,
-  },
-  modalConfirm: {
-    flex: 1,
-    padding: Spacing.lg,
-    borderRadius: Radius.md,
-    backgroundColor: Colors.accent,
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.md,
-    color: "#FFFFFF",
-  },
   ...pluginFormStyles,
 });

@@ -3,13 +3,12 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
-  Alert,
+  ScrollView
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Colors, Spacing, Radius, FontSize } from "../../src/constants/theme";
+import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from "../../src/constants/theme";
 import { useAppStore } from "../../src/store";
 import {
   PLUGIN_LIST,
@@ -17,6 +16,8 @@ import {
   getPluginDefinition,
   PluginId,
 } from "../../src/plugins/registry";
+import { AppAlert } from "@/src/services/appAlert";
+import { confirmAction } from "../../src/services/confirmedAction";
 
 export default function PluginStoreScreen() {
   const router = useRouter();
@@ -50,41 +51,43 @@ export default function PluginStoreScreen() {
     return Number(bActive) - Number(aActive);
   });
 
-  const tryActivate = (pluginId: PluginId) => {
-    const check = canActivatePlugin(pluginId, activatedPlugins);
-    if (!check.ok) {
-      const labels = check.missing.map(
-        (id) => getPluginDefinition(id)?.label ?? id,
-      );
-      Alert.alert(
-        "Dependência necessária",
-        `Para ativar Comissões você precisa ter ${labels.join(" e ")} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
-        [{ text: "Entendi" }],
-      );
-      return;
-    }
-    setPluginActivation(pluginId, true);
-    const route = getPluginDefinition(pluginId)?.route;
-    if (route) {
-      const returnParams =
-        ((relation &&
-        (returnToFinance === "1" ||
-          returnToTasks === "1" ||
-          returnToCalendar === "1" ||
-          returnToQuotes === "1" ||
-          returnToContracts === "1" ||
-          returnToDeliveries === "1" ||
-          returnToSales === "1")) || returnToStock === "1")
-          ? `?${returnToFinance === "1" ? "returnToFinance" : returnToTasks === "1" ? "returnToTasks" : returnToCalendar === "1" ? "returnToCalendar" : returnToQuotes === "1" ? "returnToQuotes" : returnToContracts === "1" ? "returnToContracts" : returnToDeliveries === "1" ? "returnToDeliveries" : returnToSales === "1" ? "returnToSales" : "returnToStock"}=1${relation ? `&relation=${relation}` : ""}`
-          : "";
-      router.push(`${route}${returnParams}` as any);
-    }
+  const tryActivate = (pluginId: PluginId) => { void confirmAction("store.tsx:tryActivate:53" + ':' + pluginId, () => {
+  const check = canActivatePlugin(pluginId, activatedPlugins);
+  if (!check.ok) {
+          const labels = check.missing.map(
+            (id) => getPluginDefinition(id)?.label ?? id,
+          );
+          AppAlert.alert(
+            "Dependência necessária",
+            `Para ativar Comissões você precisa ter ${labels.join(" e ")} ativados primeiro. Comissões usa funcionários cadastrados e pedidos concluídos para calcular o valor devido.`,
+            [{ text: "Entendi" }], { variant: 'warning' }
+          );
+          return;
+        }
+  setPluginActivation(pluginId, true);
+  return () => {
+  const route = getPluginDefinition(pluginId)?.route;
+  if (route) {
+          const returnParams =
+            ((relation &&
+            (returnToFinance === "1" ||
+              returnToTasks === "1" ||
+              returnToCalendar === "1" ||
+              returnToQuotes === "1" ||
+              returnToContracts === "1" ||
+              returnToDeliveries === "1" ||
+              returnToSales === "1")) || returnToStock === "1")
+              ? `?${returnToFinance === "1" ? "returnToFinance" : returnToTasks === "1" ? "returnToTasks" : returnToCalendar === "1" ? "returnToCalendar" : returnToQuotes === "1" ? "returnToQuotes" : returnToContracts === "1" ? "returnToContracts" : returnToDeliveries === "1" ? "returnToDeliveries" : returnToSales === "1" ? "returnToSales" : "returnToStock"}=1${relation ? `&relation=${relation}` : ""}`
+              : "";
+          router.push(`${route}${returnParams}` as any);
+        }
   };
+  }); };
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top"]}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Loja de módulos</Text>
@@ -134,11 +137,11 @@ export default function PluginStoreScreen() {
               </View>
               {isActive ? (
                 <TouchableOpacity
-                  style={styles.activeTag}
+                  accessibilityRole="button" accessibilityLabel={`Abrir ${def.label}`} style={styles.activeTag}
                   onPress={() => router.push(def.route as any)}
-                  activeOpacity={0.8}
+                  activeOpacity={ControlOpacity.pressed}
                 >
-                  <Ionicons name="checkmark" size={14} color={Colors.accent} />
+                  <Ionicons name="checkmark" size={14} color={Colors.accentIcon} />
                   <Text style={styles.activeTagText}>Já ativo</Text>
                 </TouchableOpacity>
               ) : (
@@ -147,8 +150,9 @@ export default function PluginStoreScreen() {
                     styles.activateBtn,
                     blocked && styles.activateBtnDisabled,
                   ]}
+                  accessibilityRole="button" accessibilityLabel={`Ativar ${def.label}`}
                   onPress={() => tryActivate(def.id)}
-                  activeOpacity={0.8}
+                  activeOpacity={ControlOpacity.pressed}
                 >
                   <Text style={styles.activateBtnText}>Ativar</Text>
                 </TouchableOpacity>
@@ -162,7 +166,7 @@ export default function PluginStoreScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -170,7 +174,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  backBtn: { padding: Spacing.xs },
+  backBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   headerTitle: {
     fontFamily: "PlusJakartaSans_700Bold",
     fontSize: FontSize.lg,
@@ -184,29 +188,22 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   card: {
+      ...SurfaceStyles.card,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.md,
-    backgroundColor: Colors.bgCard,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
-    marginBottom: Spacing.sm,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 3,
-    elevation: 1,
+    marginBottom: Spacing.sm
   },
   cardHighlighted: {
-    borderWidth: 2,
-    borderColor: Colors.accent,
     backgroundColor: Colors.accentLight,
   },
   cardIcon: {
     width: 40,
     height: 40,
     borderRadius: Radius.md,
-    backgroundColor: Colors.bg,
+    backgroundColor: Colors.mintBackground,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -224,23 +221,22 @@ const styles = StyleSheet.create({
   dependencyNote: {
     fontFamily: "PlusJakartaSans_500Medium",
     fontSize: FontSize.xs,
-    color: Colors.warning,
+    color: Colors.warningText,
     marginTop: 4,
   },
-  activateBtn: {
-    backgroundColor: Colors.accent,
+  activateBtn: { alignItems: "center", justifyContent: "center",
+    backgroundColor: Colors.actionBackground,
     borderRadius: Radius.full,
     paddingHorizontal: Spacing.lg,
     paddingVertical: 8,
   },
-  activateBtnDisabled: { backgroundColor: Colors.textMuted },
+  activateBtnDisabled: { backgroundColor: Colors.textDisabled },
   activateBtnText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.sm,
-    color: "#FFFFFF",
+    color: Colors.onAction,
   },
-  activeTag: {
-    flexDirection: "row",
+  activeTag: { flexDirection: "row",
     alignItems: "center",
     gap: 4,
     backgroundColor: Colors.accentLight,
@@ -251,6 +247,6 @@ const styles = StyleSheet.create({
   activeTagText: {
     fontFamily: "PlusJakartaSans_600SemiBold",
     fontSize: FontSize.xs,
-    color: Colors.accent,
+    color: Colors.accentText,
   },
 });

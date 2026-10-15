@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { FeedbackEmptyState } from '../../src/components/empty-state';
+import { ModuleTextStyles } from '../../src/components/module-text-styles';
+import { FormTextInput } from '../../src/components/form-text-input';
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Modal,
   ScrollView,
   StyleSheet,
@@ -11,17 +13,21 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { FAB } from "../components/Calendar/FAB";
-import { BottomSheet } from "../components/Calendar/BottomSheet";
-import { SwipeableActions } from "../components/SwipeableActions";
-import { RequiredLabel } from "../components/RequiredLabel";
-import { pluginFormStyles } from "../components/Forms/pluginFormStyles";
-import { TaskPeopleSelector } from "../components/Tasks/TaskPeopleSelector";
+import { FAB } from "../../src/components/Calendar/FAB";
+import { BottomSheet, type BottomSheetHandle } from "../../src/components/Calendar/BottomSheet";
+import { SwipeableActions } from "../../src/components/SwipeableActions";
+import { RequiredLabel } from "../../src/components/RequiredLabel";
+import { pluginFormStyles } from "../../src/components/Forms/pluginFormStyles";
+import { TaskPeopleSelector } from "../../src/components/Tasks/TaskPeopleSelector";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { getPluginDefinition } from "../../src/plugins/registry";
-import { Colors, FontSize, Radius, Spacing } from "../../src/constants/theme";
+import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles, Typography } from "../../src/constants/theme";
 import { ContractPeriod, Contrato, useAppStore } from "../../src/store";
 import { clearRelationDraft, saveRelationDraft, setPendingRelation } from "../../src/utils/relationDraft";
+import { AppAlert } from "@/src/services/appAlert";
+import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
+import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const periodLabels: Record<ContractPeriod, string> = {
   mensal: "Mensal",
@@ -51,6 +57,7 @@ export default function ContratosScreen() {
     setPluginActivation,
     activatedPlugins,
   } = useAppStore();
+  const modalVisibleSheet = useRef<BottomSheetHandle>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -133,38 +140,43 @@ export default function ContratosScreen() {
     setStartDate(contract.startDate);
     setModalVisible(true);
   };
-  const save = () => {
+  const saveConfirmation = useConfirmedSave();
+    const save = () => {
+     void saveConfirmation.run(() => {
     const numericValue = Number(value.replace(",", "."));
     if (
-      !clientId ||
-      numericValue <= 0 ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
-    )
-      return;
+          !clientId ||
+          numericValue <= 0 ||
+          !/^\d{4}-\d{2}-\d{2}$/.test(startDate)
+        )
+          return;
     if (editingId)
-      updateContrato(editingId, {
-        clientId,
-        value: numericValue,
-        period,
-        startDate,
-      });
-    else if (
-      !addContrato({
-        clientId,
-        value: numericValue,
-        period,
-        startDate,
-        status: "ativo",
-        createdAt: new Date().toISOString(),
-      })
-    ) {
-      Alert.alert("Contrato não criado", "Selecione um cliente válido.");
-      return;
-    }
+          updateContrato(editingId, {
+            clientId,
+            value: numericValue,
+            period,
+            startDate,
+          });
+        else if (
+          !addContrato({
+            clientId,
+            value: numericValue,
+            period,
+            startDate,
+            status: "ativo",
+            createdAt: new Date().toISOString(),
+          })
+        ) {
+          AppAlert.alert("Contrato não criado", "Selecione um cliente válido.", undefined, { variant: 'warning' });
+          return;
+        }
     refreshContratos();
+    return () => {
     clearRelationDraft("contracts");
     setModalVisible(false);
-  };
+    };
+    });
+    };
   const clientName = (id: string) =>
     clienteItems.find((client) => client.id === id)?.name ??
     "Cliente não encontrado";
@@ -177,13 +189,13 @@ export default function ContratosScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.iconBtn}>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.primary} />
         </TouchableOpacity>
-        <Text style={styles.title}>Contratos / Assinaturas</Text>
-        <TouchableOpacity
+        <Text style={ModuleTextStyles.headerTitle}>Contratos / Assinaturas</Text>
+        <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           onPress={() =>
-            Alert.alert(
+            AppAlert.alert(
               "Desativar Contratos",
               "Os dados continuam guardados.",
               [
@@ -191,10 +203,10 @@ export default function ContratosScreen() {
                 {
                   text: "Desativar",
                   style: "destructive",
-                  onPress: () => {
-                    setPluginActivation("contratos", false);
-                    router.back();
-                  },
+                  onPress: () => { void confirmAction("contratos.tsx:action:204" + ':' + String("contratos"), () => {
+                  setPluginActivation("contratos", false);
+                  return () => { router.back(); };
+                  }); },
                 },
               ],
             )
@@ -209,13 +221,13 @@ export default function ContratosScreen() {
         </TouchableOpacity>
       </View>
       <View style={styles.searchBox}>
-        <Ionicons name="search-outline" size={18} color={Colors.textMuted} />
+        <Ionicons name="search-outline" size={18} color={Colors.iconMuted} />
         <TextInput
           value={query}
           onChangeText={setQuery}
           placeholder="Buscar contrato ou cliente"
-          placeholderTextColor={Colors.textMuted}
-          style={styles.searchInput}
+          placeholderTextColor={Colors.placeholder}
+          style={styles.searchInput} editable={!(saveConfirmation.locked)}
         />
       </View>
       <ScrollView
@@ -223,14 +235,7 @@ export default function ContratosScreen() {
         showsVerticalScrollIndicator={false}
       >
         {filteredContracts.length === 0 && (
-          <View style={styles.empty}>
-            <Ionicons
-              name="document-lock-outline"
-              size={48}
-              color={Colors.textMuted}
-            />
-            <Text style={styles.emptyText}>{query ? "Nenhum contrato encontrado." : "Nenhum contrato cadastrado."}</Text>
-          </View>
+          <FeedbackEmptyState variant="compact" icon="document-lock-outline" title={query ? "Nenhum contrato encontrado." : "Nenhum contrato cadastrado."} />
         )}
         {filteredContracts.map((contract) => {
           const isActive = contract.status === "ativo";
@@ -241,7 +246,7 @@ export default function ContratosScreen() {
               key={contract.id}
               onEdit={() => openEdit(contract)}
               onDelete={() =>
-                Alert.alert(
+                AppAlert.alert(
                   "Excluir contrato",
                   "As receitas previstas também serão removidas.",
                   [
@@ -249,7 +254,10 @@ export default function ContratosScreen() {
                     {
                       text: "Excluir",
                       style: "destructive",
-                      onPress: () => removeContrato(contract.id),
+                      onPress: () => { void confirmAction("contratos.tsx:action:255" + ':' + String(contract.id), () => {
+                      removeContrato(contract.id);
+                      return () => {  };
+                      }); },
                     },
                   ],
                 )
@@ -261,7 +269,7 @@ export default function ContratosScreen() {
                   <Ionicons
                     name="repeat-outline"
                     size={20}
-                    color={Colors.accent}
+                    color={Colors.accentIcon}
                   />
                 </View>
                 <View style={styles.cardMain}>
@@ -304,9 +312,12 @@ export default function ContratosScreen() {
                       <Text style={styles.receivableText}>
                         {transaction.expectedDate} · {money(transaction.amount)}
                       </Text>
-                      <TouchableOpacity
+                      <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                         onPress={() =>
-                          markTransactionReceived(transaction.id, true)
+                          { void confirmAction("contratos.tsx:action:311" + ':' + String(transaction.id), () => {
+                            markTransactionReceived(transaction.id, true);
+                            return () => {  };
+                            }); }
                         }
                       >
                         <Text style={styles.receiveText}>Marcar recebida</Text>
@@ -317,9 +328,12 @@ export default function ContratosScreen() {
               )}
               <View style={styles.actions}>
                 {contract.status === "ativo" && (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     onPress={() =>
-                      updateContrato(contract.id, { status: "cancelado" })
+                      { void confirmAction("contratos.tsx:action:324" + ':' + String(contract.id), () => {
+                        updateContrato(contract.id, { status: "cancelado" });
+                        return () => {  };
+                        }); }
                     }
                   >
                     <Text style={styles.cancel}>Cancelar</Text>
@@ -331,15 +345,15 @@ export default function ContratosScreen() {
           );
         })}
       </ScrollView>
-      <FAB onPress={openAdd} />
+      <FAB respectBottomInset onPress={openAdd} />
       <BottomSheet
-        visible={modalVisible}
+        ref={modalVisibleSheet} draft={{ clientId, value, period, startDate }} visible={modalVisible}
         onClose={() => setModalVisible(false)}
         height={620}
       >
         <View style={styles.overlay}>
           <View style={styles.modal}>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <View>
               <Text style={styles.modalTitle}>
                 {editingId ? "Editar contrato" : "Novo contrato"}
               </Text>
@@ -351,18 +365,18 @@ export default function ContratosScreen() {
                 onBeforeNavigate={navigateToRelationPlugin}
               />
               <RequiredLabel>Valor por ciclo</RequiredLabel>
-              <TextInput
+              <FormTextInput
                 style={styles.input}
                 value={value}
                 onChangeText={setValue}
                 keyboardType="decimal-pad"
                 placeholder="R$ 0,00"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
               <Text style={styles.label}>Periodicidade</Text>
               <View style={styles.periodRow}>
                 {(Object.keys(periodLabels) as ContractPeriod[]).map((item) => (
-                  <TouchableOpacity
+                  <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                     key={item}
                     style={[styles.chip, period === item && styles.chipActive]}
                     onPress={() => setPeriod(item)}
@@ -379,21 +393,21 @@ export default function ContratosScreen() {
                 ))}
               </View>
               <RequiredLabel>Data de início (AAAA-MM-DD)</RequiredLabel>
-              <TextInput
+              <FormTextInput
                 style={styles.input}
                 value={startDate}
                 onChangeText={setStartDate}
                 placeholder="2026-08-11"
-                placeholderTextColor={Colors.textMuted}
+                placeholderTextColor={Colors.placeholder} editable={!(saveConfirmation.locked)}
               />
-            </ScrollView>
+            </View>
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => setModalVisible(false)}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button">
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.saveButton} onPress={save}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.saveText}>Salvar contrato</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>
@@ -403,7 +417,7 @@ export default function ContratosScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.bg },
+  safe: { flex: 1, backgroundColor: Colors.appBackground },
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -411,22 +425,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  iconBtn: { padding: Spacing.xs },
-  title: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    flex: 1,
-    textAlign: "center",
-  },
+  iconBtn: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   content: { paddingHorizontal: Spacing.xl, paddingBottom: 100 },
-  empty: { alignItems: "center", paddingTop: 90, gap: Spacing.md },
-  emptyText: {
-    color: Colors.textSecondary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-  },
   card: {
-    backgroundColor: Colors.bgCard,
+      ...SurfaceStyles.card,
     borderRadius: Radius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.sm,
@@ -443,10 +445,10 @@ const styles = StyleSheet.create({
   cardMain: { flex: 1 },
   cardTitle: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.md,
   },
-  cardSubtitle: {
+  cardSubtitle: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: 2,
@@ -461,16 +463,16 @@ const styles = StyleSheet.create({
   badgeText: {
     color: Colors.primary,
     fontSize: FontSize.xs,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
   },
-  meta: {
+  meta: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.sm,
     marginTop: Spacing.md,
   },
   overdue: {
-    color: Colors.warning,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.warningText,
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
     marginTop: Spacing.xs,
   },
@@ -482,7 +484,7 @@ const styles = StyleSheet.create({
   },
   receivablesTitle: {
     color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    fontFamily: Typography.semibold,
     fontSize: FontSize.sm,
     marginBottom: Spacing.xs,
   },
@@ -493,121 +495,43 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     gap: Spacing.sm,
   },
-  receivableText: {
+  receivableText: { ...ModuleTextStyles.metadata,
     color: Colors.textSecondary,
     fontSize: FontSize.xs,
     flex: 1,
   },
   receiveText: {
-    color: Colors.accent,
-    fontFamily: "PlusJakartaSans_600SemiBold",
+    color: Colors.accentText,
+    fontFamily: Typography.semibold,
     fontSize: FontSize.xs,
   },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: Spacing.md,
-    marginTop: Spacing.md,
-  },
-  action: { color: Colors.primary, fontFamily: "PlusJakartaSans_600SemiBold" },
-  delete: { color: Colors.danger, fontFamily: "PlusJakartaSans_600SemiBold" },
+  action: { color: Colors.primary, fontFamily: Typography.semibold },
+  delete: { color: Colors.dangerText, fontFamily: Typography.semibold },
   fab: {
+      ...SurfaceStyles.floating,
     position: "absolute",
     right: 24,
     bottom: 24,
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.accent,
+    backgroundColor: Colors.actionBackground,
     alignItems: "center",
-    justifyContent: "center",
-    elevation: 6,
-  },
-  overlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,.35)",
-    justifyContent: "flex-end",
-  },
-  modal: {
-    backgroundColor: Colors.bgCard,
-    borderTopLeftRadius: Radius.xl,
-    borderTopRightRadius: Radius.xl,
-    padding: Spacing.xl,
-    maxHeight: "88%",
-  },
-  modalTitle: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_700Bold",
-    fontSize: FontSize.lg,
-    marginBottom: Spacing.lg,
-  },
-  label: {
-    color: Colors.primary,
-    fontFamily: "PlusJakartaSans_600SemiBold",
-    fontSize: FontSize.sm,
-    marginTop: Spacing.md,
-    marginBottom: Spacing.xs,
-  },
-  input: {
-    height: 46,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    color: Colors.primary,
+    justifyContent: "center"
   },
   searchBox: {
+      ...SurfaceStyles.control,
     flexDirection: "row",
     alignItems: "center",
     gap: Spacing.sm,
     marginHorizontal: Spacing.xl,
     marginBottom: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    backgroundColor: Colors.bgCard,
-    borderRadius: Radius.full,
-    borderWidth: 1,
-    borderColor: Colors.border,
+    borderRadius: Radius.full
   },
-  searchInput: { flex: 1, height: 44, color: Colors.primary },
+  searchInput: { ...ModuleTextStyles.search, flex: 1, minHeight: 44, color: Colors.primary },
   chips: { gap: Spacing.sm },
   periodRow: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
-  chip: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { color: Colors.textSecondary, fontSize: FontSize.sm },
-  chipTextActive: { color: "#FFF" },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    alignItems: "center",
-    gap: Spacing.lg,
-    marginTop: Spacing.lg,
-  },
-  saveButton: {
-    backgroundColor: Colors.accent,
-    borderRadius: Radius.full,
-    paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    fontFamily: "PlusJakartaSans_500Medium",
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
-  },
-  saveText: { color: "#FFF", fontFamily: "PlusJakartaSans_600SemiBold" },
   ...pluginFormStyles,
-  cancel: { color: Colors.warning, fontFamily: "PlusJakartaSans_600SemiBold" },
+  cancel: { color: Colors.warningText, fontFamily: Typography.semibold },
 });
