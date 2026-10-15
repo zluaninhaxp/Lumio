@@ -212,7 +212,7 @@ function chatScreen(f) {
   const screen = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'ChatScreen');
   const names = ['commitMessages', 'runChatAction', 'drainQueue', 'enqueueText', 'retryMessages', 'handleSend'];
   const declarations = names.map(name => screen.body.statements.find(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => declaration.name.getText(ast) === name)).getText(ast)).join('\n');
-  let input = 'draft', error = false, processed = [];
+  let input = 'draft', error = false, awaitingReply = false, processed = [];
   const ref = current => ({ current });
   const context = {
     businessStateService: f.businessStateService, chatHistoryService: f.chat,
@@ -220,6 +220,7 @@ function chatScreen(f) {
     sendingRef: ref(false), pendingPair: ref(null), pendingCompletion: ref(null), chosenMessage: ref(null),
     optimisticUser: ref(null), queue: ref([]), draining: ref(false), submittedDraft: ref(null),
     retryableSendFailure: ref(true), sendRetryDelay: ref(5000),
+    setAwaitingReply(value) { awaitingReply = value; },
     setSending() {}, setSendError(value) { error = value; }, setInput(value) { input = value; },
     processLatest: ref(text => { processed.push(text); if (text.startsWith('task:')) f.store.setState({ tasks: [...f.state.tasks, task(text)] }); return { botText: 'Processed ' + text }; }),
     refreshOrcamentos() {}, refreshContratos() {}, scrollToBottom() {},
@@ -229,7 +230,7 @@ function chatScreen(f) {
   vm.createContext(context);
   const code = ts.transpileModule(declarations + '\nglobalThis.handlers = { enqueueText, drainQueue, retryMessages, handleSend };', { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
   vm.runInContext(code, context);
-  return { ...context.handlers, processed, get input() { return input; }, get error() { return error; }, async settle() { for (let i = 0; i < 60 && context.draining.current; i++) await new Promise(resolve => setTimeout(resolve, 5)); }, context };
+  return { ...context.handlers, processed, get input() { return input; }, get error() { return error; }, get awaitingReply() { return awaitingReply; }, async settle() { for (let i = 0; i < 60 && context.draining.current; i++) await new Promise(resolve => setTimeout(resolve, 5)); }, context };
 }
 
 test('rapid Chat sends display immediately, clear the composer, persist in order and restore on a second device', async () => {
@@ -238,10 +239,12 @@ test('rapid Chat sends display immediately, clear the composer, persist in order
   screen.enqueueText('first'); screen.enqueueText('second'); screen.enqueueText('third');
   assert.deepEqual(clone(f.state.chatHistory.map(m => m.text)), ['first', 'second', 'third']);
   assert.equal(screen.input, ''); assert.equal(f.state.chatHistory.every(m => m.pending), true);
+  assert.equal(screen.awaitingReply, true, 'typing feedback starts immediately while remote response is pending');
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.state.chatHistory.some(m => m.type === 'bot'), false);
   release(); await screen.settle();
   assert.deepEqual(Array.from(screen.processed), ['first', 'second', 'third']);
+  assert.equal(screen.awaitingReply, false, 'confirmed final reply replaces transient feedback');
   assert.equal(f.state.chatHistory.length, 6); assert.equal(new Set(f.state.chatHistory.map(m => m.id)).size, 6);
   const reopened = fixture(f.shared); await reopened.start();
   assert.deepEqual(clone(reopened.state.chatHistory.map(m => m.id)), clone(f.state.chatHistory.map(m => m.id)));
@@ -253,6 +256,7 @@ test('Chat failure retains the visible user message; retry does not repeat busin
   screen.enqueueText('task:one'); await screen.settle();
   assert.equal(screen.error, true); assert.equal(f.state.chatHistory.length, 1); assert.equal(f.state.chatHistory[0].pending, true);
   assert.equal(f.row().snapshot.tasks.length, 0); assert.equal(screen.processed.length, 1);
+  assert.equal(screen.awaitingReply, false, 'failure cannot leave a perpetual typing bubble');
   f.controls.offline = false; await screen.retryMessages();
   assert.equal(screen.processed.length, 1); assert.equal(f.row().snapshot.tasks.length, 1); assert.equal(f.state.chatHistory.length, 2);
   assert.equal(f.state.chatHistory.every(m => !m.pending), true);

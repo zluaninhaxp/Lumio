@@ -40,6 +40,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { UserAvatar } from '../../src/components/account/UserAvatar';
 import { AccountSheet } from '../../src/components/account/AccountSheet';
 import { BotMessageCard, type BotCard } from '../../src/components/chat/BotMessageCard';
+import { TypingIndicator } from '../../src/components/chat/TypingIndicator';
 import { parseCommand, buildCommandHelp, missingCommandFields, getCommandDefinitions, type ParsedCommand } from '../../src/engine/commandEngine';
 
 type PendingCommandAction = Exclude<Extract<QuickActionValue, `command_${string}`>, 'command_create_catalog_for_stock'>;
@@ -74,6 +75,7 @@ export default function ChatScreen() {
   const visibleHistory = history.filter(message => message.type === 'user' || !message.pending);
   const messages = visibleHistory.length ? visibleHistory : INITIAL_MESSAGES;
   const [sending, setSending] = useState(false);
+  const [awaitingReply, setAwaitingReply] = useState(false);
   const sendingRef = useRef(false);
   const optimisticUser = useRef<Message | null>(null);
   const queue = useRef<{ message: Message; journal: Promise<void> }[]>([]);
@@ -99,6 +101,7 @@ const { currentUser } = useAuth();
   useEffect(() => {
     pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
     queue.current = []; optimisticUser.current = null; setSendError(false);
+    setAwaitingReply(false);
     setInput(''); setPendingCommand(null); setPendingStockCatalogName(null); setPendingFinancialText(null); setPendingIntentMarkerPhrase(null);
   }, [currentUser?.id]);
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
@@ -1139,15 +1142,20 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         const success = await runChatAction(() => commitMessages(job.message.text, processLatest.current(job.message.text)));
         if (!success) break;
         if (queue.current[0] === job) queue.current.shift();
+        setAwaitingReply(queue.current.length > 0);
         optimisticUser.current = null;
         // React can commit updated conversational state before processing the next turn.
         await new Promise<void>(resolve => setTimeout(resolve, 0));
       }
     } catch { setSendError(true); }
-    finally { draining.current = false; optimisticUser.current = null; }
+    finally {
+      draining.current = false; optimisticUser.current = null;
+      if (scope === businessStateService.scope()) setAwaitingReply(false);
+    }
   }, [commitMessages, runChatAction]);
   const enqueueText = useCallback((text: string) => {
     if (!text.trim()) return;
+    setAwaitingReply(true);
     const message: Message = { id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), type: 'user', text: text.trim(), timestamp: new Date(), pending: true };
     useAppStore.getState().setChatHistory([...useAppStore.getState().chatHistory, message]);
     const journal = chatHistoryService.stage([message]);
@@ -1339,6 +1347,10 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
+          ListFooterComponent={!sendError && (awaitingReply || sending) ? <View style={styles.botRow}>
+            <Image source={ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
+            <View style={[styles.botBubble, styles.typingBubble]}><TypingIndicator /></View>
+          </View> : null}
           contentContainerStyle={[styles.messagesList, { paddingBottom: composerTopOverlap + Spacing.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -1605,6 +1617,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     maxWidth: '100%'
   },
+  typingBubble: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   botText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.md,
