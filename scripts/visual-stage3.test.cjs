@@ -73,7 +73,7 @@ test('large financial content and filters use measured heights without hiding th
 test('expanding a historical card cancels queued autoscroll; a new message resumes following', () => {
   const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8'), ast = ts.createSourceFile('chat.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const queue = [], calls = [];
-  const context = { followContentResize: { current: true }, flatListRef: { current: { scrollToEnd: () => calls.push('end') } }, setTimeout: fn => queue.push(fn) };
+  const context = { scrollFrame: { current: null }, requestAnimationFrame: fn => { queue.push(fn); return queue.length; }, followContentResize: { current: true }, flatListRef: { current: { scrollToEnd: () => calls.push('end') } }, setTimeout: fn => queue.push(fn) };
   function walk(n) { if (ts.isVariableDeclaration(n) && ['scrollToBottom', 'preserveCardReading', 'handleContentResize'].includes(n.name.getText(ast)))
     context[n.name.getText(ast)] = vm.runInNewContext('(' + n.initializer.arguments[0].getText(ast) + ')', context); ts.forEachChild(n, walk); }
   walk(ast);

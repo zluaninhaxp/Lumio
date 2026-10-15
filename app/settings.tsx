@@ -1,3 +1,4 @@
+import { AuthError } from '../src/types/errors';
 import { useRef, useState } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -22,7 +23,7 @@ export default function SettingsScreen() {
     if (!currentUser || pending.current) return;
     pending.current = true; setSaving(true); setError('');
     try { await authService.deleteAccount(currentUser.id, current); await logout().catch(() => { }); router.replace('/welcome'); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : 'Não foi possível excluir a conta.'); }
+    catch (cause) { if (cause instanceof AuthError) setError(cause.message); }
     finally { pending.current = false; setSaving(false); }
   };
   const save = async () => {
@@ -37,7 +38,7 @@ export default function SettingsScreen() {
     if (next !== confirm) { setError('As senhas não coincidem.'); return; }
     pending.current = true; setSaving(true); setError('');
     try { await authService.changePassword(currentUser.id, current, next); editor.current?.close(); }
-    catch { setError('Não foi possível atualizar a senha. Confira os dados e tente novamente.'); }
+    catch (cause) { if (cause instanceof AuthError) setError(cause.message); }
     finally { pending.current = false; setSaving(false); }
   };
   return <AccountScreen><AccountHeader refined title="Configurações" onBack={() => router.back()} /><ScrollView contentContainerStyle={accountLayout.content}>

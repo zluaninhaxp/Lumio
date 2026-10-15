@@ -66,8 +66,6 @@ export default function AppsScreen() {
     try {
       await onboardingService.savePluginPreferences(currentUser.id, activatedPlugins, nextOrder);
     } catch (error) {
-      console.warn('Falha ao salvar a ordem dos módulos:', error);
-      AppAlert.alert('Não foi possível salvar', 'A nova ordem ficará disponível nesta sessão. Tente novamente mais tarde.', undefined, { variant: 'warning' });
     }
   };
 
@@ -88,8 +86,6 @@ export default function AppsScreen() {
             try {
               await onboardingService.savePluginPreferences(currentUser.id, [], []);
             } catch (error) {
-              console.warn('Falha ao salvar a desativação dos módulos:', error);
-              AppAlert.alert('Não foi possível salvar', 'Os módulos foram desativados nesta sessão. Tente novamente mais tarde.', undefined, { variant: 'warning' });
             }
           },
         },

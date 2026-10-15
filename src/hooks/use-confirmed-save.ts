@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { businessStateService, businessSyncStatus } from '../services/businessStateService';
-import { AppAlert } from '../services/appAlert';
 import { isRejectedValidation } from '../services/persistenceErrors';
 import type { Snapshot } from '../services/syncMerge';
 
@@ -59,7 +58,7 @@ export function useConfirmedSave() {
         if (businessStateService.cancelRejectedPreparation(before, after)) completion.current = null;
       }
       setRetrying(!!completion.current);
-      AppAlert.alert('Não foi possível salvar', (error instanceof Error ? error.message : 'Conecte-se à internet e tente novamente.') + (completion.current ? ' Tentar novamente confirma os dados desta tentativa, sem repetir o cadastro.' : ''), undefined, { variant: 'warning' });
+
     } finally {
       busy.current = false;
       setSaving(false);

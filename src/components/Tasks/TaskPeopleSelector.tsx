@@ -2,7 +2,6 @@ import { SheetCloseButton } from '../sheet-close-button';
 import { ModalKeyboardViewport } from '../modal-keyboard-viewport';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
   FlatList,
@@ -20,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../constants/theme';
 import { useAppStore } from '../../store';
 import { getPluginDefinition } from '../../plugins/registry';
+import { LoadingSpinner } from "../loading-spinner";
 
 export type Relation = 'client' | 'supplier' | 'employee';
 
@@ -269,7 +269,7 @@ export function TaskPeopleSelector({
                       autoCorrect={false}
                       clearButtonMode="while-editing"
                     />
-                    {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accentIcon} />}
+                    {query.length > 0 && query !== debouncedQuery && <LoadingSpinner size="small" color={Colors.accentIcon} />}
                   </View>
 
                   <View style={styles.resultHeader}>

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, findNodeHandle, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, ActivityIndicator, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { AccessibilityInfo, findNodeHandle, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ControlOpacity, Colors, DialogTokens, SurfaceStyles, Typography } from '../constants/theme';
+import { LoadingSpinner } from "./loading-spinner";
 
 export type DialogAction = {
   text?: string;
@@ -48,7 +49,7 @@ export function AppDialog({ visible, title, message, error, actions, onCancel, v
                 pressed.current = true;
                 action.onPress?.();
               }}>
-              {loading && !secondary ? <ActivityIndicator color={Colors.onAction} /> : <Text style={secondary ? styles.secondaryText : styles.primaryText}>{action.text ?? 'OK'}</Text>}
+              {loading && !secondary ? <LoadingSpinner color={Colors.onAction} /> : <Text style={secondary ? styles.secondaryText : styles.primaryText}>{action.text ?? 'OK'}</Text>}
             </TouchableOpacity>;
           })}
         </View>;

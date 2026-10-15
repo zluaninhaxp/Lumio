@@ -15,7 +15,6 @@ import { useEffect } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { MessageComposer } from '../../src/components/message-composer';
-import { useHeaderHeight } from '@react-navigation/elements';
 import { BottomSurface } from '../../src/components/bottom-surface';
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../src/constants/theme';
 import { parseMessage, buildBotResponse } from '../../src/engine/regexEngine';
@@ -82,6 +81,8 @@ export default function ChatScreen() {
   const submittedDraft = useRef<string | null>(null);
   const dragging = useRef(false);
   const [sendError, setSendError] = useState(false);
+  const retryableSendFailure = useRef(true);
+  const sendRetryDelay = useRef(5_000);
   const pendingPair = useRef<Message[] | null>(null);
   const pendingCompletion = useRef<(() => void) | null>(null);
   const chosenMessage = useRef<string | null>(null);
@@ -93,6 +94,7 @@ export default function ChatScreen() {
   const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
   const followContentResize = useRef(true);
+  const scrollFrame = useRef<number | null>(null);
 const { currentUser } = useAuth();
   useEffect(() => {
     pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
@@ -103,6 +105,9 @@ const { currentUser } = useAuth();
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const [availableHeight, setAvailableHeight] = useState(0);
   const [composerHeight, setComposerHeight] = useState(0);
+  const [composerTopOverlap, setComposerTopOverlap] = useState(0);
+  const headerRef = useRef<View>(null);
+  const [keyboardVerticalOffset, setKeyboardVerticalOffset] = useState(0);
   const isCommandMenuOpen = !commandMenuDismissed && input.startsWith('/') && !input.includes(' ');
   const commandSuggestions = isCommandMenuOpen
     ? getCommandDefinitions().filter((item) => {
@@ -626,14 +631,19 @@ return date.toISOString().split('T')[0];
 
   const scrollToBottom = useCallback(() => {
     followContentResize.current = true;
-    setTimeout(() => {
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
       if (followContentResize.current) flatListRef.current?.scrollToEnd({ animated: false });
-    }, 100);
+    });
   }, []);
   const preserveCardReading = useCallback(() => { followContentResize.current = false; }, []);
   const handleContentResize = useCallback(() => {
     if (followContentResize.current) scrollToBottom();
   }, [scrollToBottom]);
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+  }, []);
 
   /** Adiciona user+bot ao histórico e rola — usado por texto e voz. */
   const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: ChatAmbiguity; fallbackSourceText?: string }) => {
@@ -685,12 +695,14 @@ return date.toISOString().split('T')[0];
       }
       pendingPair.current = null;
       pendingCompletion.current?.(); pendingCompletion.current = null;
+      sendRetryDelay.current = 5_000;
       setSendError(false);
       return true;
     } catch (error) {
       if (scope !== businessStateService.scope()) return false;
       if (before && !staged && scope === businessStateService.scope()) businessStateService.cancelRejectedPreparation(before, businessStateService.capturePreparation());
       if (isRejectedValidation(error) || (before && !staged)) {
+        retryableSendFailure.current = false;
         if (pendingPair.current) await chatHistoryService.reject(pendingPair.current.filter(message => message.type !== 'user').map(message => message.id));
         pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
       }
@@ -1144,6 +1156,15 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       catch { setSendError(true); }
     }
   }, [drainQueue, runChatAction]);
+  useEffect(() => {
+    if (!sendError) return;
+    if (!retryableSendFailure.current) return;
+    const timer = setTimeout(() => {
+      sendRetryDelay.current = Math.min(sendRetryDelay.current * 2, 60_000);
+      void retryMessages();
+    }, sendRetryDelay.current);
+    return () => clearTimeout(timer);
+  }, [sendError, retryMessages]);
   const handleSend = useCallback(() => {
     if (!input.trim() || submittedDraft.current === input) return;
     submittedDraft.current = input; enqueueText(input);
@@ -1156,7 +1177,6 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setInput(transcript.trim());
   }, []);
 
-  const headerHeight = useHeaderHeight();
   const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
@@ -1179,6 +1199,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     return () => back.remove();
   }, [isCommandMenuOpen]);
   const showCommandPanel = isCommandMenuOpen && (commandSuggestions.length > 0 || activatedPlugins.length === 0);
+  useEffect(() => {
+    handleContentResize();
+  }, [composerHeight, composerTopOverlap, showCommandPanel, handleContentResize]);
   // Measure inside keyboard avoidance: IME and tab changes share the composer viewport.
   const commandPanelMaxHeight = Math.max(0, Math.min(availableHeight * 0.65, availableHeight - composerHeight - 48));
   const changeInput = (text: string) => { submittedDraft.current = null; setCommandMenuDismissed(false); setInput(text); };
@@ -1203,7 +1226,6 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           <View style={styles.userBubble}>
             <Text style={styles.userText}>{item.text}</Text>
           </View>
-          {item.pending && (sendError || item.historical) && <TouchableOpacity onPress={() => void retryMessages()} disabled={sending} accessibilityRole="button" style={{ padding: Spacing.sm }}><Text style={{ color: Colors.dangerText }}>Não enviada. Tentar novamente</Text></TouchableOpacity>}
         </View>
       );
     }
@@ -1275,7 +1297,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View ref={headerRef} style={styles.header} onLayout={() => {
+        headerRef.current?.measureInWindow((_x, y, _width, height) => setKeyboardVerticalOffset(y + height));
+      }}>
         <View style={styles.headerLeft}>
           <Image source={require('../../assets/lumio.png')} style={styles.headerLogo} resizeMode="contain" />
         </View>
@@ -1289,7 +1313,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         // visible, never retain a fixed height across tab-bar layout changes.
         enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && keyboardVisible)}
         behavior="padding"
-        keyboardVerticalOffset={headerHeight}
+        keyboardVerticalOffset={keyboardVerticalOffset}
       >
         <View style={styles.flex} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
         <FlatList
@@ -1298,7 +1322,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={renderMessage}
-          contentContainerStyle={styles.messagesList}
+          contentContainerStyle={[styles.messagesList, { paddingBottom: composerTopOverlap + Spacing.md }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -1380,8 +1404,8 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         )}
 
         <BottomSurface style={styles.inputBar} organicEdge={!showCommandPanel}
+          onTopOverlapChange={setComposerTopOverlap}
           onLayout={event => setComposerHeight(event.nativeEvent.layout.height)}>
-          {sendError && <TouchableOpacity onPress={() => void retryMessages()} disabled={sending} accessibilityRole="button" style={{ padding: Spacing.sm }}><Text style={{ color: Colors.dangerText }}>Não foi possível concluir o envio. Tentar novamente</Text></TouchableOpacity>}
           <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend}
             voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={changeInput} appearance="onboarding" />} />
         </BottomSurface>
@@ -1394,7 +1418,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.chatBackground },
-  readingArea: { backgroundColor: Colors.chatBackground },
+  readingArea: { flex: 1, minHeight: 0, backgroundColor: Colors.chatBackground },
   flex: { flex: 1, backgroundColor: Colors.bottomSurface },
 
   header: {
@@ -1427,7 +1451,6 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingHorizontal: Spacing.xl,
     paddingVertical: Spacing.md,
-    paddingBottom: 12,
     gap: Spacing.md,
   },
   commandMenu: {
@@ -1635,6 +1658,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
 
-  inputBar: { paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.md },
+  inputBar: { flexShrink: 0, paddingHorizontal: Spacing.xl, paddingTop: Spacing.md, paddingBottom: Spacing.md },
   groupedMessage: { marginTop: 0 },
 });

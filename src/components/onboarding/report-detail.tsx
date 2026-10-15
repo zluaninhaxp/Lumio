@@ -94,7 +94,7 @@ export default function ReportDetail({ extraction, isSimulation, activatedPlugin
     setSaving(true);
     setError('');
     try { await onSave(next); sheetRef.current?.close(); }
-    catch { setError('Não foi possível salvar. Tente novamente.'); }
+    catch { /* Draft stays open; persistence recovery is internal. */ }
     finally { setSaving(false); }
   };
 

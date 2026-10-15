@@ -168,7 +168,7 @@ test('form save boundary preserves the operation across failures and ignores dou
   let applied = 0, succeeded = 0;
   const prepare = () => { applied++; f.store.setState({ tasks: [task('one')] }); return () => succeeded++; };
   f.controls.offline = true; await Promise.all([save.run(prepare), save.run(prepare)]);
-  assert.equal(applied, 1); assert.equal(succeeded, 0);
+  assert.equal(applied, 1); assert.equal(succeeded, 0); assert.equal(f.alerts.length, 0);
   f.controls.offline = false; await save.run(prepare); assert.equal(applied, 1); assert.equal(succeeded, 1);
 });
 test('an old-user response cannot hydrate or acknowledge data for a newly selected account', async () => {
@@ -219,6 +219,7 @@ function chatScreen(f) {
     useAppStore: f.store, useCallback: fn => fn,
     sendingRef: ref(false), pendingPair: ref(null), pendingCompletion: ref(null), chosenMessage: ref(null),
     optimisticUser: ref(null), queue: ref([]), draining: ref(false), submittedDraft: ref(null),
+    retryableSendFailure: ref(true), sendRetryDelay: ref(5000),
     setSending() {}, setSendError(value) { error = value; }, setInput(value) { input = value; },
     processLatest: ref(text => { processed.push(text); if (text.startsWith('task:')) f.store.setState({ tasks: [...f.state.tasks, task(text)] }); return { botText: 'Processed ' + text }; }),
     refreshOrcamentos() {}, refreshContratos() {}, scrollToBottom() {},
@@ -278,6 +279,37 @@ test('definitively rejected Chat commands retain user text and never show a succ
   screen.enqueueText('task:invalid'); await screen.settle();
   assert.equal(screen.error, true); assert.equal(f.state.chatHistory.length, 1); assert.equal(f.state.chatHistory[0].text, 'task:invalid');
   assert.equal(f.row().snapshot.tasks.length, 0); assert.equal(f.state.tasks.length, 0);
+  assert.equal(screen.context.retryableSendFailure.current, false);
+  assert.equal(f.alerts.length, 0);
+});
+
+test('Chat connection failure recovers through the background retry without repeating a business command', async () => {
+  const f = fixture(); await f.start(); const screen = chatScreen(f);
+  f.controls.offline = true;
+  screen.enqueueText('task:background'); await screen.settle();
+  assert.equal(screen.error, true); assert.equal(screen.processed.length, 1);
+  const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8');
+  const ast = ts.createSourceFile('chat.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let effect;
+  function walk(node) {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === 'useEffect' && node.arguments[0]?.getText(ast).includes('sendRetryDelay.current')) effect = node.arguments[0].getText(ast);
+    ts.forEachChild(node, walk);
+  }
+  walk(ast); assert.ok(effect);
+  const timers = [];
+  screen.context.sendError = true;
+  screen.context.setTimeout = (fn, delay) => {
+    if (!delay) return setTimeout(fn, 0);
+    timers.push({ fn, delay }); return timers.length;
+  };
+  screen.context.clearTimeout = () => {};
+  vm.runInContext(ts.transpileModule('(' + effect + ')();', { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, screen.context);
+  assert.equal(timers.length, 1); assert.equal(timers[0].delay, 5000);
+  f.controls.offline = false; timers[0].fn(); await screen.settle();
+  assert.equal(screen.error, false); assert.equal(screen.processed.length, 1);
+  assert.equal(f.row().snapshot.tasks.length, 1);
+  assert.equal(f.row().messages.length, 2);
+  assert.equal(f.alerts.length, 0);
 });
 
 test('Chat content growth and keyboard layout follow the bottom only while the reader is following', () => {
@@ -287,7 +319,7 @@ test('Chat content growth and keyboard layout follow the bottom only while the r
   const names = ['scrollToBottom', 'preserveCardReading', 'handleContentResize'];
   const declarations = names.map(name => screen.body.statements.find(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => declaration.name.getText(ast) === name)).getText(ast)).join('\n');
   let scrolled = 0; const timers = [];
-  const context = { useCallback: fn => fn, followContentResize: { current: true }, flatListRef: { current: { scrollToEnd() { scrolled++; } } }, setTimeout: fn => timers.push(fn) };
+  const context = { scrollFrame: { current: null }, requestAnimationFrame: fn => { timers.push(fn); return timers.length; }, useCallback: fn => fn, followContentResize: { current: true }, flatListRef: { current: { scrollToEnd() { scrolled++; } } }, setTimeout: fn => timers.push(fn) };
   vm.createContext(context); vm.runInContext(ts.transpileModule(declarations + '\nglobalThis.handlers = {scrollToBottom, preserveCardReading, handleContentResize};', { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context);
   const { scrollToBottom, preserveCardReading, handleContentResize } = context.handlers;
   handleContentResize(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 1);

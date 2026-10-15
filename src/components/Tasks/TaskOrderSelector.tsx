@@ -1,7 +1,6 @@
 import { SheetCloseButton } from '../sheet-close-button';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
   FlatList,
@@ -17,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ModalKeyboardViewport } from '../modal-keyboard-viewport';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, SurfaceStyles } from '../../constants/theme';
+import { LoadingSpinner } from "../loading-spinner";
 
 type OrderOption = { id: string; label: string };
 
@@ -129,7 +129,7 @@ export function TaskOrderSelector({ orders, selectedId, onChange }: TaskOrderSel
                   autoCorrect={false}
                   clearButtonMode="while-editing"
                 />
-                {query.length > 0 && query !== debouncedQuery && <ActivityIndicator size="small" color={Colors.accentIcon} />}
+                {query.length > 0 && query !== debouncedQuery && <LoadingSpinner size="small" color={Colors.accentIcon} />}
               </View>
               <View style={styles.resultHeader}>
                 <Text style={styles.resultTitle}>{debouncedQuery ? 'Resultados' : 'Pedidos disponíveis'}</Text>

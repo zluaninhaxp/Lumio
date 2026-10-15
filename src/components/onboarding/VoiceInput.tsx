@@ -1,3 +1,4 @@
+import { LoadingSpinner } from '../loading-spinner';
 import { useEffect } from 'react';
 import { useVoiceRecognition } from '../../hooks/useVoiceRecognition';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
@@ -67,7 +68,7 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
           ]}
           accessibilityRole="button"
           accessibilityLabel={isRecording ? 'Parar gravação' : 'Falar mensagem'}
-          accessibilityState={{ disabled: !!disabled || busy, selected: isRecording }}
+          accessibilityState={{ disabled: !!disabled || busy, selected: isRecording, busy }}
           hitSlop={6}
           onPress={press}
           disabled={disabled || busy}
@@ -78,11 +79,11 @@ export default function VoiceInput({ onCapture, onPartialResult, disabled, appea
             appearance === 'onboarding' && styles.micBtnOnboarding,
             isRecording && styles.micBtnRecording,
             disabled && styles.micBtnDisabled,
-          ]}><Ionicons
+          ]}>{busy ? <LoadingSpinner size={18} color={Colors.accentIcon} /> : <Ionicons
             name={isRecording ? 'stop' : 'mic'}
             size={appearance === 'onboarding' ? 16 : 20}
             color={isRecording ? Colors.onAction : Colors.accentIcon}
-          /></View>
+          />}</View>
         </TouchableOpacity>
       </Animated.View>
       {status.message && (

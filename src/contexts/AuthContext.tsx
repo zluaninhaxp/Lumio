@@ -1,3 +1,4 @@
+import { PersistenceError } from '../services/persistenceErrors';
 import { chatHistoryService } from '../services/chatHistoryService';
 import { supabase } from '../lib/supabase';
 import { createContext, useCallback, useEffect, useMemo, useState, useRef, ReactNode } from 'react';
@@ -197,9 +198,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return result.user;
     } catch (error) {
       if (attempt === accountGeneration.current) {
-        if (authenticated) setInitializationError(error instanceof Error ? error.message : 'Falha ao carregar a conta. Tente novamente.');
+        if (authenticated || error instanceof PersistenceError) setInitializationError(error instanceof Error ? error.message : 'Falha ao carregar a conta. Tente novamente.');
         else setReady(true);
       }
+      if (authenticated) throw new PersistenceError('Account hydration failed', 'ACCOUNT_LOAD');
       throw error;
     } finally {
       transitioning.current = false;

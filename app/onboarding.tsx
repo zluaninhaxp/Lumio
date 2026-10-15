@@ -2,7 +2,7 @@ import { businessStateService } from '../src/services/businessStateService';
 import { AppDialog } from '../src/components/app-dialog';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  ActivityIndicator, View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity,
   BackHandler, Keyboard, KeyboardAvoidingView, Platform, Image, ScrollView, useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -35,6 +35,7 @@ import UserReply from '../src/components/onboarding/UserReply';
 import VoiceInput from '../src/components/onboarding/VoiceInput';
 import { MessageComposer } from '../src/components/message-composer';
 import { ControlOpacity, Colors } from '../src/constants/theme';
+import { LoadingSpinner } from "../src/components/loading-spinner";
 
 const BLOCK_COUNT = OPEN_QUESTIONS.length;
 const TOTAL_STAGES = BLOCK_COUNT + 1;
@@ -277,7 +278,7 @@ export default function OnboardingScreen() {
       if (followUp) queueLines([{ key: block.id + '-followup-' + attempt, text: block.followUp, expression: INTERACTION_MASCOT.followUp }]);
       else advanceFromBlock(currentIndex);
     } catch {
-      setSaveError('Não consegui confirmar esta resposta. Seu texto foi preservado. Tente novamente com internet.');
+      // Keep the answer draft; persistence failures stay internal.
     } finally { businessStateService.releaseChanges(); answerBusy.current = false; setSaving(false); }
   }, [advanceFromBlock, applyOpenOnboardingConfig, currentUser, queueLines]);
 
@@ -312,7 +313,7 @@ export default function OnboardingScreen() {
     if (!showAiTransition) return;
     setSaving(true);
     setSaveError(null);
-    saveCollectedAnswers().catch(() => setSaveError('Não consegui salvar suas respostas. Tente novamente antes de continuar.'))
+    saveCollectedAnswers().catch(() => {})
       .finally(() => setSaving(false));
     scrollRef.current?.scrollTo({ y: 0, animated: false });
   }, [showAiTransition, saveCollectedAnswers]);
@@ -328,7 +329,7 @@ export default function OnboardingScreen() {
       if (keyInfo.status === 'configured') router.replace('/celebration');
       else handleConfigureKey();
     }
-    catch (error) { proceedingRef.current = false; setSaveError(error instanceof AIProviderError ? error.message : 'Não consegui salvar suas respostas. Tente novamente.'); }
+    catch (error) { proceedingRef.current = false; setSaveError(error instanceof AIProviderError ? error.message : null); }
     finally { setSaving(false); }
   };
 
@@ -344,7 +345,7 @@ export default function OnboardingScreen() {
       setSkipAiConfirmationVisible(false);
       await refreshUser();
       router.replace('/(tabs)/chat');
-    } catch { setSaveError('Não consegui concluir. Suas respostas foram preservadas; tente novamente.'); }
+    } catch { /* Keep answers and remain on this step. */ }
     finally { setSaving(false); }
   };
 
@@ -409,8 +410,7 @@ export default function OnboardingScreen() {
           </ScrollView>
           {showAiTransition ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}>
             {!!saveError && <Text style={styles.confirmationMessage}>{saveError}</Text>}
-            {keyInfo.status === 'error' && <TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={keyInfo.refresh}><Text style={styles.confirmationMessage}>{keyInfo.error} Toque para tentar novamente.</Text></TouchableOpacity>}
-            <TouchableOpacity style={[styles.startBtn, (saving || keyInfo.status === 'loading' || keyInfo.status === 'error') && styles.sendBtnDisabled]} disabled={saving || keyInfo.status === 'loading' || keyInfo.status === 'error'} onPress={proceedToAiSettings} activeOpacity={ControlOpacity.pressed}>{saving || keyInfo.status === 'loading' ? <ActivityIndicator color={Colors.onAction} /> : <Text style={styles.startBtnText}>{keyInfo.status === 'configured' ? 'Personalizar meu Lumio' : 'Configurar IA'}</Text>}<Ionicons name="arrow-forward" size={20} color={Colors.onAction} /></TouchableOpacity>
+            <TouchableOpacity style={[styles.startBtn, (saving || keyInfo.status === 'loading' || keyInfo.status === 'error') && styles.sendBtnDisabled]} disabled={saving || keyInfo.status === 'loading' || keyInfo.status === 'error'} onPress={proceedToAiSettings} activeOpacity={ControlOpacity.pressed}>{saving || keyInfo.status === 'loading' ? <LoadingSpinner color={Colors.onAction} /> : <Text style={styles.startBtnText}>{keyInfo.status === 'configured' ? 'Personalizar meu Lumio' : 'Configurar IA'}</Text>}<Ionicons name="arrow-forward" size={20} color={Colors.onAction} /></TouchableOpacity>
             <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirmationSecondary} disabled={saving} onPress={() => setSkipAiConfirmationVisible(true)}><Text style={styles.confirmationSecondaryText}>Continuar sem IA</Text></TouchableOpacity>
           </View> : showIntro ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, { paddingBottom: Math.max(composerBottomInset, 12) }]}><TouchableOpacity style={[styles.startBtn, !introFinished && styles.sendBtnDisabled]} onPress={handleStart} disabled={!introFinished} activeOpacity={ControlOpacity.pressed}><Text style={styles.startBtnText}>Vamos lá</Text><Ionicons name="arrow-forward" size={20} color={Colors.onAction} /></TouchableOpacity></View>
           : currentBlock?.options ? <View onLayout={(event) => { setComposerHeight(event.nativeEvent.layout.height); setComposerTop(event.nativeEvent.layout.y); }} style={[styles.composerArea, styles.optionsBar, { paddingBottom: Math.max(composerBottomInset, 12) }]}>{currentBlock.options.map(option => <TouchableOpacity key={option} style={styles.optionChip} onPress={() => submitAnswer(option, false)} activeOpacity={ControlOpacity.pressed}><Text style={styles.optionChipText}>{option}</Text></TouchableOpacity>)}</View>

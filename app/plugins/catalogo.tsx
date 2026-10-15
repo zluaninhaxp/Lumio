@@ -1,4 +1,3 @@
-import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -18,6 +17,7 @@ import { clearRelationDraft } from '../../src/utils/relationDraft';
 import { AppAlert } from "@/src/services/appAlert";
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 type CatalogForm = { name: string; kind: 'produto' | 'servico'; unitPrice: string; unit: string; controlStock: boolean };
 const empty: CatalogForm = { name: '', kind: 'produto', unitPrice: '', unit: '', controlStock: false };
@@ -112,7 +112,7 @@ export default function CatalogoScreen() {
           )}
           <View style={styles.modalActions}>
             <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalCancel} onPress={() => visibleSheet.current?.requestClose()} accessibilityRole="button"><Text style={styles.modalCancelText}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <><Text style={styles.modalConfirmText}>{reviewingType ? 'Confirmar tipo' : 'Salvar'}</Text></>}</TouchableOpacity>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <><Text style={styles.modalConfirmText}>{reviewingType ? 'Confirmar tipo' : 'Salvar'}</Text></>}</TouchableOpacity>
           </View>
         </View>
       </View>

@@ -27,7 +27,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#00A878",
-        "foregroundImage": "./assets/lumio-app-icon-padded.png"
+        "foregroundImage": "./assets/lumio-adaptive-icon.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

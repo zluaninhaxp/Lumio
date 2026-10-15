@@ -1,4 +1,3 @@
-import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -25,6 +24,7 @@ import { useAppStore, ClienteItem } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const EMPTY_FORM = { name: "", contact: "", notes: "" };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -351,7 +351,7 @@ export default function ClientesScreen() {
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
                 onPress={handleSave} accessibilityRole="button" disabled={handleSaveConfirmation.saving}
-              >{handleSaveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
+              >{handleSaveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </>}</TouchableOpacity>
             </View>

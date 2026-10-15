@@ -1,8 +1,7 @@
 import { FormTextInput } from '../form-text-input';
 import { useSheetDraft } from '../sheet-draft';
 import React, { useState, useMemo } from 'react';
-import { ActivityIndicator,
-  View,
+import { View,
   Text,
   StyleSheet,
   TouchableOpacity,
@@ -17,6 +16,7 @@ import { taskFormStyles } from '../Tasks/taskFormStyles';
 import { TaskDateSelector } from '../Tasks/TaskDateSelector';
 import { TaskPeopleSelector, type Relation } from '../Tasks/TaskPeopleSelector';
 import { useRef } from "react";
+import { LoadingSpinner } from "../loading-spinner";
 
 export type EventFormData = Omit<CalendarEvent, 'id' | 'done'>;
 
@@ -195,7 +195,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
           onPress={handleSave}
           disabled={saving || (!description.trim())} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
-            {saving ? <ActivityIndicator color={Colors.onAction} /> : <Text style={styles.saveBtnText}>Adicionar</Text>}
+            {saving ? <LoadingSpinner color={Colors.onAction} /> : <Text style={styles.saveBtnText}>Adicionar</Text>}
         </TouchableOpacity>
       </View>
     </View>

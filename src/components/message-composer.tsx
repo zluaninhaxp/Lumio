@@ -1,7 +1,8 @@
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, View, type TextInputProps } from 'react-native';
+import { StyleSheet, TextInput, TouchableOpacity, View, type TextInputProps } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ControlOpacity, Colors, Radius, Typography, SurfaceStyles } from '../constants/theme';
+import { LoadingSpinner } from "./loading-spinner";
 
 type Props = Pick<TextInputProps, 'value' | 'onChangeText' | 'placeholder' | 'onFocus' | 'onBlur'> & {
   onSubmit: () => void;
@@ -30,7 +31,7 @@ export function MessageComposer({ value, onChangeText, placeholder, onFocus, onB
       hitSlop={1}
       disabled={cannotSend} activeOpacity={ControlOpacity.pressed} accessibilityRole="button"
       accessibilityLabel={submitLabel} accessibilityState={{ disabled: !!cannotSend, busy: loading }}>
-      {loading ? <ActivityIndicator color={Colors.bgCard} size="small" /> : <Ionicons name="arrow-up" size={21} color={Colors.bgCard} />}
+      {loading ? <LoadingSpinner color={Colors.bgCard} size="small" /> : <Ionicons name="arrow-up" size={21} color={Colors.bgCard} />}
     </TouchableOpacity>
   </View>;
 }

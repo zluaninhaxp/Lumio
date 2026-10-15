@@ -12,6 +12,12 @@ Prompt da arte final (ferramenta integrada, sem CLI):
 
 A saída real possui 1254 × 1254; o Expo gerou os tamanhos nativos a partir dessa imagem quadrada.
 
-## Ajuste ap?s os testes Android
+## Ajuste do enquadramento no Android (2026-10-15)
 
-O original acima foi preservado sem altera??es. A configura??o agora usa `assets/lumio-app-icon-padded.png` no ?cone principal e foreground adaptativo. Essa c?pia opaca de 1254?1254 reduz o zoom em 6%, preservando desenho e cores e estendendo os pixels verdes de borda para a nova margem. N?o foi adicionada m?scara monocrom?tica. Para reproduzir, execute `scripts/generate-app-icons.ps1`. Conferir o resultado nas m?scaras dos launchers ao instalar um novo APK.
+O original e o icone comum `assets/lumio-app-icon-padded.png` foram preservados. A reducao anterior de 6% ainda deixava o mascote grande demais depois do recorte adaptativo do launcher.
+
+O Android agora usa `assets/lumio-adaptive-icon.png` (1254 x 1254), uma edicao da arte existente com a ferramenta image_gen para reduzir o mascote e ampliar a margem verde. O mascote ocupa aproximadamente 35,8% da largura e 38,7% da altura da camada completa. O recorte central do Android o apresenta menor, sem encostar nas bordas. O fundo continua verde; nao foi adicionada mascara monocromatica.
+
+Validacao: `node scripts/android-icon.test.cjs` confere dimensoes, margem e enquadramento circular. O gerador nativo do Expo SDK 54 produziu foreground, icones legacy/round em cinco densidades e XMLs adaptativos em uma pasta isolada. A previa comparativa de mascaras circular e arredondada foi inspecionada visualmente.
+
+Esta alteracao exige gerar e instalar um novo APK. Atualizacao OTA ou reload do JavaScript nao troca o icone do launcher. Conferir a apresentacao final no aparelho; nao ha dispositivo conectado nesta sessao.

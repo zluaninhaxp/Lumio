@@ -219,13 +219,17 @@ test('legacy cleanup removes only known secrets without reading or migrating the
 
 test('actual status hook distinguishes four states, refreshes on focus and hides another account immediately', async () => {
   const slots = [], requests = []; let cursor = 0, focusedCallback, cleanup, pendingEffect;
+  const retryTimers = new Map(); let nextTimer = 0;
   const same = (a, b) => a && b && a.length === b.length && a.every((v, i) => Object.is(v, b[i]));
   const hooks = {
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = value; }]; },
     useRef(initial) { const i = cursor++; return slots[i] ??= { current: initial }; },
     useCallback(fn, deps) { const i = cursor++; if (!same(slots[i]?.deps, deps)) slots[i] = { fn, deps }; return slots[i].fn; },
+    useEffect(fn, deps) { const i = cursor++; if (!same(slots[i]?.deps, deps)) { slots[i]?.cleanup?.(); slots[i] = { deps, cleanup: fn() }; } },
   };
-  const load = loader({ react: hooks, 'expo-router': { useFocusEffect(fn) { if (fn !== focusedCallback) { cleanup?.(); focusedCallback = fn; pendingEffect = fn; } } }, '../services/ai-key-service': { aiKeyService: { status: userId => new Promise((resolve, reject) => requests.push({ userId, resolve, reject })) } } });
+  const load = loader({ react: hooks, 'expo-router': { useFocusEffect(fn) { if (fn !== focusedCallback) { cleanup?.(); focusedCallback = fn; pendingEffect = fn; } } }, '../services/ai-key-service': { aiKeyService: { status: userId => new Promise((resolve, reject) => requests.push({ userId, resolve, reject })) } } }, {
+    setTimeout(fn, delay) { retryTimers.set(++nextTimer, { fn, delay }); return nextTimer; }, clearTimeout(id) { retryTimers.delete(id); },
+  });
   const { useAiKeyStatus } = load('src/hooks/use-ai-key-status.ts');
   const render = userId => { cursor = 0; return useAiKeyStatus(userId); };
   const focus = () => { cleanup = (pendingEffect ?? focusedCallback)(); pendingEffect = null; };
@@ -239,6 +243,8 @@ test('actual status hook distinguishes four states, refreshes on focus and hides
   lateA.resolve(true); await settle(); assert.equal(render('B').status, 'notConfigured');
   cleanup?.(); focus(); requests.shift().reject(new Error('network')); await settle();
   assert.equal(render('B').status, 'error');
-  const retry = render('B').refresh(); assert.equal(render('B').status, 'loading');
-  requests.shift().resolve(true); await retry; assert.equal(render('B').status, 'configured');
+  assert.equal([...retryTimers.values()][0].delay, 10000);
+  [...retryTimers.values()][0].fn(); assert.equal(render('B').status, 'loading');
+  requests.shift().resolve(true); await settle(); assert.equal(render('B').status, 'configured');
+  assert.equal(retryTimers.size, 0);
 });

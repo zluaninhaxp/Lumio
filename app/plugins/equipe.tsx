@@ -1,4 +1,3 @@
-import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -25,6 +24,7 @@ import { EmployeeItem, useAppStore } from "../../src/store";
 import { AppAlert } from "@/src/services/appAlert";
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const EMPTY = { name: "", role: "", contact: "", commissionRate: "" };
 
@@ -293,7 +293,7 @@ export default function EquipeScreen() {
               >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.confirmText}>Salvar</Text>
               </>}</TouchableOpacity>
             </View>

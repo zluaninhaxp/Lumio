@@ -4,7 +4,6 @@ import { useRouter } from 'expo-router';
 import { BottomSheet } from '../Calendar/BottomSheet';
 import { Colors, FontSize, Radius, Spacing, SurfaceStyles, Typography } from '../../constants/theme';
 import { useAuth } from '../../hooks/useAuth';
-import { UnsyncedChangesError } from '../../contexts/AuthContext';
 import { useAppStore } from '../../store';
 import { UserAvatar } from './UserAvatar';
 import { AppAlert } from "@/src/services/appAlert";
@@ -14,21 +13,13 @@ export function AccountSheet({ visible, onClose }: { visible: boolean; onClose: 
   const { currentUser, logout } = useAuth();
   const businessName = useAppStore(x => x.businessName);
   const navigate = (path: '/profile' | '/settings' | '/resources') => { onClose(); router.push(path); };
-  const finishLogout = async (discardUnsyncedChanges = false) => {
+  const finishLogout = async () => {
     try {
-      await logout(discardUnsyncedChanges);
+      await logout();
       onClose();
       router.replace('/welcome');
-    } catch (error) {
-      if (error instanceof UnsyncedChangesError) {
-        const message = 'As últimas alterações podem não ter sido salvas na sua conta. Se sair, talvez elas não apareçam quando você entrar em outro aparelho. Deseja sair mesmo assim?';
-        AppAlert.alert('Alterações não sincronizadas', message, [
-          { text: 'Continuar usando', style: 'cancel' },
-          { text: 'Sair mesmo assim', style: 'destructive', onPress: () => { void finishLogout(true); } },
-        ], { icon: 'log-out-outline' });
-        return;
-      }
-      AppAlert.alert('Erro', 'Não foi possível sair. Tente novamente.', undefined, { variant: 'warning' });
+    } catch {
+      // Retain the session and unsynced journal; never offer silent data discard.
     }
   };
   const confirmLogout = () => {

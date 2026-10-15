@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Linking,
   Platform,
   ScrollView,
@@ -20,6 +19,7 @@ import ApiKeyInput from '../src/components/api-key-input';
 
 import { AIProviderError, MissingApiKeyError } from '../src/ai/aiProvider';
 import { AppAlert } from "@/src/services/appAlert";
+import { LoadingSpinner } from "../src/components/loading-spinner";
 
 const AI_STUDIO_URL = 'https://aistudio.google.com/app/apikey';
 
@@ -99,8 +99,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
       else router.back();
     } catch (error) {
       if (!activeRef.current) return;
-      const msg = error instanceof AIProviderError ? error.message : 'Não foi possível salvar a chave.';
-      setSaveError(msg);
+      // Keep the tested draft; failed persistence is not presented.
       setSaveState('idle');
     } finally {
       operationRef.current = false;
@@ -126,8 +125,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
               setSaveState('idle');
               setSaveError(null);
             } catch (error) {
-              const msg = error instanceof AIProviderError ? error.message : 'Não foi possível remover a chave.';
-              AppAlert.alert('Erro', msg, undefined, { variant: 'warning' });
+              // Preserve the existing key until removal is confirmed.
             }
           },
         },
@@ -188,11 +186,11 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
         <View style={s.card}>
           {loadingInfo ? (
             <View style={styles.statusRow}>
-              <ActivityIndicator color={Colors.accentIcon} />
+              <LoadingSpinner color={Colors.accentIcon} />
               <Text style={styles.statusText}>Verificando chave salva...</Text>
             </View>
           ) : keyInfo.status === 'error' ? (
-            <View><Text style={s.error}>{keyInfo.error}</Text><TouchableOpacity activeOpacity={ControlOpacity.pressed} onPress={refreshKeyInfo}><Text style={styles.helpLinkText}>Tentar novamente</Text></TouchableOpacity></View>
+            null
           ) : hasKey ? (
             <View style={styles.statusRow}>
               <View style={[styles.statusDot, styles.statusDotOk]} />
@@ -248,7 +246,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
                 activeOpacity={ControlOpacity.pressed}
               >
                 {testState === 'testing' ? (
-                  <ActivityIndicator color={Colors.accentIcon} />
+                  <LoadingSpinner color={Colors.accentIcon} />
                 ) : (
                   <>
                     <Ionicons name="flash-outline" size={18} color={Colors.accentIcon} />
@@ -275,7 +273,7 @@ function AiSettingsForm({ userId }: { userId: string | null }) {
                 disabled={busy || !userId}
                 activeOpacity={ControlOpacity.pressed}
               >
-                {saveState === 'saving' ? <ActivityIndicator color={Colors.onAction} /> :
+                {saveState === 'saving' ? <LoadingSpinner color={Colors.onAction} /> :
                   <Text style={s.primaryText}>{onboarding ? 'Salvar e continuar' : 'Salvar chave'}</Text>}
               </TouchableOpacity>}
             </View>

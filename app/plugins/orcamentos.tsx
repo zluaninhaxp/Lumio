@@ -1,4 +1,3 @@
-import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -37,6 +36,7 @@ import { AppAlert } from "@/src/services/appAlert";
 import { AppFeedback } from '@/src/components/app-feedback';
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 type DraftItem = OrderItem;
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -419,7 +419,7 @@ export default function OrcamentosScreen() {
                 >
                   <Text style={styles.cancelLabel}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                   <Text style={styles.confirmLabel}>Salvar</Text>
                 </>}</TouchableOpacity>
               </View>

@@ -102,3 +102,11 @@ Os testes de persistência usam backend controlado em memória e SQL PostgreSQL 
 - `src/services/chatHistoryService.ts`
 - `src/types/chat.ts`
 - `src/types/errors.ts`
+
+## Atualizacao: persistencia sem feedback visual
+
+A orientacao posterior substitui os avisos de recuperacao dos itens 3 e 10: falhas de banco, sincronizacao, rascunhos recuperados e conflitos ficam apenas nos controles internos. Foram removidos banners, alertas, avisos de sucesso e mensagens de retry das superficies de persistencia. Falhas de autenticacao e validacoes de entrada continuam separadas das falhas de gravacao.
+
+A recuperacao de conta e as gravacoes pendentes usam novas tentativas internas com espera progressiva. O Chat reaproveita a tentativa preparada e os mesmos IDs; rejeicoes definitivas nao entram em retry automatico. Conflitos nao escolhem uma versao nem descartam dados silenciosamente. Operacoes de negocio continuam dependentes da confirmacao remota. Na abertura inicial, a splash nativa permanece durante a recuperacao; nao foi criado modo offline.
+
+Validacao: TypeScript; suites locais de persistencia, SQL, autenticacao, inicializacao, onboarding, IA e regressao visual. Os testes incluem ausencia de feedback para todos os estados internos, retry com backoff, envio sem duplicacao, confirmacao remota e cancelamento dos timers. A reabertura do APK no aparelho ainda exige validacao.

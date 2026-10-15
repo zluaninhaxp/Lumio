@@ -59,9 +59,10 @@ export default function CelebrationScreen() {
   const requestInFlightRef = useRef(false);
   const finishingWithoutAiRef = useRef(false);
   const disposedRef = useRef(false);
+  const persistenceRetry = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     disposedRef.current = false;
-    return () => { disposedRef.current = true; };
+    return () => { disposedRef.current = true; if (persistenceRetry.current) clearTimeout(persistenceRetry.current); };
   }, []);
 
   const opacity = useSharedValue(0);
@@ -107,8 +108,16 @@ export default function CelebrationScreen() {
     async (result: OnboardingExtractionResult, isSimulation: boolean) => {
       if (disposedRef.current) return;
       setPendingOnboardingExtraction(result, isSimulation);
-      await businessStateService.commit();
-      if (!disposedRef.current) router.replace('/onboarding-report-intro');
+      const confirmReport = async () => {
+        if (disposedRef.current) return;
+        try {
+          await businessStateService.commit();
+          if (!disposedRef.current) router.replace('/onboarding-report-intro');
+        } catch {
+          if (!disposedRef.current) persistenceRetry.current = setTimeout(() => { void confirmReport(); }, 10_000);
+        }
+      };
+      await confirmReport();
     },
     [setPendingOnboardingExtraction, router],
   );
@@ -125,7 +134,7 @@ export default function CelebrationScreen() {
   const useSimulationFallback = useCallback(
     () => {
       const mockResult = buildMockExtractionResult(openAnswers);
-      void applyResult(mockResult, true).catch(() => { setPhase('error'); setError({ message: 'Não foi possível salvar o relatório. Tente novamente com internet.', kind: 'provider' }); });
+      void applyResult(mockResult, true);
     },
     [openAnswers, applyResult],
   );
@@ -211,7 +220,7 @@ export default function CelebrationScreen() {
       await refreshUser();
       router.replace('/(tabs)/chat');
     } catch {
-      setFinishError('Não consegui concluir. Suas respostas foram preservadas; tente novamente.');
+      // Keep the current step until persistence is confirmed.
     } finally {
       finishingWithoutAiRef.current = false;
       setFinishingWithoutAi(false);

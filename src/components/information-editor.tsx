@@ -2,11 +2,13 @@ import { FormTextInput } from './form-text-input';
 import { SheetCloseButton } from './sheet-close-button';
 import { FormActionStyles } from './form-action-styles';
 import { forwardRef, useRef, useImperativeHandle, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import { ModalScrollView } from './modal-scroll-view';
 import { BottomSheet, type BottomSheetHandle } from './Calendar/BottomSheet';
 import { FormLabel } from './RequiredLabel';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles, TextStyles, nativeTextStyle } from '../constants/theme';
+import { LoadingSpinner } from "./loading-spinner";
+
 export function EditorField({ label, ...props }: TextInputProps & { label: string; }) {
   return <><FormLabel>{label}</FormLabel><FormTextInput style={styles.input} placeholderTextColor={Colors.placeholder} accessibilityLabel={label} {...props} /></>;
 }
@@ -23,7 +25,7 @@ export const InformationEditor = forwardRef<BottomSheetHandle, { visible: boolea
     <ModalScrollView style={[styles.formScroll, { maxHeight: Math.max(120, Math.min(screenHeight * 0.9, 720) - 124) }]} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.form}>
       {children}
       {!!error && <Text style={styles.error} accessibilityRole="alert">{error}</Text>}
-      <View style={styles.modalActions}><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.cancelButton, saving && FormActionStyles.secondaryDisabled]} onPress={() => close()} disabled={saving} accessibilityRole="button"><Text style={styles.cancelText}>Cancelar</Text></TouchableOpacity><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.saveButton, destructive && { backgroundColor: Colors.dangerActionBackground }, saving && styles.saveDisabled]} onPress={onSave} disabled={saving} accessibilityRole="button" accessibilityState={{ disabled: saving, busy: saving }}><>{saving ? <ActivityIndicator color={Colors.onAction} /> : <Text style={styles.saveText}>{saveLabel}</Text>}</></TouchableOpacity></View>
+      <View style={styles.modalActions}><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.cancelButton, saving && FormActionStyles.secondaryDisabled]} onPress={() => close()} disabled={saving} accessibilityRole="button"><Text style={styles.cancelText}>Cancelar</Text></TouchableOpacity><TouchableOpacity activeOpacity={ControlOpacity.pressed} style={[styles.saveButton, destructive && { backgroundColor: Colors.dangerActionBackground }, saving && styles.saveDisabled]} onPress={onSave} disabled={saving} accessibilityRole="button" accessibilityState={{ disabled: saving, busy: saving }}><>{saving ? <LoadingSpinner color={Colors.onAction} /> : <Text style={styles.saveText}>{saveLabel}</Text>}</></TouchableOpacity></View>
     </ModalScrollView>
   </BottomSheet>;
 });

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { aiKeyService } from '../services/ai-key-service';
 import { AIProviderError } from '../ai/aiProvider';
@@ -25,5 +25,10 @@ export function useAiKeyStatus(userId: string | null, enabled = true) {
   }, [enabled, refresh]));
   // Synchronous ownership check hides A's status on B's very first render.
   const visible = state.userId === userId ? state : { userId, status: 'loading' as const };
+  useEffect(() => {
+    if (!enabled || !userId || visible.status !== 'error') return;
+    const timer = setTimeout(() => { void refresh(); }, 10_000);
+    return () => clearTimeout(timer);
+  }, [enabled, userId, visible.status, refresh]);
   return { ...visible, refresh };
 }

@@ -91,7 +91,7 @@ function fixture({ disclosureAccepted = true, from = 'onboarding', keyValid = tr
     '@/src/components/CelebrationText': { default: 'CelebrationText' },
     '@/src/components/onboarding/report-processing': { default: 'ReportProcessing' },
     '@/src/components/onboarding/report-error': { default: 'ReportError' },
-    'react-native-reanimated': { useReducedMotion: () => false, default: { View: 'AnimatedView', Image: 'AnimatedImage' }, useSharedValue: value => hooks.useRef({ value }).current, useAnimatedStyle: fn => fn(), withTiming: value => value, withDelay: (_, value) => value, withRepeat: value => value, withSequence: (...values) => values.at(-1), cancelAnimation() {}, Easing: { out: value => value, inOut: value => value, cubic: 1, ease: 1 } },
+    'react-native-reanimated': { ReduceMotion: { Never: 'never' }, useReducedMotion: () => false, default: { View: 'AnimatedView', Image: 'AnimatedImage' }, useSharedValue: value => hooks.useRef({ value, get() { return this.value; }, set(next) { this.value = next; } }).current, useAnimatedStyle: fn => fn(), withTiming: value => value, withDelay: (_, value) => value, withRepeat: value => value, withSequence: (...values) => values.at(-1), cancelAnimation() {}, Easing: { out: value => value, inOut: value => value, cubic: 1, ease: 1 } },
     '../src/store': { useAppStore: store },
     '../store': { useAppStore: store },
     '../src/hooks/useAuth': { useAuth: () => auth },
@@ -213,7 +213,7 @@ test('failed report completion preserves the report and allows retry without nav
   await f.find(n => n.type === 'ReportDetail').props.onFinish();
   await f.settle();
   assert.equal(f.state.pendingOnboardingExtraction, extraction);
-  assert.deepEqual(f.calls.map(c => c[0]), ['save', 'alert']);
+  assert.deepEqual(f.calls.map(c => c[0]), ['save']);
   await f.find(n => n.type === 'ReportDetail').props.onFinish();
   assert.equal(f.calls.filter(c => c[0] === 'save').length, 2);
 });
@@ -320,7 +320,8 @@ test('canceling key settings returns to explanation with all answers intact', as
 
 test('failed persistence retains answers and blocks navigation', async () => {
   const f = fixture({ failSave: true }); await f.collect(); await f.click('Configurar IA');
-  assert.ok(f.text(f.nodes()).includes('Não consegui salvar'));
+  assert.equal(f.calls.filter(c => c[0] === 'alert').length, 0);
+  assert.ok(!f.text(f.nodes()).includes('Tente novamente.'));
   assert.equal(f.calls.filter(c => c[0] === 'push' || c[0] === 'complete').length, 0);
   assert.equal(Object.keys(f.state.openAnswers).length, 6);
 });
@@ -333,9 +334,9 @@ test('configured backend status continues to personalization without asking for 
   assert.ok(!f.calls.some(c => c[1]?.pathname === '/ai-settings'));
 });
 
-test('status lookup error is displayed and blocks the IA action instead of claiming a key exists', async () => {
+test('status lookup failure stays internal and never claims a key exists', async () => {
   const f = fixture({ statusError: true }); await f.collect();
-  assert.ok(f.text(f.nodes()).includes('Falha ao consultar IA.'));
+  assert.ok(!f.text(f.nodes()).includes('Falha ao consultar IA.'));
   assert.equal(f.find(n => n.props?.onPress && f.text(n) === 'Configurar IA').props.disabled, true);
   assert.equal(f.calls.filter(c => c[0] === 'push').length, 0);
 });

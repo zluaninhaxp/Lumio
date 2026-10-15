@@ -1,4 +1,3 @@
-import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -27,6 +26,7 @@ import { clearRelationDraft, getRelationDraft, saveRelationDraft } from "../../s
 import { AppAlert } from "@/src/services/appAlert";
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 const EMPTY_FORM = { catalogItemId: "", quantity: "", minAlert: "" };
 const EMPTY_MOVEMENT = { amount: "", reason: "" };
@@ -342,7 +342,7 @@ export default function EstoqueScreen() {
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button" disabled={saveItemConfirmation.saving}>{saveItemConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button" disabled={saveItemConfirmation.saving}>{saveItemConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
               </>}</TouchableOpacity>
             </View>
@@ -396,7 +396,7 @@ export default function EstoqueScreen() {
                   movementType === "saida" && styles.exitConfirm,
                 ]}
                 onPress={saveMovement} accessibilityRole="button" disabled={saveMovementConfirmation.saving}
-              >{saveMovementConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
+              >{saveMovementConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
               </>}</TouchableOpacity>
             </View>

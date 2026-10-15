@@ -1,8 +1,7 @@
 import { FormTextInput } from '../form-text-input';
 import { useSheetDraft } from '../sheet-draft';
 import React, { useState } from 'react';
-import { ActivityIndicator,
-  View,
+import { View,
   Text,
   StyleSheet,
   TouchableOpacity,
@@ -15,6 +14,7 @@ import { TaskDateSelector } from './TaskDateSelector';
 import { taskFormStyles } from './taskFormStyles';
 import { TaskPeopleSelector, type Relation } from './TaskPeopleSelector';
 import { useRef } from "react";
+import { LoadingSpinner } from "../loading-spinner";
 
 export type TaskPriority = 'alta' | 'media' | 'baixa';
 
@@ -168,7 +168,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate , loc
           onPress={handleSave}
           disabled={saving || (!description.trim())} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
-           {saving ? <ActivityIndicator color={Colors.onAction} /> : <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>}
+           {saving ? <LoadingSpinner color={Colors.onAction} /> : <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>}
         </TouchableOpacity>
       </View>
     </View>

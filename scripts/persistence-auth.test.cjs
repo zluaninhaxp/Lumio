@@ -33,6 +33,7 @@ function fixture() {
     '../repositories/learnedIntentRepository': { learnedIntentRepository: { getAll: async () => [] } },
     '../store': { useAppStore: { getState: () => state, setState: patch => Object.assign(state, patch) } },
     '../services/businessStateService': { businessStateService: business, businessSyncStatus: { reportError: message => calls.push(['error', message]), reportWarning() {} } },
+    '../services/persistenceErrors': { PersistenceError: class PersistenceError extends Error {} },
     '../services/chatHistoryService': { chatHistoryService: { start: async () => {}, hasPending: () => false } },
     '../services/legacyMigrationService': { legacyMigrationService: { migrate: async () => {} } },
   };
@@ -91,9 +92,9 @@ test('credential and connection errors have different friendly messages', () => 
   assert.throws(() => translate({ name: 'AuthRetryableFetchError', message: 'Network request failed' }), error => !error.code && /internet/.test(error.message));
 });
 
-test('persistence feedback keeps the current screen mounted throughout login and only shows actionable failures', () => {
+test('persistence feedback keeps the current screen mounted throughout login and never renders persistence feedback', () => {
   let auth = { ready: true, loading: false }, status = { status: 'ready' };
-  const hooks = { useState: initial => [initial, () => {}], useEffect() {} };
+  const hooks = { useRef: initial => ({ current: initial }), useState: initial => [initial, () => {}], useEffect() {} };
   const module = { exports: {} };
   const code = ts.transpileModule(fs.readFileSync('src/components/persistence-feedback.tsx','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   vm.runInNewContext(code, { module, exports: module.exports, require: name => name === 'expo-router' ? { usePathname: () => '/login' } : name === 'expo-splash-screen' ? { hideAsync: async () => {} } : name === 'react' ? hooks : name === 'react/jsx-runtime' ? { Fragment: 'Fragment', jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) } : name.includes('useAuth') ? { useAuth: () => auth } : name.includes('businessStateService') ? { businessStateService: {}, businessSyncStatus: { get: () => status, subscribe() {} } } : name.includes('theme') ? { Colors: {}, Spacing: {}, Typography: {} } : {} });
@@ -101,6 +102,6 @@ test('persistence feedback keeps the current screen mounted throughout login and
   for (const phase of [{ ready: true, loading: false }, { ready: false, loading: true }, { ready: true, loading: false }]) {
     auth = phase; status = { status: phase.loading ? 'saving' : 'ready' };
     const rendered = module.exports.PersistenceFeedback({ children });
-    assert.equal(rendered.props.children[1], children); assert.equal(rendered.props.children[0], false);
+    assert.equal(rendered.props.children, children);
   }
 });

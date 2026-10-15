@@ -1,12 +1,15 @@
+import { PersistenceError } from '../services/persistenceErrors';
 import { AuthError } from '../types/errors';
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, findNodeHandle, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
+import { findNodeHandle, Image, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions, type TextInputProps } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ControlOpacity, Colors, Radius, Spacing, SurfaceStyles, TextStyles } from '@/src/constants/theme';
 import { useAuth } from '@/src/hooks/useAuth';
 import { ReportBackdrop } from '@/src/components/onboarding/report-processing';
+import { LoadingSpinner } from "./loading-spinner";
+
 // Replace this source to change the mascot without changing the layout.
 const INPUT_MIN_HEIGHT = 56;
 const AUTH_IMAGE = require('../../assets/login-Lumio.png');
@@ -14,6 +17,10 @@ type Mode = 'login' | 'register';
 const FocusedFieldContext = createContext<(input: TextInput | null) => void>(() => { });
 export default function AuthScreen({ mode }: { mode: Mode }) {
   const router = useRouter();
+  const { currentUser, ready } = useAuth();
+  useEffect(() => {
+    if (ready && currentUser) router.replace(currentUser.onboardingCompleted ? '/(tabs)/chat' : '/onboarding');
+  }, [currentUser, ready, router]);
   const { height, width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const scrollRef = useRef<ScrollView>(null);
@@ -48,13 +55,13 @@ export default function AuthScreen({ mode }: { mode: Mode }) {
 function Login({ done }: { done: (complete: boolean) => void }) {
   const router = useRouter();
   const { login } = useAuth(); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const pending = useRef(false);
-  const submit = useCallback(async () => { if (pending.current) return; setError(''); pending.current = true; setBusy(true); try { const user = await login(email, password); done(user.onboardingCompleted); } catch (e: any) { if (e instanceof AuthError && e.code === 'EMAIL_CONFIRMATION_REQUIRED') router.push({ pathname: '/recover-access', params: { confirmation: '1', email } }); setError(e?.message ?? 'Não foi possível entrar. Tente novamente.'); } finally { pending.current = false; setBusy(false); } }, [busy, done, email, login, password]);
+  const submit = useCallback(async () => { if (pending.current) return; setError(''); pending.current = true; setBusy(true); try { const user = await login(email, password); done(user.onboardingCompleted); } catch (e: any) { if (e instanceof PersistenceError) return; if (e instanceof AuthError && e.code === 'EMAIL_CONFIRMATION_REQUIRED') router.push({ pathname: '/recover-access', params: { confirmation: '1', email } }); setError(e?.message ?? 'Não foi possível entrar. Tente novamente.'); } finally { pending.current = false; setBusy(false); } }, [busy, done, email, login, password]);
   return <View>{error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" selectable style={s.error}>{error}</Text> : null}<Field label="E-mail" icon="mail-outline" value={email} onChangeText={setEmail} placeholder="voce@email.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" textContentType="emailAddress" /><Field label="Senha" icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="Sua senha" autoCapitalize="none" autoComplete="current-password" textContentType="password" secureTextEntry autoCorrect={false} onSubmitEditing={submit} /><Submit label="Entrar" busy={busy} onPress={submit} /><TouchableOpacity accessibilityRole="link" onPress={() => router.push({ pathname: '/recover-access', params: { email } })} style={s.switchMode}><Text style={s.switchLink}>Esqueci minha senha</Text></TouchableOpacity></View>;
 }
 function Register({ done }: { done: () => void }) {
   const router = useRouter();
   const { register } = useAuth(); const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [confirm, setConfirm] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState(''); const pending = useRef(false);
-  const submit = useCallback(async () => { if (pending.current) return; setError(''); if (password !== confirm) { setError('As senhas não coincidem.'); return; } pending.current = true; setBusy(true); try { await register(name, email, password); done(); } catch (e: any) { if (e instanceof AuthError && e.code === 'EMAIL_CONFIRMATION_REQUIRED') router.push({ pathname: '/recover-access', params: { confirmation: '1', email } }); setError(e?.message ?? 'Não foi possível criar sua conta. Tente novamente.'); } finally { pending.current = false; setBusy(false); } }, [busy, confirm, done, email, name, password, register]);
+  const submit = useCallback(async () => { if (pending.current) return; setError(''); if (password !== confirm) { setError('As senhas não coincidem.'); return; } pending.current = true; setBusy(true); try { await register(name, email, password); done(); } catch (e: any) { if (e instanceof PersistenceError) return; if (e instanceof AuthError && e.code === 'EMAIL_CONFIRMATION_REQUIRED') router.push({ pathname: '/recover-access', params: { confirmation: '1', email } }); setError(e?.message ?? 'Não foi possível criar sua conta. Tente novamente.'); } finally { pending.current = false; setBusy(false); } }, [busy, confirm, done, email, name, password, register]);
   return <View>{error ? <Text accessibilityRole="alert" accessibilityLiveRegion="polite" selectable style={s.error}>{error}</Text> : null}<Field label="Nome" icon="person-outline" value={name} onChangeText={setName} placeholder="Seu nome" autoComplete="name" textContentType="name" /><Field label="E-mail" icon="mail-outline" value={email} onChangeText={setEmail} placeholder="voce@email.com" autoCapitalize="none" autoCorrect={false} keyboardType="email-address" autoComplete="email" textContentType="emailAddress" /><Field label="Senha" icon="lock-closed-outline" value={password} onChangeText={setPassword} placeholder="Mínimo de 6 caracteres" autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" secureTextEntry /><Field label="Confirmar senha" icon="shield-checkmark-outline" value={confirm} onChangeText={setConfirm} placeholder="Repita a senha" autoCapitalize="none" autoComplete="new-password" textContentType="newPassword" secureTextEntry autoCorrect={false} onSubmitEditing={submit} /><Submit label="Criar conta" busy={busy} onPress={submit} /></View>;
 }
 type FieldProps = TextInputProps & { label: string; icon: React.ComponentProps<typeof Ionicons>['name'] };
@@ -69,7 +76,7 @@ function Field({ label, icon, secureTextEntry, ...props }: FieldProps) {
     {secureTextEntry && <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={s.eye} onPress={() => setVisible(!visible)} accessibilityRole="button" accessibilityLabel={(visible ? 'Ocultar ' : 'Mostrar ') + label.toLowerCase()} accessibilityState={{ selected: visible }}><Ionicons name={visible ? 'eye-off-outline' : 'eye-outline'} size={21} color={Colors.textSecondary} /></TouchableOpacity>}
   </View></View>;
 }
-function Submit({ label, busy, onPress }: { label: string; busy: boolean; onPress: () => void }) { return <TouchableOpacity style={[s.cta, busy && s.disabled]} onPress={onPress} disabled={busy} activeOpacity={ControlOpacity.pressed} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: busy, busy }}>{busy ? <ActivityIndicator color={Colors.onAction} /> : <><Text style={s.ctaText}>{label}</Text><Ionicons name="arrow-forward" size={19} color={Colors.onAction} /></>}</TouchableOpacity>; }
+function Submit({ label, busy, onPress }: { label: string; busy: boolean; onPress: () => void }) { return <TouchableOpacity style={[s.cta, busy && s.disabled]} onPress={onPress} disabled={busy} activeOpacity={ControlOpacity.pressed} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: busy, busy }}>{busy ? <LoadingSpinner color={Colors.onAction} /> : <><Text style={s.ctaText}>{label}</Text><Ionicons name="arrow-forward" size={19} color={Colors.onAction} /></>}</TouchableOpacity>; }
 
 const s = StyleSheet.create({
   backdrop: { ...StyleSheet.absoluteFillObject, opacity: .52 },

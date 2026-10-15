@@ -1,23 +1,13 @@
-import { useEffect } from 'react';
 import { Image, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
-import Animated, { Easing, cancelAnimation, useAnimatedStyle, useReducedMotion, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { LoadingSpinner } from '../loading-spinner';
 import { Colors, FontSize, Radius, Spacing, Typography, SurfaceStyles } from '../../constants/theme';
 
 const PROCESSING_IMAGE = require('../../../assets/mascote-relatorio/Mascote tecnológico com laptop e ícones flutuantes.png');
 
 function ProcessingRing() {
-  const rotation = useSharedValue(0);
-  const reducedMotion = useReducedMotion();
-  useEffect(() => {
-    if (reducedMotion) return;
-    rotation.set(0);
-    rotation.set(withRepeat(withTiming(360, { duration: 1700, easing: Easing.linear }), -1, false));
-    return () => cancelAnimation(rotation);
-  }, [reducedMotion, rotation]);
-  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation.get()}deg` }] }));
-  return <View style={styles.ringTrack} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Animated.View style={[styles.ringActive, spinStyle]} /></View>;
+  return <LoadingSpinner size={44} color={Colors.accentIcon} />;
 }
 
 export function ReportBackdrop({ viewBox = '0 0 390 820', preserveAspectRatio = 'xMidYMid slice', variant = 'report' }: { viewBox?: string; preserveAspectRatio?: string; variant?: 'report' | 'account' } = {}) {
@@ -97,8 +87,6 @@ const styles = StyleSheet.create({
   card: {
       ...SurfaceStyles.card,
     width: '100%', maxWidth: 390, minHeight: 104, flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xl, marginTop: Spacing.sm, borderRadius: Radius.xl },
-  ringTrack: { width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: Colors.accentLight, alignItems: 'center', justifyContent: 'center' },
-  ringActive: { position: 'absolute', width: 44, height: 44, borderRadius: 22, borderWidth: 5, borderColor: 'transparent', borderTopColor: Colors.accentIcon, borderRightColor: Colors.accentIcon },
   cardCopy: { flex: 1, gap: Spacing.xs },
   cardTitle: { fontFamily: Typography.semibold, fontSize: FontSize.sm, color: Colors.primary },
   cardSubtitle: { fontFamily: Typography.regular, fontSize: FontSize.sm, color: Colors.textSecondary },

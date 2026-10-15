@@ -1,3 +1,4 @@
+import { PersistenceError } from './persistenceErrors';
 import { AUTH_REDIRECT } from './authLinks';
 import { isInvalidSession } from './sessionErrors';
 import { AuthError } from '../types/errors';
@@ -20,7 +21,7 @@ function session(accessToken: string, userId: string): Session {
 }
 async function profile(userId: string, fallback?: { name?: string; email?: string }): Promise<PublicUser> {
   const { data, error } = await client().from('profiles').select('id,name,email,photo,role,phone,onboarding_completed,created_at').eq('id', userId).maybeSingle();
-  if (error || !data) throw new Error('Não foi possível carregar seu perfil. Tente novamente.');
+  if (error || !data) throw new PersistenceError('Profile hydration failed', 'PROFILE_LOAD');
   return {
     id: userId, name: data?.name ?? fallback?.name ?? '', email: data?.email ?? fallback?.email ?? '',
     photo: data?.photo ? await photoService.signedUrl() : null, role: data?.role ?? '', phone: data?.phone ?? '',

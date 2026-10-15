@@ -1,4 +1,3 @@
-import { ActivityIndicator } from 'react-native';
 import { localISO } from '../../src/services/financialRules';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
@@ -32,6 +31,7 @@ import { DocumentItemPicker } from "../../src/components/DocumentItemPicker";
 import { AppAlert } from "@/src/services/appAlert";
 import { useConfirmedSave } from "../../src/hooks/use-confirmed-save";
 import { confirmAction } from "../../src/services/confirmedAction";
+import { LoadingSpinner } from "../../src/components/loading-spinner";
 
 type DraftItem = Omit<OrderItem, "id" | "unitPrice"> & { id: string; unitPrice: number | string; addToCatalog?: boolean };
 const money = (value: number) => `R$ ${value.toFixed(2).replace(".", ",")}`;
@@ -464,7 +464,7 @@ export default function VendasScreen() {
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button" disabled={saveOrderConfirmation.saving}>{saveOrderConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button" disabled={saveOrderConfirmation.saving}>{saveOrderConfirmation.saving ? <LoadingSpinner color={Colors.onAction} /> : <>
                   <Text style={styles.modalConfirmText}>Salvar</Text>
                 </>}</TouchableOpacity>
               </View>

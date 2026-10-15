@@ -1,3 +1,4 @@
+import { LoadingSpinner } from '../src/components/loading-spinner';
 import { useEffect, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import * as Linking from 'expo-linking';
@@ -13,6 +14,7 @@ export default function AuthCallback() {
   const router = useRouter(); const params = useLocalSearchParams<{ code?: string; intent?: string; error?: string }>();
   const { retryInitialization } = useAuth(); const started = useRef(false); const busy = useRef(false);
   const [recovery,setRecovery] = useState(false); const [ready,setReady] = useState(false); const [message,setMessage] = useState('Verificando link…');
+  const [verifying, setVerifying] = useState(true); const [saving, setSaving] = useState(false);
   const [password,setPassword] = useState(''); const [confirmation,setConfirmation] = useState('');
   useEffect(() => { if (started.current) return; started.current = true; let active = true;
     void (async () => {
@@ -21,19 +23,20 @@ export default function AuthCallback() {
       const isRecovery = await exchangeAuthLink(raw);
       await retryInitialization();
       if (active) { setRecovery(isRecovery); setReady(true); setMessage(isRecovery ? 'Defina uma nova senha.' : 'E-mail confirmado. Você pode continuar na sua conta.'); }
-    })().catch(error => { if(active) setMessage(error instanceof Error ? error.message : 'Não foi possível verificar o link.'); });
+    })().catch(error => { if(active) setMessage(error instanceof Error ? error.message : 'Não foi possível verificar o link.'); }).finally(() => { if (active) setVerifying(false); });
     return () => { active = false; };
   }, [params.code, params.error, params.intent, retryInitialization]);
-  const save = async () => { if (busy.current) return; if (password !== confirmation) return setMessage('As senhas não coincidem.'); busy.current = true;
+  const save = async () => { if (busy.current) return; if (password !== confirmation) return setMessage('As senhas não coincidem.'); busy.current = true; setSaving(true);
     try { await authService.completePasswordRecovery(password); setRecovery(false); setMessage('Senha atualizada. Você pode continuar.'); }
-    catch(error) { setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar.'); } finally { busy.current = false; }
+    catch(error) { setMessage(error instanceof Error ? error.message : 'Não foi possível atualizar.'); } finally { busy.current = false; setSaving(false); }
   };
   return <AccountScreen><AccountHeader refined title="Acesso à conta" onBack={() => router.replace('/login')} /><ScrollView contentContainerStyle={accountLayout.content}>
+    {verifying && <LoadingSpinner />}
     <Text accessibilityRole="alert" style={{ color: Colors.ink }}>{message}</Text>
     {ready && recovery ? <>
       <TextInput accessibilityLabel="Nova senha" secureTextEntry value={password} onChangeText={setPassword} placeholder="Nova senha" style={{ padding: Spacing.lg, color: Colors.ink }} />
       <TextInput accessibilityLabel="Confirmar nova senha" secureTextEntry value={confirmation} onChangeText={setConfirmation} placeholder="Confirmar senha" style={{ padding: Spacing.lg, color: Colors.ink }} />
-      <TouchableOpacity accessibilityRole="button" onPress={() => void save()} style={{ padding: Spacing.lg }}><Text style={{ color: Colors.accentText }}>Salvar nova senha</Text></TouchableOpacity>
+      <TouchableOpacity disabled={saving} accessibilityState={{ busy: saving, disabled: saving }} accessibilityRole="button" onPress={() => void save()} style={{ padding: Spacing.lg }}>{saving ? <LoadingSpinner /> : <Text style={{ color: Colors.accentText }}>Salvar nova senha</Text>}</TouchableOpacity>
     </> : <TouchableOpacity accessibilityRole="button" onPress={() => router.replace(ready ? '/' : '/recover-access')} style={{ padding: Spacing.lg }}><Text style={{ color: Colors.accentText }}>{ready ? 'Continuar' : 'Solicitar novo link'}</Text></TouchableOpacity>}
   </ScrollView></AccountScreen>;
 }
