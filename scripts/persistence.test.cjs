@@ -313,18 +313,11 @@ test('Chat connection failure recovers through the background retry without repe
 });
 
 test('Chat content growth and keyboard layout follow the bottom only while the reader is following', () => {
+  const f = require('./helpers/chat-scroll-fixture.cjs')();
+  f.handleContentResize(); f.paint(); assert.equal(f.metrics.calls, 1);
+  f.handleContentResize(); f.preserveCardReading(); f.paint(); assert.equal(f.metrics.calls, 1);
+  f.handleContentResize(); assert.equal(f.frames.size, 0);
+  f.scrollToBottom(); f.paint(); assert.equal(f.metrics.calls, 2);
   const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8');
-  const ast = ts.createSourceFile('chat.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const screen = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'ChatScreen');
-  const names = ['scrollToBottom', 'preserveCardReading', 'handleContentResize'];
-  const declarations = names.map(name => screen.body.statements.find(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => declaration.name.getText(ast) === name)).getText(ast)).join('\n');
-  let scrolled = 0; const timers = [];
-  const context = { scrollFrame: { current: null }, requestAnimationFrame: fn => { timers.push(fn); return timers.length; }, useCallback: fn => fn, followContentResize: { current: true }, flatListRef: { current: { scrollToEnd() { scrolled++; } } }, setTimeout: fn => timers.push(fn) };
-  vm.createContext(context); vm.runInContext(ts.transpileModule(declarations + '\nglobalThis.handlers = {scrollToBottom, preserveCardReading, handleContentResize};', { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context);
-  const { scrollToBottom, preserveCardReading, handleContentResize } = context.handlers;
-  handleContentResize(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 1);
-  handleContentResize(); preserveCardReading(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 1);
-  handleContentResize(); assert.equal(timers.length, 0);
-  scrollToBottom(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 2);
   assert.match(source, /onScrollBeginDrag=/); assert.match(source, /removeClippedSubviews=\{false\}/);
 });
