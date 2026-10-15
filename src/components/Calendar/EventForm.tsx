@@ -1,13 +1,13 @@
 import { FormTextInput } from '../form-text-input';
 import { useSheetDraft } from '../sheet-draft';
 import React, { useState, useMemo } from 'react';
-import {
+import { ActivityIndicator,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-} from 'react-native';
+ } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../constants/theme';
 import type { CalendarEvent } from '../../store';
@@ -195,7 +195,7 @@ export function EventForm({ initialDate, onSave, onCancel, initialData, onBefore
           onPress={handleSave}
           disabled={saving || (!description.trim())} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
-            <Text style={styles.saveBtnText}>Adicionar</Text>
+            {saving ? <ActivityIndicator color={Colors.onAction} /> : <Text style={styles.saveBtnText}>Adicionar</Text>}
         </TouchableOpacity>
       </View>
     </View>

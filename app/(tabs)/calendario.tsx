@@ -132,21 +132,15 @@ export default function CalendarioScreen() {
 
   const handleMonthChange = useCallback(
     (direction: -1 | 1) => {
-      setLoading(true);
       if (direction === -1) prevMonth();
       else nextMonth();
-      const timer = setTimeout(() => setLoading(false), 400);
-      return () => clearTimeout(timer);
     },
     [prevMonth, nextMonth]
   );
 
   const handleSelectDayEvent = useCallback(
-    (day: number) => {
-      setLoading(true);
-      selectDay(day);
-      const timer = setTimeout(() => setLoading(false), 300);
-      return () => clearTimeout(timer);
+    (day: number, exactDate?: string) => {
+      selectDay(day, exactDate);
     },
     [selectDay]
   );
@@ -216,15 +210,9 @@ export default function CalendarioScreen() {
           Math.abs(gs.dx) > 25 && Math.abs(gs.dy) < 15,
         onPanResponderRelease: (_, gs) => {
           if (gs.dx > 50) {
-            setLoading(true);
             prevDay();
-            const t = setTimeout(() => setLoading(false), 300);
-            return () => clearTimeout(t);
           } else if (gs.dx < -50) {
-            setLoading(true);
             nextDay();
-            const t = setTimeout(() => setLoading(false), 300);
-            return () => clearTimeout(t);
           }
         },
       }),
@@ -276,9 +264,7 @@ export default function CalendarioScreen() {
 
           <FilterChips selected={filter} onSelect={setFilter} counts={filterCounts} />
 
-          {loading ? (
-            <SkeletonLoader />
-          ) : sortedEvents.length === 0 ? (
+          {sortedEvents.length === 0 ? (
             <EmptyState filter={filter !== 'all' ? filter : undefined} />
           ) : (
             sortedEvents.map((event) => (

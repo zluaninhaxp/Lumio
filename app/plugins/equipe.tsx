@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -292,9 +293,9 @@ export default function EquipeScreen() {
               >
                 <Text style={styles.cancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.confirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                 <Text style={styles.confirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>

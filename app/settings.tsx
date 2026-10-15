@@ -8,7 +8,6 @@ import type { BottomSheetHandle } from '../src/components/Calendar/BottomSheet';
 import { useAuth } from '../src/hooks/useAuth';
 import { authService } from '../src/services/authService';
 import { AppAlert } from "@/src/services/appAlert";
-import { AppFeedback } from "@/src/components/app-feedback";
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -37,7 +36,7 @@ export default function SettingsScreen() {
     if (next.length < 6) { setError('A nova senha deve ter pelo menos 6 caracteres.'); return; }
     if (next !== confirm) { setError('As senhas não coincidem.'); return; }
     pending.current = true; setSaving(true); setError('');
-    try { await authService.changePassword(currentUser.id, current, next); editor.current?.close(); AppFeedback.show('Senha atualizada', 'Sua senha foi alterada com sucesso.'); }
+    try { await authService.changePassword(currentUser.id, current, next); editor.current?.close(); }
     catch { setError('Não foi possível atualizar a senha. Confira os dados e tente novamente.'); }
     finally { pending.current = false; setSaving(false); }
   };

@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -235,9 +236,9 @@ export default function GenericPluginScreen() {
               <TouchableOpacity activeOpacity={ControlOpacity.pressed}
                 style={styles.modalConfirm}
                 onPress={handleSave} accessibilityRole="button" disabled={handleSaveConfirmation.saving}
-              >
+              >{handleSaveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>

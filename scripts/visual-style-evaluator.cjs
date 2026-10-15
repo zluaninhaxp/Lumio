@@ -4,7 +4,7 @@ function evaluate(file, cache=new Map()) {
  if(cache.has(file))return cache.get(file);
  const module={exports:{}}, sheets=[];
  const native={Platform:{OS:'android',Version:35},StyleSheet:{create:s=>{sheets.push(s);return s},absoluteFillObject:{position:'absolute',left:0,right:0,top:0,bottom:0}},Animated:{Value:class{},createAnimatedComponent:x=>x},Dimensions:{get:()=>({width:390,height:844})}};
- const shared=['src/constants/theme.ts','src/components/module-text-styles.ts','src/components/form-action-styles.ts','app/components/Tasks/taskFormStyles.ts','app/components/Forms/pluginFormStyles.ts'];
+ const shared=['src/constants/theme.ts','src/components/module-text-styles.ts','src/components/form-action-styles.ts','src/components/Tasks/taskFormStyles.ts','src/components/Forms/pluginFormStyles.ts'];
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports:module.exports,module,require(name){
  if(name==='react-native')return native;
  if(name.endsWith('accountScope'))return { draftIdentity:()=>null,onDraftIdentityChange:()=>()=>{} };

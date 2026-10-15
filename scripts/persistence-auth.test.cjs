@@ -8,7 +8,7 @@ function fixture() {
   const user = { id: 'a', email: 'a@example.invalid', onboardingCompleted: true };
   const state = { tasks: [], hydrateOnboarding() {}, hydrateLearnedIntentMarkers() {}, resetOnboardingState() {} };
   let cursor = 0, mounted = false, tree, started = null, authListener;
-  const controls = { restoreError: null, hydrationError: null, logoutError: null, restoreResult: { user }, deferredRecord: null };
+  const controls = { restoreError: null, hydrationError: null, logoutError: null, restoreResult: { user }, deferredRecord: null, loginError: null, loginPending: null };
   const hooks = {
     createContext: () => ({ Provider: 'Provider' }),
     useState(initial) { const i = cursor++; if (!(i in slots)) slots[i] = initial; return [slots[i], value => { slots[i] = typeof value === 'function' ? value(slots[i]) : value; }]; },
@@ -27,7 +27,7 @@ function fixture() {
     'react-native': { Platform: { OS: 'android' }, AppState: { currentState: 'active', addEventListener: (name, fn) => { events[name] = fn; return { remove() {} }; } } },
     '../lib/supabase': { supabase },
     '../services/legacy-ai-key-cleanup': { clearLegacyAiKey: async () => {} },
-    '../services/authService': { authService: { async restoreSession() { if (controls.restoreError) throw controls.restoreError; return controls.restoreResult; }, async login() { return { user }; }, async register() { return { user }; }, async logout() { if (controls.logoutError) throw controls.logoutError; authListener?.('SIGNED_OUT'); } } },
+    '../services/authService': { authService: { async restoreSession() { if (controls.restoreError) throw controls.restoreError; return controls.restoreResult; }, async login() { await controls.loginPending; if (controls.loginError) throw controls.loginError; return { user }; }, async register() { return { user }; }, async logout() { if (controls.logoutError) throw controls.logoutError; authListener?.('SIGNED_OUT'); } } },
     '../services/userService': { userService: { getById: async () => user } },
     '../services/onboardingService': { onboardingService: { async getResponses() { if (controls.deferredRecord) await controls.deferredRecord; if (controls.hydrationError) throw controls.hydrationError; return { responses: {}, activatedPlugins: [] }; } } },
     '../repositories/learnedIntentRepository': { learnedIntentRepository: { getAll: async () => [] } },
@@ -68,4 +68,39 @@ test('failed explicit logout retains identity and private state', async () => {
 test('an explicitly invalidated session may clear identity; temporary failures may not', async () => {
   const f = fixture(); f.render(); let value = await f.settle(); f.controls.restoreResult = null;
   await value.retryInitialization(); value = f.render(); assert.equal(value.currentUser, null); assert.equal(value.ready, true);
+});
+
+test('failed login restores readiness and returns the original error without changing routes', async () => {
+  const f = fixture(); f.controls.restoreResult = null; f.render(); let value = await f.settle();
+  let release; f.controls.loginPending = new Promise(resolve => { release = resolve; });
+  const invalid = Error('E-mail ou senha não conferem.'); f.controls.loginError = invalid;
+  const attempt = value.login('missing@example.invalid', 'invalid'); value = f.render();
+  assert.equal(value.loading, true); assert.equal(value.isAuthenticated, false);
+  release(); await assert.rejects(attempt, error => error === invalid);
+  value = f.render(); assert.equal(value.loading, false); assert.equal(value.ready, true); assert.equal(value.initializationError, null);
+});
+
+test('credential and connection errors have different friendly messages', () => {
+  const module = { exports: {} };
+  const errors = { exports: {} };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/types/errors.ts','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: errors, exports: errors.exports });
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/services/authError.ts','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module, exports: module.exports, require: () => errors.exports, Error, console });
+  const translate = module.exports.throwAuthError;
+  assert.throws(() => translate({ code: 'invalid_credentials', message: 'Invalid login credentials' }), error => error.code === 'INVALID_PASSWORD' && /E-mail ou senha/.test(error.message));
+  assert.throws(() => translate({ code: 'user_not_found', message: 'User not found' }), error => error.code === 'INVALID_PASSWORD');
+  assert.throws(() => translate({ name: 'AuthRetryableFetchError', message: 'Network request failed' }), error => !error.code && /internet/.test(error.message));
+});
+
+test('persistence feedback keeps the current screen mounted throughout login and only shows actionable failures', () => {
+  let auth = { ready: true, loading: false }, status = { status: 'ready' };
+  const hooks = { useState: initial => [initial, () => {}], useEffect() {} };
+  const module = { exports: {} };
+  const code = ts.transpileModule(fs.readFileSync('src/components/persistence-feedback.tsx','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  vm.runInNewContext(code, { module, exports: module.exports, require: name => name === 'expo-router' ? { usePathname: () => '/login' } : name === 'expo-splash-screen' ? { hideAsync: async () => {} } : name === 'react' ? hooks : name === 'react/jsx-runtime' ? { Fragment: 'Fragment', jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) } : name.includes('useAuth') ? { useAuth: () => auth } : name.includes('businessStateService') ? { businessStateService: {}, businessSyncStatus: { get: () => status, subscribe() {} } } : name.includes('theme') ? { Colors: {}, Spacing: {}, Typography: {} } : {} });
+  const children = { screen: 'login', email: 'retained@example.invalid' };
+  for (const phase of [{ ready: true, loading: false }, { ready: false, loading: true }, { ready: true, loading: false }]) {
+    auth = phase; status = { status: phase.loading ? 'saving' : 'ready' };
+    const rendered = module.exports.PersistenceFeedback({ children });
+    assert.equal(rendered.props.children[1], children); assert.equal(rendered.props.children[0], false);
+  }
 });

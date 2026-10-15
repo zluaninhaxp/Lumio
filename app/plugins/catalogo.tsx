@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -111,7 +112,7 @@ export default function CatalogoScreen() {
           )}
           <View style={styles.modalActions}>
             <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalCancel} onPress={() => visibleSheet.current?.requestClose()} accessibilityRole="button"><Text style={styles.modalCancelText}>Cancelar</Text></TouchableOpacity>
-            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}><Text style={styles.modalConfirmText}>{reviewingType ? 'Confirmar tipo' : 'Salvar'}</Text></TouchableOpacity>
+            <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <><Text style={styles.modalConfirmText}>{reviewingType ? 'Confirmar tipo' : 'Salvar'}</Text></>}</TouchableOpacity>
           </View>
         </View>
       </View>

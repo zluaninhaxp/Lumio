@@ -1,4 +1,6 @@
-import { useState, useCallback, useMemo, useRef } from 'react';
+import { AppState } from 'react-native';
+import { localISO } from '../services/financialRules';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 
 const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const DAYS_SHORT = ['D','S','T','Q','Q','S','S'];
@@ -12,12 +14,32 @@ function getFirstDayOfMonth(year: number, month: number) {
 }
 
 export function useCalendarState() {
-  const today = useRef(new Date()).current;
-  const todayStr = useMemo(() => today.toISOString().split('T')[0], [today]);
+  const [today, setToday] = useState(() => new Date());
+  const todayStr = useMemo(() => localISO(today), [today]);
 
   const [visibleYear, setVisibleYear] = useState(today.getFullYear());
   const [visibleMonth, setVisibleMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState(todayStr);
+  const previousToday = useRef(todayStr);
+  const selection = useRef({ selectedDate, visibleYear, visibleMonth });
+  selection.current = { selectedDate, visibleYear, visibleMonth };
+  useEffect(() => {
+    const refresh = () => {
+      const now = new Date(); const next = localISO(now); const previous = previousToday.current;
+      if (next === previous) return;
+      previousToday.current = next; setToday(now);
+      if (selection.current.selectedDate === previous) {
+        setSelectedDate(next);
+        const old = new Date(previous + 'T12:00:00');
+        if (selection.current.visibleYear === old.getFullYear() && selection.current.visibleMonth === old.getMonth()) {
+          setVisibleYear(now.getFullYear()); setVisibleMonth(now.getMonth());
+        }
+      }
+    };
+    const timer = setInterval(refresh, 1000);
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') refresh(); });
+    return () => { clearInterval(timer); subscription.remove(); };
+  }, []);
   const [calendarExpanded, setCalendarExpanded] = useState(true);
   const [filter, setFilter] = useState<'all' | 'event' | 'task'>('all');
   const [animating, setAnimating] = useState(false);
@@ -63,7 +85,7 @@ export function useCalendarState() {
   );
 
   const selectDay = useCallback(
-    (day: number) => setSelectedDate(dateString(day)),
+    (day: number, exactDate?: string) => { const selected = exactDate ?? dateString(day); setSelectedDate(selected); const date = new Date(selected + 'T12:00:00'); setVisibleYear(date.getFullYear()); setVisibleMonth(date.getMonth()); },
     [dateString]
   );
 
@@ -89,7 +111,7 @@ export function useCalendarState() {
     (direction: -1 | 1) => {
       const current = new Date(selectedDate + 'T12:00:00');
       current.setDate(current.getDate() + direction);
-      const newDateStr = current.toISOString().split('T')[0];
+      const newDateStr = localISO(current);
       setSelectedDate(newDateStr);
       const newMonth = current.getMonth();
       const newYear = current.getFullYear();
@@ -123,7 +145,7 @@ export function useCalendarState() {
       date.setDate(weekStart.getDate() + i);
       return {
         day: date.getDate(),
-        dateStr: date.toISOString().split('T')[0],
+        dateStr: localISO(date),
         label: DAYS_SHORT[i],
         index: i,
       };

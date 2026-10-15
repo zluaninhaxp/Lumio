@@ -21,9 +21,9 @@ export const chatHistoryService = {
     let cursor = 0;
     while (true) {
       const { data, error } = await supabase.from('chat_messages').select('sequence,payload').eq('owner_id', userId).gt('sequence', cursor).order('sequence').limit(500);
-      if (error) throw new Error('Não foi possível carregar o Chat (' + error.code + '). Tente novamente.');
+      if (error) throw new Error('Não foi possível carregar a conversa. Verifique a conexão e tente novamente.');
       if (epoch !== generation) return;
-      for (const row of data ?? []) { confirmedIds.add(row.payload.id); messages.push(live.find(item => item.id === row.payload.id) ?? deserializeChatMessage(row.payload)); }
+      for (const row of data ?? []) { confirmedIds.add(row.payload.id); messages.push({ ...(live.find(item => item.id === row.payload.id) ?? deserializeChatMessage(row.payload)), pending: false }); }
       if (!data || data.length < 500) break;
       cursor = data[data.length - 1].sequence;
     }
@@ -37,6 +37,7 @@ export const chatHistoryService = {
     }
     owner = userId;
     const current = owner === userId ? useAppStore.getState().chatHistory : [];
+    pending = pending.filter(payload => !confirmedIds.has(String(payload.id)));
     const recovered = pending.map(payload => ({ ...deserializeChatMessage(payload), pending: true, historical: true }));
     useAppStore.getState().setChatHistory([...messages, ...current.filter(item => !messages.some(existing => existing.id === item.id) && !pending.some(payload => payload.id === item.id)), ...recovered]);
   },

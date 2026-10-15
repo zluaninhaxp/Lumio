@@ -204,3 +204,95 @@ test('inverting a definitively rejected preparation never removes an unrelated l
   f.store.setState({ tasks: [task('invalid', 'edited afterward')] });
   assert.equal(f.businessStateService.cancelRejectedPreparation(before, baseline), false); assert.equal(f.state.tasks[0].description, 'edited afterward');
 });
+
+// Execute the actual screen callbacks against the persistence fixture (no native renderer).
+function chatScreen(f) {
+  const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8');
+  const ast = ts.createSourceFile('chat.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const screen = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'ChatScreen');
+  const names = ['commitMessages', 'runChatAction', 'drainQueue', 'enqueueText', 'retryMessages', 'handleSend'];
+  const declarations = names.map(name => screen.body.statements.find(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => declaration.name.getText(ast) === name)).getText(ast)).join('\n');
+  let input = 'draft', error = false, processed = [];
+  const ref = current => ({ current });
+  const context = {
+    businessStateService: f.businessStateService, chatHistoryService: f.chat,
+    useAppStore: f.store, useCallback: fn => fn,
+    sendingRef: ref(false), pendingPair: ref(null), pendingCompletion: ref(null), chosenMessage: ref(null),
+    optimisticUser: ref(null), queue: ref([]), draining: ref(false), submittedDraft: ref(null),
+    setSending() {}, setSendError(value) { error = value; }, setInput(value) { input = value; },
+    processLatest: ref(text => { processed.push(text); if (text.startsWith('task:')) f.store.setState({ tasks: [...f.state.tasks, task(text)] }); return { botText: 'Processed ' + text }; }),
+    refreshOrcamentos() {}, refreshContratos() {}, scrollToBottom() {},
+    isRejectedValidation: f.load('src/services/persistenceErrors.ts').isRejectedValidation,
+    sendError: false, input: 'draft', Date, Math, setTimeout, Promise,
+  };
+  vm.createContext(context);
+  const code = ts.transpileModule(declarations + '\nglobalThis.handlers = { enqueueText, drainQueue, retryMessages, handleSend };', { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
+  vm.runInContext(code, context);
+  return { ...context.handlers, processed, get input() { return input; }, get error() { return error; }, async settle() { for (let i = 0; i < 60 && context.draining.current; i++) await new Promise(resolve => setTimeout(resolve, 5)); }, context };
+}
+
+test('rapid Chat sends display immediately, clear the composer, persist in order and restore on a second device', async () => {
+  const f = fixture(); await f.start(); const screen = chatScreen(f);
+  let release; f.controls.requestPending = new Promise(resolve => { release = resolve; });
+  screen.enqueueText('first'); screen.enqueueText('second'); screen.enqueueText('third');
+  assert.deepEqual(clone(f.state.chatHistory.map(m => m.text)), ['first', 'second', 'third']);
+  assert.equal(screen.input, ''); assert.equal(f.state.chatHistory.every(m => m.pending), true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.state.chatHistory.some(m => m.type === 'bot'), false);
+  release(); await screen.settle();
+  assert.deepEqual(Array.from(screen.processed), ['first', 'second', 'third']);
+  assert.equal(f.state.chatHistory.length, 6); assert.equal(new Set(f.state.chatHistory.map(m => m.id)).size, 6);
+  const reopened = fixture(f.shared); await reopened.start();
+  assert.deepEqual(clone(reopened.state.chatHistory.map(m => m.id)), clone(f.state.chatHistory.map(m => m.id)));
+  assert.equal(reopened.state.chatHistory.every(m => !m.pending && m.historical), true);
+});
+
+test('Chat failure retains the visible user message; retry does not repeat business preparation or publish early success', async () => {
+  const f = fixture(); await f.start(); const screen = chatScreen(f); f.controls.offline = true;
+  screen.enqueueText('task:one'); await screen.settle();
+  assert.equal(screen.error, true); assert.equal(f.state.chatHistory.length, 1); assert.equal(f.state.chatHistory[0].pending, true);
+  assert.equal(f.row().snapshot.tasks.length, 0); assert.equal(screen.processed.length, 1);
+  f.controls.offline = false; await screen.retryMessages();
+  assert.equal(screen.processed.length, 1); assert.equal(f.row().snapshot.tasks.length, 1); assert.equal(f.state.chatHistory.length, 2);
+  assert.equal(f.state.chatHistory.every(m => !m.pending), true);
+});
+
+test('Chat lost response retries use the original request and message IDs without executing commands twice', async () => {
+  const f = fixture(); await f.start(); const screen = chatScreen(f); f.controls.loseResponse = true;
+  screen.enqueueText('task:one'); await screen.settle();
+  const originalId = f.state.chatHistory[0].id;
+  assert.equal(screen.error, true); assert.equal(f.row().snapshot.tasks.length, 1); assert.equal(f.state.chatHistory.length, 1);
+  await screen.retryMessages();
+  assert.equal(screen.processed.length, 1); assert.equal(f.state.chatHistory[0].id, originalId);
+  assert.equal(f.row().snapshot.tasks.length, 1); assert.equal(f.row().messages.length, 2); assert.equal(f.controls.writes, 1);
+});
+
+test('double taps on the same Chat draft enqueue only once', async () => {
+  const f = fixture(); await f.start(); const screen = chatScreen(f);
+  screen.handleSend(); screen.handleSend(); await screen.settle();
+  assert.equal(screen.processed.length, 1); assert.equal(f.row().messages.length, 2);
+});
+
+test('definitively rejected Chat commands retain user text and never show a success response', async () => {
+  const f = fixture(); await f.start(); const screen = chatScreen(f); f.controls.rejectValidation = '23514';
+  screen.enqueueText('task:invalid'); await screen.settle();
+  assert.equal(screen.error, true); assert.equal(f.state.chatHistory.length, 1); assert.equal(f.state.chatHistory[0].text, 'task:invalid');
+  assert.equal(f.row().snapshot.tasks.length, 0); assert.equal(f.state.tasks.length, 0);
+});
+
+test('Chat content growth and keyboard layout follow the bottom only while the reader is following', () => {
+  const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8');
+  const ast = ts.createSourceFile('chat.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const screen = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'ChatScreen');
+  const names = ['scrollToBottom', 'preserveCardReading', 'handleContentResize'];
+  const declarations = names.map(name => screen.body.statements.find(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => declaration.name.getText(ast) === name)).getText(ast)).join('\n');
+  let scrolled = 0; const timers = [];
+  const context = { useCallback: fn => fn, followContentResize: { current: true }, flatListRef: { current: { scrollToEnd() { scrolled++; } } }, setTimeout: fn => timers.push(fn) };
+  vm.createContext(context); vm.runInContext(ts.transpileModule(declarations + '\nglobalThis.handlers = {scrollToBottom, preserveCardReading, handleContentResize};', { compilerOptions: { target: ts.ScriptTarget.ES2020 } }).outputText, context);
+  const { scrollToBottom, preserveCardReading, handleContentResize } = context.handlers;
+  handleContentResize(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 1);
+  handleContentResize(); preserveCardReading(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 1);
+  handleContentResize(); assert.equal(timers.length, 0);
+  scrollToBottom(); timers.splice(0).forEach(fn => fn()); assert.equal(scrolled, 2);
+  assert.match(source, /onScrollBeginDrag=/); assert.match(source, /removeClippedSubviews=\{false\}/);
+});

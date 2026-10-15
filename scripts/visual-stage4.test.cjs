@@ -71,8 +71,8 @@ test('AI header uses the Resources variant and retains its existing back cleanup
 test('form integrations retain native focus tracking and masked-key rendering', () => {
   const s = fs.readFileSync('app/plugins/vendas.tsx', 'utf8');
   assert.equal((s.match(/onFocus=\{\(\) => setFocusedItemId\(item.id\)\}/g) || []).length, 2);
-  for (const file of ['app/components/Tasks/TaskForm.tsx', 'app/components/Calendar/EventForm.tsx',
-    'app/components/Calendar/AppointmentForm.tsx', 'app/components/Finance/QuickAddForm.tsx',
+  for (const file of ['src/components/Tasks/TaskForm.tsx', 'src/components/Calendar/EventForm.tsx',
+    'src/components/Calendar/AppointmentForm.tsx', 'src/components/Finance/QuickAddForm.tsx',
     'src/components/information-editor.tsx', 'src/components/api-key-input.tsx']) {
     const source = fs.readFileSync(file, 'utf8');
     assert.match(source, /<FormTextInput/); assert.doesNotMatch(source, /<TextInput\b/);

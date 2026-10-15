@@ -15,7 +15,6 @@ import { businessStateService } from '../src/services/businessStateService';
 import { useAppStore } from '../src/store';
 import { ControlOpacity, Colors, FontSize, Radius, Spacing, Typography } from '../src/constants/theme';
 import { AppAlert } from "@/src/services/appAlert";
-import { AppFeedback } from "@/src/components/app-feedback";
 
 type Editing = 'personal' | 'business' | null;
 export default function ProfileScreen() {
@@ -26,8 +25,8 @@ export default function ProfileScreen() {
   useEffect(() => { setName(currentUser?.name ?? ''); setRole(currentUser?.role ?? ''); setPhone(currentUser?.phone ?? ''); }, [currentUser]);
   useEffect(() => { setBusinessNameDraft(businessName); setBusinessTypeDraft(businessType); }, [businessName, businessType]);
   const cancel = () => { setEditing(null); setError(''); setName(currentUser?.name ?? ''); setRole(currentUser?.role ?? ''); setPhone(currentUser?.phone ?? ''); setBusinessNameDraft(businessName); setBusinessTypeDraft(businessType); };
-  const savePersonal = async () => { if (!name.trim()) return setError('Informe seu nome para continuar.'); setSaving(true); setError(''); try { await updateUser({ name, role, phone }); editorRef.current?.close(); AppFeedback.show('Dados atualizados', 'Suas informações foram salvas.'); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
-  const saveBusiness = async () => { if (!businessNameDraft.trim()) return setError('Informe o nome do negócio para continuar.'); if (!currentUser) return; setSaving(true); setError(''); try { const nextName = businessNameDraft.trim(); const nextType = businessTypeDraft.trim(); updateBusinessDetails(nextName, nextType); await businessStateService.commit();  editorRef.current?.close(); AppFeedback.show('Negócio atualizado', 'Nome e ramo foram salvos sem refazer sua configuração inicial.'); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
+  const savePersonal = async () => { if (!name.trim()) return setError('Informe seu nome para continuar.'); setSaving(true); setError(''); try { await updateUser({ name, role, phone }); editorRef.current?.close(); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
+  const saveBusiness = async () => { if (!businessNameDraft.trim()) return setError('Informe o nome do negócio para continuar.'); if (!currentUser) return; setSaving(true); setError(''); try { const nextName = businessNameDraft.trim(); const nextType = businessTypeDraft.trim(); updateBusinessDetails(nextName, nextType); await businessStateService.commit();  editorRef.current?.close(); } catch { setError('Não foi possível salvar agora. Tente novamente.'); } finally { setSaving(false); } };
   const editorRef = useRef<BottomSheetHandle>(null);
   const openEditor = (section: Editing) => { cancel(); setEditing(section); };
   return <AccountScreen><AccountHeader refined title="Meu perfil" onBack={() => router.back()} /><ScrollView contentContainerStyle={accountLayout.content} showsVerticalScrollIndicator={false}>

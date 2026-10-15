@@ -31,17 +31,17 @@ export function PersistenceFeedback({ children }: { children: ReactNode }) {
       else if (initializationError || !businessStateService.isStarted()) await retryInitialization();
       else { await businessStateService.commit(); await refreshUser(); }
     } catch (error) {
-      AppAlert.alert('Não foi possível sincronizar', error instanceof Error ? error.message : 'Tente novamente com internet.', undefined, { variant: 'warning' });
+      AppAlert.alert('Não foi possível salvar', 'Verifique a conexão e tente novamente. Suas alterações foram preservadas.', undefined, { variant: 'warning' });
     } finally { setBusy(false); }
   };
-  const button = (label: string, choice?: 'local' | 'remote') => <TouchableOpacity disabled={busy || loading} onPress={() => void retry(choice)} accessibilityRole="button" style={{ padding: Spacing.sm }}><Text style={{ color: Colors.accentText, fontFamily: Typography.semibold, textAlign: 'center' }}>{label}</Text></TouchableOpacity>;
-  if (!ready && loading && !splashReleased && !initializationError) return null;
-  if (!ready && (initializationError || loading)) return <View style={{ flex: 1, justifyContent: 'center', padding: Spacing.xl, backgroundColor: Colors.bg }}>
+  const button = (label: string, choice?: 'local' | 'remote') => <TouchableOpacity disabled={busy || loading} onPress={() => void retry(choice)} accessibilityRole="button" style={{ padding: Spacing.sm }}><Text style={{ color: Colors.accentText, fontFamily: Typography.semibold, textAlign: 'center' }}>{label}</Text>{busy && <ActivityIndicator color={Colors.accentIcon} />}</TouchableOpacity>;
+  if (!ready && pathname === '/' && loading && !splashReleased && !initializationError) return null;
+  if (!ready && pathname === '/' && (initializationError || splashReleased)) return <View style={{ flex: 1, justifyContent: 'center', padding: Spacing.xl, backgroundColor: Colors.bg }}>
     {loading ? <><ActivityIndicator color={Colors.accentIcon} /><Text accessibilityLiveRegion="polite" style={{ color: Colors.ink, textAlign: 'center', marginTop: Spacing.md }}>Carregando conta…</Text></> : <><Text style={{ color: Colors.ink, fontFamily: Typography.medium, textAlign: 'center' }}>{initializationError}</Text>{button('Tentar novamente')}</>}
   </View>;
   return <>
-    {['error', 'conflict', 'warning', 'saving'].includes(sync.status) && <View accessibilityLiveRegion="polite" style={{ padding: Spacing.sm, backgroundColor: Colors.warningActionBackground }}>
-      <Text style={{ color: Colors.ink, textAlign: 'center', fontFamily: Typography.regular }}>{sync.status === 'saving' ? 'Confirmando alterações…' : sync.error}</Text>
+    {['error', 'conflict', 'warning'].includes(sync.status) && <View accessibilityLiveRegion="polite" style={{ padding: Spacing.sm, backgroundColor: Colors.warningActionBackground }}>
+      <Text style={{ color: Colors.ink, textAlign: 'center', fontFamily: Typography.regular }}>{initializationError || (sync.status === 'conflict' ? 'Há alterações diferentes neste aparelho e em outro. Escolha qual versão manter.' : sync.status === 'warning' ? 'Alguns dados antigos precisam de atenção. Entre em contato pelo menu Privacidade e suporte.' : 'Não foi possível salvar suas últimas alterações. Verifique a conexão e tente novamente.')}</Text>
       {sync.status === 'error' && button('Tentar novamente')}
       {sync.status === 'conflict' && <View style={{ flexDirection: 'row', justifyContent: 'center' }}>{businessStateService.canKeepLocal() && button('Manter minha edição', 'local')}{button('Usar edição remota', 'remote')}<TouchableOpacity onPress={() => AppAlert.alert('Campos em conflito', businessStateService.conflictDetails(), undefined, { variant: 'warning' })} style={{ padding: Spacing.sm }}><Text style={{ color: Colors.accentText }}>Ver conflitos</Text></TouchableOpacity></View>}
     </View>}

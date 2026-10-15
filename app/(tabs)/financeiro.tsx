@@ -89,7 +89,6 @@ export default function FinanceiroScreen() {
     fmtClean,
   } = useFinanceState();
 
-  const [loading, setLoading] = useState(true);
   const [sheetVisible, setSheetVisible] = useState(false);
   const [editingItem, setEditingItem] = useState<Transaction | null>(null);
   const [dynamicHeaderHeight, setDynamicHeaderHeight] = useState(HEADER_DEFAULT_HEIGHT);
@@ -103,8 +102,7 @@ export default function FinanceiroScreen() {
 
   useEffect(() => {
     refreshContratos();
-    const timer = setTimeout(() => setLoading(false), 600);
-    return () => clearTimeout(timer);
+
   }, [refreshContratos]);
 
   const openAddSheet = useCallback(() => {
@@ -255,21 +253,17 @@ export default function FinanceiroScreen() {
 
   const ListEmpty = useMemo(
     () =>
-      loading ? (
-        <View style={styles.emptyContainer}>
-          <FinanceSkeleton />
-        </View>
-      ) : (
+      (
         <FinanceEmptyState
           hasFilters={hasActiveFilters}
           onClearFilters={clearFilters}
           emptyMonth={!periodHasData && !hasActiveFilters}
         />
       ),
-    [loading, hasActiveFilters, periodHasData, clearFilters]
+    [hasActiveFilters, periodHasData, clearFilters]
   );
 
-  const isEmpty = sections.length === 0 && !loading;
+  const isEmpty = sections.length === 0;
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

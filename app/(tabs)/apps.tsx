@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
   },
   moduleIcon: {
     width: 36, height: 36, borderRadius: Radius.md,
-    backgroundColor: Colors.mintBackground,
+    backgroundColor: Colors.bgCard,
     alignItems: 'center', justifyContent: 'center',
   },
   moduleName: {

@@ -103,7 +103,7 @@ test('baseline preserves layouts with approved empty/header and shared surface c
   assert.equal(checked, 817);
 });
 test('local form styles no longer declare keys overridden by a later shared spread', () => {
-  const shared = evaluate('app/components/Forms/pluginFormStyles.ts').exports.pluginFormStyles;
+  const shared = evaluate('src/components/Forms/pluginFormStyles.ts').exports.pluginFormStyles;
   for (const file of Object.keys(baseline).filter(file => file.startsWith('app/plugins/'))) {
     const source = ts.createSourceFile(file, fs.readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
     function visit(node) {

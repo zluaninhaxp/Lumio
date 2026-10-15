@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { ActivityIndicator, Text, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AccountHeader, AccountScreen } from '../src/components/account/_shared';
 import { accountLayout } from '../src/components/account-menu';
@@ -19,7 +19,7 @@ export default function RecoverAccess() {
       <Text style={{ color: Colors.ink, fontFamily: Typography.regular, lineHeight: 24 }}>{confirmation ? 'Sua conta foi criada. Confirme o e-mail para entrar. Se precisar, solicite outro link abaixo.' : 'Solicite um link para definir uma nova senha. Por segurança, o envio não confirma se o e-mail está cadastrado.'}</Text>
       <TextInput accessibilityLabel="E-mail" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoCorrect={false} editable={!busy} placeholder="E-mail" style={{ color: Colors.ink, padding: Spacing.lg, backgroundColor: Colors.bgCard, marginVertical: Spacing.lg }} />
       {message ? <Text accessibilityRole="alert" style={{ color: Colors.ink }}>{message}</Text> : null}
-      <TouchableOpacity disabled={busy} accessibilityRole="button" onPress={() => void submit()} style={{ padding: Spacing.lg }}><Text style={{ color: Colors.accentText }}>{busy ? 'Enviando…' : confirmation ? 'Reenviar confirmação' : 'Enviar link de recuperação'}</Text></TouchableOpacity>
+      <TouchableOpacity disabled={busy} accessibilityRole="button" onPress={() => void submit()} style={{ padding: Spacing.lg }}>{busy ? <ActivityIndicator color={Colors.accentIcon} /> : <Text style={{ color: Colors.accentText }}>{confirmation ? 'Reenviar confirmação' : 'Enviar link de recuperação'}</Text>}</TouchableOpacity>
       <TouchableOpacity accessibilityRole="link" onPress={() => router.replace('/login')} style={{ padding: Spacing.lg }}><Text style={{ color: Colors.accentText }}>Voltar para entrar</Text></TouchableOpacity>
     </ScrollView>
   </AccountScreen>;

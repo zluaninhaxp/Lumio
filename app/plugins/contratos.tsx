@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -404,9 +405,9 @@ export default function ContratosScreen() {
               <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.cancelButton} onPress={() => modalVisibleSheet.current?.requestClose()} accessibilityRole="button">
                 <Text style={styles.cancelButtonText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.saveButton} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                 <Text style={styles.saveText}>Salvar contrato</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>

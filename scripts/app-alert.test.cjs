@@ -61,7 +61,7 @@ test('queued decisions preserve their original callbacks and async return', asyn
   assert.equal(saved, true);
 });
 
-test('all internal calls use shared alerts; success feedback stays non-blocking', () => {
+test('all internal calls use shared alerts; routine saves stay quiet', () => {
   function files(folder) {
     return fs.readdirSync(folder, { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? files(`${folder}/${entry.name}`) : [`${folder}/${entry.name}`]);
   }
@@ -75,7 +75,8 @@ test('all internal calls use shared alerts; success feedback stays non-blocking'
     }
     assert.ok(!/window\.(confirm|alert)\s*\(/.test(source.text), file);
   }
-  for (const file of ['app/profile.tsx', 'app/settings.tsx', 'app/plugins/orcamentos.tsx']) assert.match(fs.readFileSync(file, 'utf8'), /AppFeedback\.show/);
+  for (const file of ['app/profile.tsx', 'app/settings.tsx']) assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /AppFeedback\.show/);
+  assert.match(fs.readFileSync('app/plugins/orcamentos.tsx', 'utf8'), /AppFeedback\.show/);
 });
 
 function dialogFixture() {

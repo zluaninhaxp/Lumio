@@ -43,7 +43,7 @@ test('empty state keeps full text, omits absent descriptions and preserves consu
   assert.equal(all.find(node => node.type === 'Action'), action);
 });
 test('calendar empty state stays centered and keeps filtered/unfiltered messages', () => {
-  const app = fixture('app/components/Calendar/EmptyState.tsx', 'EmptyState', {});
+  const app = fixture('src/components/Calendar/EmptyState.tsx', 'EmptyState', {});
   let tree = app.render(); assert.equal(tree.props.title, 'Seu dia está livre!'); assert.ok(tree.props.description);
   assert.equal(tree.props.style, undefined, 'asymmetric FAB clearance was shifting the centered copy');
   tree = app.render({ filter: 'task' }); assert.equal(tree.props.title, 'Nenhuma tarefa neste dia.'); assert.equal(tree.props.description, undefined);
@@ -54,7 +54,7 @@ test('calendar empty state stays centered and keeps filtered/unfiltered messages
 });
 test('financial empties retain the clear callback and distinguish no data from filtered results', () => {
   let cleared = 0;
-  const app = fixture('app/components/Finance/FinanceEmptyState.tsx', 'FinanceEmptyState', { hasFilters: false, onClearFilters: () => cleared++ });
+  const app = fixture('src/components/Finance/FinanceEmptyState.tsx', 'FinanceEmptyState', { hasFilters: false, onClearFilters: () => cleared++ });
   assert.equal(app.render().props.title, 'Nenhuma transação');
   assert.equal(app.render({ emptyMonth: true }).props.title, 'Nenhuma transação neste mês');
   let tree = app.render({ hasFilters: true, emptyMonth: false }); assert.equal(tree.props.title, 'Nenhum resultado encontrado');
@@ -95,8 +95,8 @@ test('all module empty lists/headers use the shared family; account headers are 
   assert.match(fs.readFileSync('app/plugins/[id].tsx', 'utf8'), /Nenhum \$\{def.itemLabel\} ainda\./);
 });
 test('option strips cover tags, date shortcuts, categories and appointment links without replacing the calendar grid', () => {
-  for (const file of ['app/(tabs)/tarefas.tsx', 'app/components/TagSelector.tsx', 'app/components/Tasks/TaskDateSelector.tsx', 'app/components/Finance/QuickAddForm.tsx', 'app/components/Calendar/AppointmentForm.tsx']) {
+  for (const file of ['app/(tabs)/tarefas.tsx', 'src/components/TagSelector.tsx', 'src/components/Tasks/TaskDateSelector.tsx', 'src/components/Finance/QuickAddForm.tsx', 'src/components/Calendar/AppointmentForm.tsx']) {
     assert.match(fs.readFileSync(file, 'utf8'), /<HorizontalOptions/);
   }
-  assert.match(fs.readFileSync('app/components/Tasks/TaskDateSelector.tsx', 'utf8'), /<ScrollView horizontal style=\{\{ flexGrow: 0 \}\}/);
+  assert.match(fs.readFileSync('src/components/Tasks/TaskDateSelector.tsx', 'utf8'), /<ScrollView horizontal style=\{\{ flexGrow: 0 \}\}/);
 });

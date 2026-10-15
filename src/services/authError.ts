@@ -7,7 +7,7 @@ export function throwAuthError(error: SupabaseAuthFailure): never {
   if (code === 'user_already_exists' || code === 'email_exists' || /already registered|already exists/i.test(message)) {
     throw new AuthError('EMAIL_ALREADY_REGISTERED');
   }
-  if (code === 'invalid_credentials' || /invalid login credentials|invalid password/i.test(message)) {
+  if (code === 'user_not_found' || code === 'invalid_credentials' || /invalid login credentials|invalid password/i.test(message)) {
     throw new AuthError('INVALID_PASSWORD');
   }
   if (code === 'email_not_confirmed') {

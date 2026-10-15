@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -418,9 +419,9 @@ export default function OrcamentosScreen() {
                 >
                   <Text style={styles.cancelLabel}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={save} accessibilityRole="button" disabled={saveConfirmation.saving}>{saveConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                   <Text style={styles.confirmLabel}>Salvar</Text>
-                </TouchableOpacity>
+                </>}</TouchableOpacity>
               </View>
             </View>
           </View>

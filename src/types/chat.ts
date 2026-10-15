@@ -15,6 +15,6 @@ export interface ChatHistoryMessage {
   timestamp: Date;
   /** Historical choices are display-only. Restoring a conversation never replays commands. */
   historical?: boolean;
-  /** Recovered, not acknowledged; never executable. */
+  /** Awaiting remote acknowledgement; restored choices remain historical and never replay commands. */
   pending?: boolean;
 }

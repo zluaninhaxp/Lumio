@@ -138,7 +138,7 @@ function requireOwner() {
 async function fetchRemote(): Promise<{ revision: number; snapshot: Snapshot }> {
   if (!supabase) throw new Error('Supabase não configurado.');
   const { data, error } = await supabase.rpc('get_business_state');
-  if (error) throw new Error('Não foi possível carregar seus dados (' + (error.code ?? 'conexão') + '). Tente novamente.');
+  if (error) throw new Error('Não foi possível carregar seus dados. Verifique a conexão e tente novamente.');
   if (!data || typeof data !== 'object' || !Number.isSafeInteger(data.revision)) throw new Error('Resposta inválida do servidor.');
   const { revision: value, ...snapshot } = data as { revision: number } & Snapshot;
   return { revision: value, snapshot };
@@ -207,7 +207,7 @@ async function drain() {
       if (error) {
         if (error.code === 'PT409' && conflicts++ < 3) { outstanding = null; await synchronize(); continue; }
         if (['23502','23503','23514','23505','22023','22P02','42501'].includes(error.code)) outstanding = null;
-        throw new PersistenceError('Não foi possível salvar (' + (error.code ?? 'conexão') + '). ' + (['23502','23503','23514','23505','22023','22P02'].includes(error.code) ? 'Revise os campos e vínculos do cadastro e tente novamente.' : 'Conecte-se à internet e tente novamente. Seu rascunho foi preservado.'), error.code ?? 'NETWORK');
+        throw new PersistenceError('Não foi possível salvar. ' + (['23502','23503','23514','23505','22023','22P02'].includes(error.code) ? 'Revise os campos e vínculos do cadastro e tente novamente.' : 'Conecte-se à internet e tente novamente. Seu rascunho foi preservado.'), error.code ?? 'NETWORK');
       }
       if (!Number.isSafeInteger(data) || data <= request.revision) throw new Error('O servidor não confirmou a gravação. Tente novamente.');
       revision = data as number;

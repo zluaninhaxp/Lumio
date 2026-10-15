@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
 import { FormTextInput } from '../../src/components/form-text-input';
@@ -341,9 +342,9 @@ export default function EstoqueScreen() {
               >
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button" disabled={saveItemConfirmation.saving}>
+              <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveItem} accessibilityRole="button" disabled={saveItemConfirmation.saving}>{saveItemConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Salvar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>
@@ -395,9 +396,9 @@ export default function EstoqueScreen() {
                   movementType === "saida" && styles.exitConfirm,
                 ]}
                 onPress={saveMovement} accessibilityRole="button" disabled={saveMovementConfirmation.saving}
-              >
+              >{saveMovementConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                 <Text style={styles.modalConfirmText}>Confirmar</Text>
-              </TouchableOpacity>
+              </>}</TouchableOpacity>
             </View>
           </View>
         </View>

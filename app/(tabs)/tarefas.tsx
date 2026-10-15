@@ -8,7 +8,7 @@ import { ModalScrollView } from '../../src/components/modal-scroll-view';
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  Modal, LayoutAnimation, Platform, ActivityIndicator,
+  Modal, LayoutAnimation, Platform,
   Pressable, ScrollView, KeyboardAvoidingView, Keyboard,
   type NativeMethods,
 } from 'react-native';
@@ -170,7 +170,7 @@ export default function TarefasScreen() {
   const [employeePicker, setEmployeePicker] = useState<string | null>(null);
   const [newTagName, setNewTagName] = useState('');
   const [newSubtaskTexts, setNewSubtaskTexts] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(true);
+
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   const allTaskTags = useMemo(
@@ -336,8 +336,7 @@ export default function TarefasScreen() {
   useEffect(() => {
     refreshOrcamentos();
     refreshContratos();
-    const timer = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(timer);
+
   }, [refreshOrcamentos, refreshContratos]);
 
   useEffect(() => {
@@ -1021,22 +1020,6 @@ export default function TarefasScreen() {
   ) : null;
 
   // ─────── Loading State ───────
-  if (isLoading) {
-    return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Tarefas</Text>
-          <UserAvatar user={currentUser} onPress={() => setAccountVisible(true)} />
-        </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.accentIcon} />
-          <Text style={styles.loadingText}>Carregando tarefas...</Text>
-        </View>
-        <AccountSheet visible={accountVisible} onClose={() => setAccountVisible(false)} />
-      </SafeAreaView>
-    );
-  }
-
   // ─────── Main Render ───────
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

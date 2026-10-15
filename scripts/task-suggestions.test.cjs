@@ -24,7 +24,7 @@ function fixture(file, imports) {
   return { render(name, arg) { cursor = 0; const result = module.exports[name](arg); while (effects.length) effects.shift()(); return result; } };
 }
 const nodes = node => !node ? [] : Array.isArray(node) ? node.flatMap(nodes) : typeof node === 'object' ? [node, ...nodes(node.props?.children)] : [];
-const ui = () => fixture('app/components/Tasks/ModuleSuggestions.tsx', name => {
+const ui = () => fixture('src/components/Tasks/ModuleSuggestions.tsx', name => {
   if (name === 'react-native') return { View: 'View', Text: 'Text', TouchableOpacity: 'TouchableOpacity', StyleSheet: { create: value => value } };
   if (name === '@expo/vector-icons') return { Ionicons: 'Ionicons' };
   if (name.endsWith('/theme')) return evaluate('src/constants/theme.ts').exports;

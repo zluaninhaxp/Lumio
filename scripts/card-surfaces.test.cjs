@@ -47,7 +47,7 @@ test('stock warnings and financial selection preserve non-border status cues', (
   assert.equal(stock.cardLow, undefined);
   assert.ok(stock.iconCircleLow.backgroundColor);
   assert.ok(stock.alertText.color);
-  const finance = evaluate('app/components/Finance/TransactionItem.tsx').styles;
+  const finance = evaluate('src/components/Finance/TransactionItem.tsx').styles;
   assert.equal(finance.card.borderWidth, 0);
   assert.equal(finance.cardSelected.borderWidth, undefined);
   assert.ok(finance.cardSelected.backgroundColor);

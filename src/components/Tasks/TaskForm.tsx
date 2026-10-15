@@ -1,12 +1,12 @@
 import { FormTextInput } from '../form-text-input';
 import { useSheetDraft } from '../sheet-draft';
 import React, { useState } from 'react';
-import {
+import { ActivityIndicator,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-} from 'react-native';
+ } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ControlOpacity, Colors, Spacing, Radius, FontSize, SurfaceStyles } from '../../constants/theme';
 import { useAppStore } from '../../store';
@@ -168,7 +168,7 @@ export function TaskForm({ onSave, onCancel, initialData, onBeforeNavigate , loc
           onPress={handleSave}
           disabled={saving || (!description.trim())} accessibilityRole="button" accessibilityState={{ disabled: !description.trim() }}
         >
-           <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>
+           {saving ? <ActivityIndicator color={Colors.onAction} /> : <Text style={styles.saveBtnText}>{initialData ? 'Salvar' : 'Adicionar'}</Text>}
         </TouchableOpacity>
       </View>
     </View>

@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { draftIdentity, onDraftIdentityChange } from '../../services/accountScope';
 import { localISO, dateInput, parseDateInput, financialDate, transactionOrigin } from '../../services/financialRules';
 import { HorizontalOptions } from '../horizontal-options';
@@ -244,7 +245,7 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
     <Text style={styles.title}>Revisar ano do histórico</Text>
     <Text style={styles.label}>O registro antigo tem apenas dia e mês. Informe a data completa conhecida; o valor e a origem serão preservados.</Text>
     <FormTextInput accessibilityLabel="Data completa do histórico" style={styles.input} value={transactionDate} onChangeText={value => setTransactionDate(formatTransactionDateInput(value))} placeholder="DD/MM/AAAA" maxLength={10} keyboardType="number-pad" editable={!financeSave.locked} />
-    <TouchableOpacity accessibilityRole="button" disabled={financeSave.locked || !parseDateInput(transactionDate)} onPress={() => void financeSave.run(() => { onSave({ ...editData, date: parseDateInput(transactionDate)! }); return onSaved; })} style={styles.presetBtn}><Text style={styles.label}>Confirmar data informada</Text></TouchableOpacity>
+    <TouchableOpacity accessibilityRole="button" disabled={financeSave.locked || !parseDateInput(transactionDate)} onPress={() => void financeSave.run(() => { onSave({ ...editData, date: parseDateInput(transactionDate)! }); return onSaved; })} style={styles.presetBtn}>{financeSave.saving ? <ActivityIndicator color={Colors.onAction} /> : <><Text style={styles.label}>Confirmar data informada</Text></>}</TouchableOpacity>
   </View>;
   return (
     <View style={styles.container}>
@@ -367,11 +368,11 @@ export function QuickAddForm({ onSave, onSaved, onCancel, editData, categories, 
         <TouchableOpacity activeOpacity={ControlOpacity.pressed}
           style={[styles.saveBtn, !canSave && styles.saveBtnDisabled]}
           onPress={handleSave} accessibilityRole="button" accessibilityState={{ disabled: !canSave }} disabled={!canSave || financeSave.saving}
-        >
+        >{financeSave.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
           <Text style={styles.saveBtnText}>
             {isEditing ? 'Salvar' : 'Adicionar'}
           </Text>
-        </TouchableOpacity>
+        </>}</TouchableOpacity>
       </View>
     </View>
   );

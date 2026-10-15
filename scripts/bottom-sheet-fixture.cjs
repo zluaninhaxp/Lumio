@@ -41,7 +41,7 @@ function fixture({ reducedMotion = false, deferClose = false, deferCancel = fals
     PanResponder: { create: handlers => ({ panHandlers: handlers }) },
   };
   const module = { exports: {} };
-  const source = ts.transpileModule(fs.readFileSync('app/components/Calendar/BottomSheet.tsx', 'utf8') + '\nexport { BottomSheetContent };', { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const source = ts.transpileModule(fs.readFileSync('src/components/Calendar/BottomSheet.tsx', 'utf8') + '\nexport { BottomSheetContent };', { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   vm.runInNewContext(source, { module, exports: module.exports, require(name) {
     if (name === 'react') return hooks;
     if (name === 'react/jsx-runtime') return { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }) };

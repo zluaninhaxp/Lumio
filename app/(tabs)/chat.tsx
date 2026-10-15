@@ -3,7 +3,6 @@ import type { Snapshot } from '../../src/services/syncMerge';
 import { localISO } from '../../src/services/financialRules';
 import { chatHistoryService } from '../../src/services/chatHistoryService';
 import { businessStateService } from '../../src/services/businessStateService';
-import { AppAlert } from '../../src/services/appAlert';
 import type { ChatHistoryMessage as Message, ChatAmbiguity, QuickActionValue } from '../../src/types/chat';
 import { useState, useRef, useCallback } from 'react';
 import {
@@ -65,7 +64,7 @@ const INITIAL_MESSAGES: Message[] = [
   {
     id: '0',
     type: 'bot',
-    text: 'Olá! Pode digitar qualquer coisa aqui — gastos, tarefas, compromissos. Eu cuido do resto. 👋',
+    text: 'Oi! 👋 Me conte o que você quer organizar: gastos, tarefas ou compromissos. Vamos juntos!',
     timestamp: new Date(),
   },
 ];
@@ -73,9 +72,16 @@ const INITIAL_MESSAGES: Message[] = [
 export default function ChatScreen() {
   const router = useRouter();
   const history = useAppStore((state) => state.chatHistory);
-  const messages = history.length ? history : INITIAL_MESSAGES;
+  const visibleHistory = history.filter(message => message.type === 'user' || !message.pending);
+  const messages = visibleHistory.length ? visibleHistory : INITIAL_MESSAGES;
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
+  const optimisticUser = useRef<Message | null>(null);
+  const queue = useRef<{ message: Message; journal: Promise<void> }[]>([]);
+  const draining = useRef(false);
+  const submittedDraft = useRef<string | null>(null);
+  const dragging = useRef(false);
+  const [sendError, setSendError] = useState(false);
   const pendingPair = useRef<Message[] | null>(null);
   const pendingCompletion = useRef<(() => void) | null>(null);
   const chosenMessage = useRef<string | null>(null);
@@ -90,6 +96,7 @@ export default function ChatScreen() {
 const { currentUser } = useAuth();
   useEffect(() => {
     pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
+    queue.current = []; optimisticUser.current = null; setSendError(false);
     setInput(''); setPendingCommand(null); setPendingStockCatalogName(null); setPendingFinancialText(null); setPendingIntentMarkerPhrase(null);
   }, [currentUser?.id]);
   const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
@@ -620,7 +627,7 @@ return date.toISOString().split('T')[0];
   const scrollToBottom = useCallback(() => {
     followContentResize.current = true;
     setTimeout(() => {
-      if (followContentResize.current) flatListRef.current?.scrollToEnd({ animated: true });
+      if (followContentResize.current) flatListRef.current?.scrollToEnd({ animated: false });
     }, 100);
   }, []);
   const preserveCardReading = useCallback(() => { followContentResize.current = false; }, []);
@@ -632,7 +639,7 @@ return date.toISOString().split('T')[0];
   const commitMessages = useCallback((userText: string, outcome: { botText?: string; actions?: string[]; botType?: 'bot' | 'fallback'; cards?: BotCard[]; quickActions?: Message['quickActions']; ambiguity?: ChatAmbiguity; fallbackSourceText?: string }) => {
     refreshOrcamentos();
     refreshContratos();
-    const userMsg: Message = {
+    const userMsg: Message = optimisticUser.current ?? {
       id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2),
       type: 'user',
       text: userText,
@@ -664,28 +671,31 @@ return date.toISOString().split('T')[0];
         if (!businessStateService.isStarted()) throw new Error('Aguarde o carregamento da conta.');
         before = businessStateService.capturePreparation();
         prepare();
-        if (pendingPair.current) businessStateService.stageChatPreparation(before, (pendingPair.current as Message[]).map(message => message.id));
+        if (pendingPair.current) businessStateService.stageChatPreparation(before, (pendingPair.current as Message[]).filter(message => message.type !== 'user').map(message => message.id));
         staged = true;
         pendingCompletion.current = finish ?? null;
       }
-      if (!pendingPair.current) return;
+      if (!pendingPair.current) return true;
       await chatHistoryService.stage(pendingPair.current);
       await businessStateService.commit();
-      if (scope !== businessStateService.scope()) { pendingPair.current = null; pendingCompletion.current = null; return; }
+      if (scope !== businessStateService.scope()) { pendingPair.current = null; pendingCompletion.current = null; return false; }
       if (chosenMessage.current) {
         useAppStore.getState().setChatHistory(useAppStore.getState().chatHistory.map(message => message.id === chosenMessage.current ? { ...message, historical: true, quickActions: undefined, actions: undefined } : message));
         chosenMessage.current = null;
       }
       pendingPair.current = null;
       pendingCompletion.current?.(); pendingCompletion.current = null;
-      scrollToBottom();
+      setSendError(false);
+      return true;
     } catch (error) {
+      if (scope !== businessStateService.scope()) return false;
       if (before && !staged && scope === businessStateService.scope()) businessStateService.cancelRejectedPreparation(before, businessStateService.capturePreparation());
       if (isRejectedValidation(error) || (before && !staged)) {
-        if (pendingPair.current) await chatHistoryService.reject(pendingPair.current.map(message => message.id));
+        if (pendingPair.current) await chatHistoryService.reject(pendingPair.current.filter(message => message.type !== 'user').map(message => message.id));
         pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
       }
-      AppAlert.alert('Mensagem não confirmada', error instanceof Error ? error.message : 'Tente novamente com internet. Sua tentativa foi preservada.', undefined, { variant: 'warning' });
+      setSendError(true);
+      return false;
     } finally {
       businessStateService.releaseChanges();
       sendingRef.current = false; setSending(false);
@@ -1084,29 +1094,65 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     return { botText, actions, botType, cards, fallbackSourceText: parsed.intent === 'UNKNOWN' ? text : undefined };
   }, [applyCommand, applyFinancialEngine, applyTaskEngineResult, handlePluginIntent, pendingCommand]);
 
+  const processLatest = useRef(processMessage);
+  processLatest.current = processMessage;
+  const drainQueue = useCallback(async () => {
+    if (draining.current || sendingRef.current) return;
+    draining.current = true;
+    const scope = businessStateService.scope();
+    try {
+      while (queue.current.length && scope === businessStateService.scope()) {
+        const job = queue.current[0];
+        optimisticUser.current = job.message;
+        try { await job.journal; }
+        catch { setSendError(true); break; }
+        if (pendingPair.current && pendingPair.current[0].id !== job.message.id) {
+          if (!await runChatAction(() => {})) break;
+        }
+        const success = await runChatAction(() => commitMessages(job.message.text, processLatest.current(job.message.text)));
+        if (!success) break;
+        if (queue.current[0] === job) queue.current.shift();
+        optimisticUser.current = null;
+        // React can commit updated conversational state before processing the next turn.
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+    } catch { setSendError(true); }
+    finally { draining.current = false; optimisticUser.current = null; }
+  }, [commitMessages, runChatAction]);
+  const enqueueText = useCallback((text: string) => {
+    if (!text.trim()) return;
+    const message: Message = { id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), type: 'user', text: text.trim(), timestamp: new Date(), pending: true };
+    useAppStore.getState().setChatHistory([...useAppStore.getState().chatHistory, message]);
+    const journal = chatHistoryService.stage([message]);
+    // Keep a rejected journal handled while an earlier turn is still running.
+    void journal.catch(() => setSendError(true));
+    queue.current.push({ message, journal });
+    setInput(''); scrollToBottom();
+    if (!sendError) void drainQueue();
+  }, [drainQueue, scrollToBottom, sendError]);
+  const retryMessages = useCallback(async () => {
+    if (draining.current || sendingRef.current) return;
+    setSendError(false);
+    if (queue.current.length) {
+      for (const job of queue.current) {
+        job.journal = chatHistoryService.stage([job.message]);
+        void job.journal.catch(() => setSendError(true));
+      }
+      await drainQueue();
+    } else {
+      try { if (pendingPair.current) await runChatAction(() => {}); else await businessStateService.commit(); }
+      catch { setSendError(true); }
+    }
+  }, [drainQueue, runChatAction]);
   const handleSend = useCallback(() => {
-  return runChatAction(() => {
-
-      const text = input.trim();
-      if (!text) return;
-      commitMessages(text, processMessage(text));
-
-
-  }, () => setInput(current => current === input ? '' : current));
-  }, [input, processMessage, commitMessages, runChatAction]);
-
-  const runCommandSuggestion = useCallback((commandName: string) => {
-  return runChatAction(() => {
-
-      const text = `/${commandName}`;
-      commitMessages(text, processMessage(text));
-
-
-  }, () => setInput(current => current === input ? '' : current));
-  }, [input, processMessage, commitMessages, runChatAction]);
+    if (!input.trim() || submittedDraft.current === input) return;
+    submittedDraft.current = input; enqueueText(input);
+  }, [enqueueText, input]);
+  const runCommandSuggestion = useCallback((name: string) => enqueueText(`/${name}`), [enqueueText]);
 
   const handleVoiceCapture = useCallback((transcript: string) => {
-    if (sendingRef.current || !transcript.trim()) return;
+    if (!transcript.trim()) return;
+    submittedDraft.current = null;
     setInput(transcript.trim());
   }, []);
 
@@ -1115,6 +1161,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
       setKeyboardVisible(true);
+      handleContentResize();
       setCommandMenuDismissed(false);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
@@ -1122,7 +1169,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       setCommandMenuDismissed(true);
     });
     return () => { show.remove(); hide.remove(); };
-  }, []);
+  }, [handleContentResize]);
   useEffect(() => {
     if (!isCommandMenuOpen) return;
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -1134,7 +1181,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
   const showCommandPanel = isCommandMenuOpen && (commandSuggestions.length > 0 || activatedPlugins.length === 0);
   // Measure inside keyboard avoidance: IME and tab changes share the composer viewport.
   const commandPanelMaxHeight = Math.max(0, Math.min(availableHeight * 0.65, availableHeight - composerHeight - 48));
-  const changeInput = (text: string) => { setCommandMenuDismissed(false); setInput(text); };
+  const changeInput = (text: string) => { submittedDraft.current = null; setCommandMenuDismissed(false); setInput(text); };
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const grouped = index > 0 && messages[index - 1].type === item.type;
     const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
@@ -1154,8 +1201,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       return (
         <View style={[styles.userBubbleContainer, grouped && styles.groupedMessage]}>
           <View style={styles.userBubble}>
-            <Text style={styles.userText}>{item.pending ? 'Pendente de confirmação · ' : ''}{item.text}</Text>
+            <Text style={styles.userText}>{item.text}</Text>
           </View>
+          {item.pending && (sendError || item.historical) && <TouchableOpacity onPress={() => void retryMessages()} disabled={sending} accessibilityRole="button" style={{ padding: Spacing.sm }}><Text style={{ color: Colors.dangerText }}>Não enviada. Tentar novamente</Text></TouchableOpacity>}
         </View>
       );
     }
@@ -1170,7 +1218,7 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
             </View>
             <View style={styles.quickActionsRow}>
               {fallbackActions.map(({ label, value }) => (
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)} disabled={sending || item.historical}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)} disabled={sending || queue.current.length > 0 || item.historical}>
                   <Text style={styles.quickActionText}>{label}</Text>
                 </TouchableOpacity>
               ))}
@@ -1254,6 +1302,17 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+          removeClippedSubviews={false}
+          onScrollBeginDrag={() => { dragging.current = true; preserveCardReading(); }}
+          onScrollEndDrag={() => { dragging.current = false; }}
+          onMomentumScrollBegin={() => { dragging.current = true; }}
+          onMomentumScrollEnd={() => { dragging.current = false; }}
+          onScroll={event => {
+            const { contentSize, contentOffset, layoutMeasurement } = event.nativeEvent;
+            if (!dragging.current) return;
+            followContentResize.current = contentSize.height - contentOffset.y - layoutMeasurement.height < 72;
+          }}
+          scrollEventThrottle={16}
           onLayout={handleContentResize}
           onContentSizeChange={handleContentResize}
         />
@@ -1322,8 +1381,9 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
 
         <BottomSurface style={styles.inputBar} organicEdge={!showCommandPanel}
           onLayout={event => setComposerHeight(event.nativeEvent.layout.height)}>
-          <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend} loading={sending}
-            voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={setInput} appearance="onboarding" />} />
+          {sendError && <TouchableOpacity onPress={() => void retryMessages()} disabled={sending} accessibilityRole="button" style={{ padding: Spacing.sm }}><Text style={{ color: Colors.dangerText }}>Não foi possível concluir o envio. Tentar novamente</Text></TouchableOpacity>}
+          <MessageComposer value={input} onChangeText={changeInput} onFocus={() => setCommandMenuDismissed(false)} placeholder="Digite aqui..." onSubmit={handleSend}
+            voice={<VoiceInput onCapture={handleVoiceCapture} onPartialResult={changeInput} appearance="onboarding" />} />
         </BottomSurface>
         </View>
       </KeyboardAvoidingView>

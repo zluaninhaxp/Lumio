@@ -1,3 +1,4 @@
+import { ActivityIndicator } from 'react-native';
 import { localISO } from '../../src/services/financialRules';
 import { FeedbackEmptyState } from '../../src/components/empty-state';
 import { ModuleTextStyles } from '../../src/components/module-text-styles';
@@ -463,9 +464,9 @@ export default function VendasScreen() {
                 >
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button" disabled={saveOrderConfirmation.saving}>
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} style={styles.modalConfirm} onPress={saveOrder} accessibilityRole="button" disabled={saveOrderConfirmation.saving}>{saveOrderConfirmation.saving ? <ActivityIndicator color={Colors.onAction} /> : <>
                   <Text style={styles.modalConfirmText}>Salvar</Text>
-                </TouchableOpacity>
+                </>}</TouchableOpacity>
               </View>
             </View>
           </View>

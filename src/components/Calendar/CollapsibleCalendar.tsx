@@ -1,3 +1,4 @@
+import { localISO } from '../../../src/services/financialRules';
 import React, { useCallback, useMemo } from 'react';
 import {
   View,
@@ -26,7 +27,7 @@ interface CollapsibleCalendarProps {
   isSelected: (day: number) => boolean;
   dateString: (day: number) => string;
   events: CalendarEvent[];
-  onSelectDay: (day: number) => void;
+  onSelectDay: (day: number, exactDate?: string) => void;
   onPrevMonth: () => void;
   onNextMonth: () => void;
   onToggleExpand: () => void;
@@ -163,13 +164,13 @@ export function CollapsibleCalendar({
         <View style={styles.weekStrip}>
           {selectedWeekDays.map((wd) => {
             const isSel = wd.dateStr === selectedDate;
-            const isTdy = wd.dateStr === new Date().toISOString().split('T')[0];
+            const isTdy = wd.dateStr === localISO(new Date());
             const dots = getEventDotsForDay(wd.dateStr, events);
             return (
               <TouchableOpacity
                 key={wd.dateStr}
                 style={styles.cell}
-                onPress={() => onSelectDay(wd.day)}
+                onPress={() => onSelectDay(wd.day, wd.dateStr)}
                 activeOpacity={ControlOpacity.pressed}
               >
                 <Text style={styles.weekDayLabel}>{wd.label}</Text>
@@ -251,17 +252,19 @@ const styles = StyleSheet.create({
   dayCircleSelected: {
     backgroundColor: Colors.actionBackground,
     borderRadius: 15,
-    overflow: 'hidden',
+
   },
   dayCircleToday: {
     borderWidth: 1.5,
     borderColor: Colors.accentIcon,
     borderRadius: 15,
-    overflow: 'hidden',
+
   },
   dayText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
+    includeFontPadding: false,
+    textAlign: 'center',
     color: Colors.primary,
   },
   dayTextSelected: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_700Bold' },

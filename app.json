@@ -4,7 +4,7 @@
     "slug": "lumio",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/lumio-app-icon.png",
+    "icon": "./assets/lumio-app-icon-padded.png",
     "splash": {
       "image": "./assets/lumio-splash.png",
       "resizeMode": "contain",
@@ -27,7 +27,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#00A878",
-        "foregroundImage": "./assets/lumio-app-icon.png"
+        "foregroundImage": "./assets/lumio-app-icon-padded.png"
       },
       "predictiveBackGestureEnabled": false,
       "permissions": [

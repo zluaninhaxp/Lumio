@@ -41,9 +41,9 @@ function CalendarDayCellComponent({
         <Text
           style={[
             styles.dayText,
+            dayTextStyle,
             isSelected && styles.dayTextSelected,
             isToday && !isSelected && styles.dayTextToday,
-            dayTextStyle,
           ]}
         >
           {day}
@@ -77,17 +77,19 @@ const styles = StyleSheet.create({
   dayCircleSelected: {
     backgroundColor: Colors.actionBackground,
     borderRadius: 17,
-    overflow: 'hidden',
+
   },
   dayCircleToday: {
     borderWidth: 1.5,
     borderColor: Colors.accentIcon,
     borderRadius: 17,
-    overflow: 'hidden',
+
   },
   dayText: {
     fontFamily: 'PlusJakartaSans_400Regular',
     fontSize: FontSize.sm,
+    includeFontPadding: false,
+    textAlign: 'center',
     color: Colors.primary,
   },
   dayTextSelected: { color: Colors.onAction, fontFamily: 'PlusJakartaSans_700Bold' },
