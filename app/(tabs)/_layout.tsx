@@ -1,7 +1,8 @@
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSurface } from '@/src/components/bottom-surface';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { ChatKeyboardLayout, ChatTabBar } from '@/src/components/chat/chat-keyboard-layout';
+import { Platform, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Spacing, Typography } from '@/src/constants/theme';
 
@@ -19,11 +20,13 @@ export default function TabLayout() {
   const itemHeight = Math.max(56, 34 + 16 * Math.min(fontScale, 2));
 
   return (
-    <Tabs
+    <ChatKeyboardLayout><Tabs
+      tabBar={props => <ChatTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: false,
         sceneStyle: { backgroundColor: Colors.bottomSurface },
-        tabBarHideOnKeyboard: true,
+        // Android Chat's viewport and tabs share the native IME progress.
+        tabBarHideOnKeyboard: Platform.OS !== 'android' || route.name !== 'chat',
         tabBarActiveTintColor: Colors.accentText,
         tabBarInactiveTintColor: Colors.textSecondary,
         tabBarShowLabel: true,
@@ -62,6 +65,6 @@ export default function TabLayout() {
           }}
         />
       ))}
-    </Tabs>
+    </Tabs></ChatKeyboardLayout>
   );
 }

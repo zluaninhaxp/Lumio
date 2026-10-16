@@ -3,7 +3,8 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const ts = require('typescript');
 
-// Run the actual Chat callbacks. Keep the native content boundary separate from
+// Run the retained iOS/legacy Chat callbacks. Android UI worklets are exercised
+// separately in chat-scroll-performance.test.cjs. Keep the boundary separate from
 // VirtualizedList's last-cell estimate: treating them alike hid the regression.
 module.exports = function chatScrollFixture() {
   const source = fs.readFileSync('app/(tabs)/chat.tsx', 'utf8');
@@ -12,7 +13,7 @@ module.exports = function chatScrollFixture() {
   const frames = new Map(); let frameId = 0;
   const metrics = { viewport: 600, content: 2400, offset: 0, calls: 0 };
   const context = {
-    useCallback: fn => fn,
+    useCallback: fn => fn, Platform: { OS: 'ios' }, scrollController: { current: null },
     followContentResize: { current: true }, scrollFrame: { current: null }, dragging: { current: false },
     requestAnimationFrame(fn) { frames.set(++frameId, fn); return frameId; },
     cancelAnimationFrame(id) { frames.delete(id); },

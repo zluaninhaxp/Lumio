@@ -212,7 +212,9 @@ function chatScreen(f) {
   const screen = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === 'ChatScreen');
   const names = ['commitMessages', 'runChatAction', 'drainQueue', 'enqueueText', 'retryMessages', 'handleSend'];
   const declarations = names.map(name => screen.body.statements.find(node => ts.isVariableStatement(node) && node.declarationList.declarations.some(declaration => declaration.name.getText(ast) === name)).getText(ast)).join('\n');
-  let input = 'draft', error = false, awaitingReply = false, processed = [];
+  let input = 'draft', error = false, pendingReplies = [], processed = [];
+  const { trackPendingReply, unansweredReplies } = f.load('src/components/chat/pending-replies.ts');
+  f.store.subscribe(state => { pendingReplies = unansweredReplies(pendingReplies, state.chatHistory); });
   const ref = current => ({ current });
   const context = {
     businessStateService: f.businessStateService, chatHistoryService: f.chat,
@@ -220,7 +222,8 @@ function chatScreen(f) {
     sendingRef: ref(false), pendingPair: ref(null), pendingCompletion: ref(null), chosenMessage: ref(null),
     optimisticUser: ref(null), queue: ref([]), draining: ref(false), submittedDraft: ref(null),
     retryableSendFailure: ref(true), sendRetryDelay: ref(5000),
-    setAwaitingReply(value) { awaitingReply = value; },
+    trackPendingReply,
+    setPendingReplies(update) { pendingReplies = typeof update === 'function' ? update(pendingReplies) : update; },
     setSending() {}, setSendError(value) { error = value; }, setInput(value) { input = value; },
     processLatest: ref(text => { processed.push(text); if (text.startsWith('task:')) f.store.setState({ tasks: [...f.state.tasks, task(text)] }); return { botText: 'Processed ' + text }; }),
     refreshOrcamentos() {}, refreshContratos() {}, scrollToBottom() {},
@@ -230,8 +233,27 @@ function chatScreen(f) {
   vm.createContext(context);
   const code = ts.transpileModule(declarations + '\nglobalThis.handlers = { enqueueText, drainQueue, retryMessages, handleSend };', { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
   vm.runInContext(code, context);
-  return { ...context.handlers, processed, get input() { return input; }, get error() { return error; }, get awaitingReply() { return awaitingReply; }, async settle() { for (let i = 0; i < 60 && context.draining.current; i++) await new Promise(resolve => setTimeout(resolve, 5)); }, context };
+  return { ...context.handlers, processed, get input() { return input; }, get error() { return error; }, get awaitingReply() { return !error && unansweredReplies(pendingReplies, f.state.chatHistory).length > 0; }, async settle() { for (let i = 0; i < 60 && context.draining.current; i++) await new Promise(resolve => setTimeout(resolve, 5)); }, context };
 }
+
+test('a visible Chat response clears typing before persistence cleanup and queue completion finish', async () => {
+  const f = fixture(); await f.start();
+  let releaseCleanup, responseVisible;
+  const cleanup = new Promise(resolve => { releaseCleanup = resolve; });
+  const visible = new Promise(resolve => { responseVisible = resolve; });
+  const acknowledge = f.chat.acknowledge.bind(f.chat);
+  f.chat.acknowledge = async batch => { await acknowledge(batch); responseVisible(); await cleanup; };
+  const screen = chatScreen(f);
+  screen.enqueueText('hello');
+  assert.equal(screen.awaitingReply, true);
+  await visible;
+  assert.equal(screen.context.sendingRef.current, true, 'commit is intentionally still running');
+  assert.equal(screen.context.queue.current.length, 1, 'completed request is still waiting for cleanup');
+  assert.equal(f.state.chatHistory.at(-1).type, 'bot');
+  assert.equal(screen.awaitingReply, false, 'typing is bound to response visibility, not generic busy state');
+  releaseCleanup(); await screen.settle();
+  assert.equal(screen.awaitingReply, false);
+});
 
 test('rapid Chat sends display immediately, clear the composer, persist in order and restore on a second device', async () => {
   const f = fixture(); await f.start(); const screen = chatScreen(f);

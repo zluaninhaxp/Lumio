@@ -4,9 +4,12 @@ import { localISO } from '../../src/services/financialRules';
 import { chatHistoryService } from '../../src/services/chatHistoryService';
 import { businessStateService } from '../../src/services/businessStateService';
 import type { ChatHistoryMessage as Message, ChatAmbiguity, QuickActionValue } from '../../src/types/chat';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo, memo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
+import { ChatMessageList, type ChatScrollController } from '../../src/components/chat/chat-message-list';
+import { trackPendingReply, unansweredReplies, type PendingChatReply } from '../../src/components/chat/pending-replies';
 import {
-  View, Text, StyleSheet, FlatList, Image,
+  View, Text, StyleSheet, FlatList, Image, type LayoutChangeEvent,
   TouchableOpacity, KeyboardAvoidingView, Platform, Keyboard, ScrollView, BackHandler,
 } from 'react-native';
 import Animated, { FadeInDown, Easing, ReduceMotion } from 'react-native-reanimated';
@@ -72,10 +75,10 @@ const INITIAL_MESSAGES: Message[] = [
 export default function ChatScreen() {
   const router = useRouter();
   const history = useAppStore((state) => state.chatHistory);
-  const visibleHistory = history.filter(message => message.type === 'user' || !message.pending);
+  const visibleHistory = useMemo(() => history.filter(message => message.type === 'user' || !message.pending), [history]);
   const messages = visibleHistory.length ? visibleHistory : INITIAL_MESSAGES;
   const [sending, setSending] = useState(false);
-  const [awaitingReply, setAwaitingReply] = useState(false);
+  const [pendingReplies, setPendingReplies] = useState<PendingChatReply[]>([]);
   const sendingRef = useRef(false);
   const optimisticUser = useRef<Message | null>(null);
   const queue = useRef<{ message: Message; journal: Promise<void> }[]>([]);
@@ -95,18 +98,56 @@ export default function ChatScreen() {
   const [pendingCommand, setPendingCommand] = useState<PendingCommand | null>(null);
   const [pendingStockCatalogName, setPendingStockCatalogName] = useState<string | null>(null);
   const flatListRef = useRef<FlatList>(null);
+  const scrollController = useRef<ChatScrollController>(null);
   const followContentResize = useRef(true);
   const scrollFrame = useRef<number | null>(null);
 const { currentUser } = useAuth();
   useEffect(() => {
     pendingPair.current = null; pendingCompletion.current = null; chosenMessage.current = null;
     queue.current = []; optimisticUser.current = null; setSendError(false);
-    setAwaitingReply(false);
+    setPendingReplies([]);
     setInput(''); setPendingCommand(null); setPendingStockCatalogName(null); setPendingFinancialText(null); setPendingIntentMarkerPhrase(null);
   }, [currentUser?.id]);
-  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore();
+  const { addTransaction, addTask, addEvent, calendarizeTask, addPedido, pedidos, addOrcamento, orcamentos, refreshOrcamentos, refreshContratos, contratos, clienteItems, transactions, fornecedorItems, estoqueItems, moveEstoqueItem, employeeItems, updateTask, commissions, closeEmployeeCommission, entregas, atendimentos, addAtendimento, activatedPlugins, taskTags, customTaskTags, keywordMap, calendarEventTypes, updateTaxonomy, addClienteItem, addFornecedorItem, addEmployeeItem, addEstoqueItemFromCatalog, addCatalogItem, catalogItems } = useAppStore(useShallow(state => ({
+    addTransaction: state.addTransaction,
+    addTask: state.addTask,
+    addEvent: state.addEvent,
+    calendarizeTask: state.calendarizeTask,
+    addPedido: state.addPedido,
+    pedidos: state.pedidos,
+    addOrcamento: state.addOrcamento,
+    orcamentos: state.orcamentos,
+    refreshOrcamentos: state.refreshOrcamentos,
+    refreshContratos: state.refreshContratos,
+    contratos: state.contratos,
+    clienteItems: state.clienteItems,
+    transactions: state.transactions,
+    fornecedorItems: state.fornecedorItems,
+    estoqueItems: state.estoqueItems,
+    moveEstoqueItem: state.moveEstoqueItem,
+    employeeItems: state.employeeItems,
+    updateTask: state.updateTask,
+    commissions: state.commissions,
+    closeEmployeeCommission: state.closeEmployeeCommission,
+    entregas: state.entregas,
+    atendimentos: state.atendimentos,
+    addAtendimento: state.addAtendimento,
+    activatedPlugins: state.activatedPlugins,
+    taskTags: state.taskTags,
+    customTaskTags: state.customTaskTags,
+    keywordMap: state.keywordMap,
+    calendarEventTypes: state.calendarEventTypes,
+    updateTaxonomy: state.updateTaxonomy,
+    addClienteItem: state.addClienteItem,
+    addFornecedorItem: state.addFornecedorItem,
+    addEmployeeItem: state.addEmployeeItem,
+    addEstoqueItemFromCatalog: state.addEstoqueItemFromCatalog,
+    addCatalogItem: state.addCatalogItem,
+    catalogItems: state.catalogItems,
+  })));
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
-  const [availableHeight, setAvailableHeight] = useState(0);
+  const [, setAvailableHeight] = useState(0);
+  const availableHeight = useRef(0);
   const [composerHeight, setComposerHeight] = useState(0);
   const [composerTopOverlap, setComposerTopOverlap] = useState(0);
   const headerRef = useRef<View>(null);
@@ -633,6 +674,7 @@ return date.toISOString().split('T')[0];
   }, [runTaskEngine, runCalendarEngine, addTask, addEvent, calendarizeTask, learnTaxonomyTerm, applyTaskEventChoice, persistIntentMarker, taskHookFromText]);
 
   const scrollToBottom = useCallback(() => {
+    if (Platform.OS === 'android') { scrollController.current?.followToEnd(); return; }
     followContentResize.current = true;
     if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
     // Each layout change restarts the frame barrier. Allow the native content
@@ -652,6 +694,7 @@ return date.toISOString().split('T')[0];
     });
   }, []);
   const preserveCardReading = useCallback(() => {
+    scrollController.current?.stopFollowing();
     followContentResize.current = false;
     if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
     scrollFrame.current = null;
@@ -685,6 +728,7 @@ return date.toISOString().split('T')[0];
       timestamp: new Date(),
     };
     pendingPair.current = [userMsg, botMsg];
+    setPendingReplies(replies => trackPendingReply(replies, userMsg.id, botMsg.id));
   }, [refreshOrcamentos, refreshContratos, scrollToBottom]);
 
   const runChatAction = useCallback(async (prepare: () => void, finish?: () => void) => {
@@ -1142,7 +1186,6 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
         const success = await runChatAction(() => commitMessages(job.message.text, processLatest.current(job.message.text)));
         if (!success) break;
         if (queue.current[0] === job) queue.current.shift();
-        setAwaitingReply(queue.current.length > 0);
         optimisticUser.current = null;
         // React can commit updated conversational state before processing the next turn.
         await new Promise<void>(resolve => setTimeout(resolve, 0));
@@ -1150,13 +1193,12 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     } catch { setSendError(true); }
     finally {
       draining.current = false; optimisticUser.current = null;
-      if (scope === businessStateService.scope()) setAwaitingReply(false);
     }
   }, [commitMessages, runChatAction]);
   const enqueueText = useCallback((text: string) => {
     if (!text.trim()) return;
-    setAwaitingReply(true);
     const message: Message = { id: 'user-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), type: 'user', text: text.trim(), timestamp: new Date(), pending: true };
+    setPendingReplies(replies => trackPendingReply(replies, message.id));
     useAppStore.getState().setChatHistory([...useAppStore.getState().chatHistory, message]);
     const journal = chatHistoryService.stage([message]);
     // Keep a rejected journal handled while an earlier turn is still running.
@@ -1200,21 +1242,16 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     setInput(transcript.trim());
   }, []);
 
-  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible());
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => {
-      setKeyboardVisible(true);
-      handleContentResize();
       setCommandMenuDismissed(false);
     });
     const hide = Keyboard.addListener('keyboardDidHide', () => {
-      setKeyboardVisible(false);
       setCommandMenuDismissed(true);
-      handleContentResize();
     });
-    const changeFrame = Keyboard.addListener('keyboardDidChangeFrame', handleContentResize);
-    return () => { show.remove(); hide.remove(); changeFrame.remove(); };
-  }, [handleContentResize]);
+    // Menu lifecycle only; actual list layout/content events own scrolling.
+    return () => { show.remove(); hide.remove(); };
+  }, []);
   useEffect(() => {
     if (!isCommandMenuOpen) return;
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -1224,105 +1261,38 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     return () => back.remove();
   }, [isCommandMenuOpen]);
   const showCommandPanel = isCommandMenuOpen && (commandSuggestions.length > 0 || activatedPlugins.length === 0);
-  useEffect(() => {
-    handleContentResize();
-  }, [composerHeight, composerTopOverlap, showCommandPanel, handleContentResize]);
   // Measure inside keyboard avoidance: IME and tab changes share the composer viewport.
-  const commandPanelMaxHeight = Math.max(0, Math.min(availableHeight * 0.65, availableHeight - composerHeight - 48));
+  const commandPanelMaxHeight = Math.max(0, Math.min(availableHeight.current * 0.65, availableHeight.current - composerHeight - 48));
   const changeInput = (text: string) => { submittedDraft.current = null; setCommandMenuDismissed(false); setInput(text); };
-  const renderMessage = ({ item, index }: { item: Message; index: number }) => {
-    const grouped = index > 0 && messages[index - 1].type === item.type;
-    const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
-
-    const renderBotAvatar = (expression: 'neutro' | 'confuso' | 'piscando') => (
-      <Image source={expression === 'confuso' ? ONBOARDING_MASCOTS.confused : expression === 'piscando' ? ONBOARDING_MASCOTS.happy : ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
-    );
-
-    const fallbackActions: { label: string; value: QuickActionValue; icon: keyof typeof Ionicons.glyphMap }[] = [
-      { label: 'Anotar um gasto', value: 'register_expense', icon: 'arrow-down-circle-outline' },
-      { label: 'Anotar uma entrada', value: 'register_income', icon: 'arrow-up-circle-outline' },
-      { label: 'Lembrar de algo', value: 'add_task', icon: 'checkmark-circle-outline' },
-      { label: 'Me explicar melhor', value: 'other', icon: 'chatbubble-ellipses-outline' },
-    ];
-
-    if (item.type === 'user') {
-      return (
-        <View style={[styles.userBubbleContainer, grouped && styles.groupedMessage]}>
-          <View style={styles.userBubble}>
-            <Text style={styles.userText}>{item.text}</Text>
-          </View>
-        </View>
-      );
-    }
-
-    if (item.type === 'fallback') {
-      return (
-        <View style={[styles.botRow, grouped && styles.groupedMessage]}>
-          {renderBotAvatar('confuso')}
-          <View style={styles.botContent}>
-            <View style={styles.botBubble}>
-              <Text style={styles.botText}>{item.text || 'Não peguei isso direito 😅 O que você quer fazer?'}</Text>
-            </View>
-            <View style={styles.quickActionsRow}>
-              {fallbackActions.map(({ label, value }) => (
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)} disabled={sending || queue.current.length > 0 || item.historical}>
-                  <Text style={styles.quickActionText}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      );
-    }
-
-    const hasCards = item.cards && item.cards.length > 0;
-
-    return (
-      <View style={[styles.botRow, grouped && styles.groupedMessage]}>
-        {renderBotAvatar(hasCards ? 'piscando' : isTransactionReport ? 'piscando' : 'neutro')}
-        <View style={styles.botContent}>
-          {hasCards ? (
-            <View style={styles.cardsContainer}>
-              {item.cards!.map((card, idx) => (
-                <BotMessageCard key={idx} card={card} onExpansionChange={preserveCardReading} />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.botBubble}>
-              <Text style={styles.botText}>{item.pending ? 'Pendente de confirmação · ' : ''}{item.text}</Text>
-            </View>
-          )}
-          {item.quickActions && item.quickActions.length > 0 && (
-            <View style={styles.quickActionsRow}>
-              {item.quickActions.map((action) => (
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
-                  ? handleGenericQuickAction(item, action.value)
-                  : item.ambiguity?.type === 'task_or_event'
-                    ? handleTaskEventChoice(item, action.value as 'task' | 'event')
-                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])} disabled={sending || item.historical}>
-                  <Text style={styles.quickActionText}>{action.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          {item.actions && item.actions.length > 0 && (
-            <View style={styles.actionsRow}>
-              {item.actions.map((action) => (
-                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action} style={styles.actionBtn}>
-                  <Text style={styles.actionText}>{action}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-        </View>
-      </View>
-    );
-  };
+  const hasQueuedMessages = queue.current.length > 0;
+  const onLastMessageLayout = useCallback((event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    scrollController.current?.contentDidLayout(width, height);
+  }, []);
+  const renderMessage = useCallback(({ item, index }: { item: Message; index: number }) => (
+    <ChatMessageRow item={item} grouped={index > 0 && messages[index - 1].type === item.type}
+      sending={sending} hasQueuedMessages={hasQueuedMessages}
+      handleGenericQuickAction={handleGenericQuickAction} handleTaskEventChoice={handleTaskEventChoice}
+      onLayout={index === messages.length - 1 ? onLastMessageLayout : undefined}
+      handleFinancialChoice={handleFinancialChoice} preserveCardReading={preserveCardReading} />
+  ), [messages, sending, hasQueuedMessages, handleGenericQuickAction, handleTaskEventChoice, handleFinancialChoice, preserveCardReading, onLastMessageLayout]);
+  const messageContentStyle = useMemo(() => [styles.messagesList, { paddingBottom: composerTopOverlap + Spacing.md }], [composerTopOverlap]);
+  const messageKey = useCallback((item: Message) => item.id, []);
+  const unresolvedReplies = useMemo(() => unansweredReplies(pendingReplies, history), [pendingReplies, history]);
+  useEffect(() => {
+    if (unresolvedReplies !== pendingReplies) setPendingReplies(replies => unansweredReplies(replies, history));
+  }, [unresolvedReplies, pendingReplies, history]);
+  const hasPendingReply = unresolvedReplies.length > 0;
+  const typingFooter = useMemo(() => !sendError && hasPendingReply ? <View style={styles.botRow}>
+    <Image source={ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
+    <View style={[styles.botBubble, styles.typingBubble]}><TypingIndicator /></View>
+  </View> : null, [sendError, hasPendingReply]);
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       {/* Header */}
       <View ref={headerRef} style={styles.header} onLayout={() => {
+        if (Platform.OS !== 'ios') return;
         headerRef.current?.measureInWindow((_x, y, _width, height) => setKeyboardVerticalOffset(y + height));
       }}>
         <View style={styles.headerLeft}>
@@ -1334,24 +1304,25 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
       {/* Messages */}
       <KeyboardAvoidingView
         style={styles.flex}
-        // Same strategy as onboarding: padding while Android's keyboard is
-        // visible, never retain a fixed height across tab-bar layout changes.
-        enabled={Platform.OS === 'ios' || (Platform.OS === 'android' && keyboardVisible)}
+        // Android's navigator viewport already follows the native IME through
+        // keyboard-controller. Never compensate again inside the Chat scene.
+        enabled={Platform.OS === 'ios'}
         behavior="padding"
         keyboardVerticalOffset={keyboardVerticalOffset}
       >
-        <View style={styles.flex} onLayout={event => setAvailableHeight(event.nativeEvent.layout.height)}>
-        <FlatList
+        <View style={styles.flex} onLayout={event => {
+          availableHeight.current = event.nativeEvent.layout.height;
+          if (isCommandMenuOpen) setAvailableHeight(availableHeight.current);
+        }}>
+        <ChatMessageList
+          controllerRef={scrollController}
           style={styles.readingArea}
           ref={flatListRef}
           data={messages}
-          keyExtractor={(item) => item.id}
+          keyExtractor={messageKey}
           renderItem={renderMessage}
-          ListFooterComponent={!sendError && (awaitingReply || sending) ? <View style={styles.botRow}>
-            <Image source={ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
-            <View style={[styles.botBubble, styles.typingBubble]}><TypingIndicator /></View>
-          </View> : null}
-          contentContainerStyle={[styles.messagesList, { paddingBottom: composerTopOverlap + Spacing.md }]}
+          ListFooterComponent={typingFooter}
+          contentContainerStyle={messageContentStyle}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -1446,6 +1417,107 @@ else { updateTask(task.id, { employeeId: matches[0].id }); botText = `✓ Tarefa
     </SafeAreaView>
   );
 }
+
+type ChatMessageRowProps = {
+  item: Message; grouped: boolean; sending: boolean; hasQueuedMessages: boolean;
+  handleGenericQuickAction: (message: Message, value: QuickActionValue) => void;
+  handleTaskEventChoice: (message: Message, value: 'task' | 'event') => void;
+  handleFinancialChoice: (message: Message, value: FinancialDirectionAmbiguity['options'][number]['value']) => void;
+  preserveCardReading: () => void;
+  onLayout?: (event: LayoutChangeEvent) => void;
+};
+
+// Stable historical rows do not rebuild text, cards and SVGs on every draft,
+// layout notification or appended message. Action state remains explicit.
+const ChatMessageRow = memo(function ChatMessageRow({ item, grouped, sending, hasQueuedMessages,
+  handleGenericQuickAction, handleTaskEventChoice, handleFinancialChoice, preserveCardReading, onLayout }: ChatMessageRowProps) {
+    const isTransactionReport = item.actions?.some((a) => a === 'Editar' || a === 'Excluir');
+
+    const renderBotAvatar = (expression: 'neutro' | 'confuso' | 'piscando') => (
+      <Image source={expression === 'confuso' ? ONBOARDING_MASCOTS.confused : expression === 'piscando' ? ONBOARDING_MASCOTS.happy : ONBOARDING_MASCOTS.smiling} style={styles.botAvatarImage} resizeMode="contain" accessible={false} />
+    );
+
+    const fallbackActions: { label: string; value: QuickActionValue; icon: keyof typeof Ionicons.glyphMap }[] = [
+      { label: 'Anotar um gasto', value: 'register_expense', icon: 'arrow-down-circle-outline' },
+      { label: 'Anotar uma entrada', value: 'register_income', icon: 'arrow-up-circle-outline' },
+      { label: 'Lembrar de algo', value: 'add_task', icon: 'checkmark-circle-outline' },
+      { label: 'Me explicar melhor', value: 'other', icon: 'chatbubble-ellipses-outline' },
+    ];
+
+    if (item.type === 'user') {
+      return (
+        <View style={[styles.userBubbleContainer, grouped && styles.groupedMessage]} onLayout={onLayout}>
+          <View style={styles.userBubble}>
+            <Text style={styles.userText}>{item.text}</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (item.type === 'fallback') {
+      return (
+        <View style={[styles.botRow, grouped && styles.groupedMessage]} onLayout={onLayout}>
+          {renderBotAvatar('confuso')}
+          <View style={styles.botContent}>
+            <View style={styles.botBubble}>
+              <Text style={styles.botText}>{item.text || 'Não peguei isso direito 😅 O que você quer fazer?'}</Text>
+            </View>
+            <View style={styles.quickActionsRow}>
+              {fallbackActions.map(({ label, value }) => (
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={value} style={styles.quickActionBtn} onPress={() => handleGenericQuickAction(item, value)} disabled={sending || hasQueuedMessages || item.historical}>
+                  <Text style={styles.quickActionText}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    const hasCards = item.cards && item.cards.length > 0;
+
+    return (
+      <View style={[styles.botRow, grouped && styles.groupedMessage]} onLayout={onLayout}>
+        {renderBotAvatar(hasCards ? 'piscando' : isTransactionReport ? 'piscando' : 'neutro')}
+        <View style={styles.botContent}>
+          {hasCards ? (
+            <View style={styles.cardsContainer}>
+              {item.cards!.map((card, idx) => (
+                <BotMessageCard key={idx} card={card} onExpansionChange={preserveCardReading} />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.botBubble}>
+              <Text style={styles.botText}>{item.pending ? 'Pendente de confirmação · ' : ''}{item.text}</Text>
+            </View>
+          )}
+          {item.quickActions && item.quickActions.length > 0 && (
+            <View style={styles.quickActionsRow}>
+              {item.quickActions.map((action) => (
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action.value} style={styles.quickActionBtn} onPress={() => action.value.startsWith('command_')
+                  ? handleGenericQuickAction(item, action.value)
+                  : item.ambiguity?.type === 'task_or_event'
+                    ? handleTaskEventChoice(item, action.value as 'task' | 'event')
+                    : handleFinancialChoice(item, action.value as FinancialDirectionAmbiguity['options'][number]['value'])} disabled={sending || item.historical}>
+                  <Text style={styles.quickActionText}>{action.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+          {item.actions && item.actions.length > 0 && (
+            <View style={styles.actionsRow}>
+              {item.actions.map((action) => (
+                <TouchableOpacity activeOpacity={ControlOpacity.pressed} key={action} style={styles.actionBtn}>
+                  <Text style={styles.actionText}>{action}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
+    );
+
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.chatBackground },

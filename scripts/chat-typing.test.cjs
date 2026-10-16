@@ -69,12 +69,17 @@ test('typing footer is transient, disappears on failure/confirmation, and leaves
     ts.forEachChild(node, walk);
   }
   walk(ast); assert.ok(footer && composer);
+  if (ts.isIdentifier(footer)) {
+    const screen = ast.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'ChatScreen');
+    const declaration = screen.body.statements.find(n => ts.isVariableStatement(n) && n.declarationList.declarations.some(d => d.name.getText(ast) === footer.text));
+    footer = declaration.declarationList.declarations[0].initializer.arguments[0].body;
+  }
   assert.ok(ts.isConditionalExpression(footer));
-  const visible = vm.runInNewContext('(sendError, awaitingReply, sending) => ' + footer.condition.getText(ast));
-  assert.equal(visible(false, true, false), true, 'immediate queued send');
-  assert.equal(visible(false, false, true), true, 'in-flight response');
-  assert.equal(visible(false, false, false), false, 'confirmed and complete');
-  assert.equal(visible(true, true, true), false, 'no endless typing on failed persistence');
+  const visible = vm.runInNewContext('(sendError, hasPendingReply) => ' + footer.condition.getText(ast));
+  assert.equal(visible(false, true), true, 'immediate queued send');
+  assert.equal(visible(false, true), true, 'local unresolved response');
+  assert.equal(visible(false, false), false, 'confirmed and complete');
+  assert.equal(visible(true, true), false, 'no endless typing on failed persistence');
   assert.ok(footer.whenTrue.getText(ast).includes('<TypingIndicator />'));
   assert.ok(!composer.attributes.properties.some(node => ['disabled', 'loading'].includes(node.name?.getText(ast))));
 });

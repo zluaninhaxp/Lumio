@@ -114,7 +114,7 @@ test('late wrapping suggestions and long card layouts invalidate pending scroll 
   assert.equal(f.metrics.offset, 0, 'short content cannot create an overscroll gap');
 });
 
-test('actual keyboard handlers follow the final resized viewport on show/hide/frame changes, but preserve history', () => {
+test('keyboard events only manage the menu; actual viewport changes own scroll and preserve history', () => {
   const effect = screen.body.statements.find(n => ts.isExpressionStatement(n) && ts.isCallExpression(n.expression) && n.expression.expression.getText(ast) === 'useEffect' && n.expression.arguments[0].getText(ast).includes("'keyboardDidShow'"));
   const callbacks = new Map();
   const f = scrollFixture();
@@ -123,9 +123,10 @@ test('actual keyboard handlers follow the final resized viewport on show/hide/fr
     setKeyboardVisible() {}, setCommandMenuDismissed() {},
   });
   callbacks.get('keyboardDidShow')(); f.paintFrame();
+  assert.equal(f.metrics.calls, 0, 'keyboard event must not schedule a competing scroll');
+  assert.equal(callbacks.has('keyboardDidChangeFrame'), false);
   f.metrics.viewport = 280; f.handleContentResize(); f.paint();
   assert.equal(f.metrics.offset, 2120);
-  callbacks.get('keyboardDidChangeFrame')();
   f.metrics.viewport = 320; f.handleContentResize(); f.paint();
   assert.equal(f.metrics.offset, 2080);
   callbacks.get('keyboardDidHide')(); f.paintFrame();
@@ -135,6 +136,42 @@ test('actual keyboard handlers follow the final resized viewport on show/hide/fr
   callbacks.get('keyboardDidShow')(); f.metrics.viewport = 280; f.handleContentResize(); f.paint();
   assert.equal(f.metrics.offset, 500);
   cleanup(); assert.equal(callbacks.size, 0);
+});
+
+test('Android uses native resize without a second keyboard avoidance or delayed tab restoration', () => {
+  const config = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+  assert.equal(config.expo.android.softwareKeyboardLayoutMode, 'resize');
+  assert.match(source, /enabled=\{Platform.OS === 'ios'\}/);
+  assert.doesNotMatch(source, /setKeyboardVisible|keyboardDidChangeFrame/);
+  const tabs = fs.readFileSync('app/(tabs)/_layout.tsx', 'utf8');
+  assert.match(tabs, /tabBarHideOnKeyboard: Platform.OS !== 'android' \|\| route.name !== 'chat'/);
+  const viewport = fs.readFileSync('src/components/chat/chat-keyboard-layout.tsx', 'utf8');
+  assert.match(viewport, /useReanimatedKeyboardAnimation/);
+  assert.match(viewport, /height: height \* visible/);
+  assert.match(viewport, /setEnabled\(active\)/);
+  assert.doesNotMatch(viewport, /withTiming|setTimeout|Keyboard.addListener/);
+});
+
+test('Chat tab height follows each native IME frame and releases all navigation inset while open', () => {
+  const file = fs.readFileSync('src/components/chat/chat-keyboard-layout.tsx', 'utf8');
+  const tree = ts.createSourceFile('layout.tsx', file, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const fn = tree.statements.find(n => ts.isFunctionDeclaration(n) && n.name?.text === 'AndroidChatTabBar');
+  for (const height of [56, 72, 104]) for (const progress of [0, 0.25, 0.5, 0.75, 1, 0.5, 0]) {
+    const module = { exports: {} };
+    const context = {
+      module, exports: module.exports,
+      require: () => ({ jsx: (type, props) => ({ type, props }) }),
+      useReanimatedKeyboardAnimation: () => ({ progress: { value: progress } }),
+      useAnimatedStyle: fn => fn(), Animated: { View: 'Animated.View' }, View: 'View', BottomTabBar: 'BottomTabBar',
+    };
+    vm.runInNewContext(compile(fn.getText(tree) + '\nglobalThis.render = AndroidChatTabBar;'), context);
+    const props = { state: { index: 0, routes: [{ name: 'chat', key: 'chat' }] }, descriptors: { chat: { options: { tabBarStyle: { height } } } } };
+    const result = context.render(props);
+    assert.equal(result.props.style.height, height * (1 - progress));
+    assert.equal(result.props.children.props.style.height, height, 'inner native tabs keep their resting geometry');
+    props.state.routes[0].name = 'tarefas';
+    assert.equal(Object.keys(context.render(props).props.style).length, 0, 'other screens retain navigator keyboard behavior');
+  }
 });
 
 test('reader drag interrupts a pending native scroll; rapid own sends resume once layout settles', () => {
